@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DentiAgenda V17 · Firebase</title>
+    <style>
+        :root { 
+            --primary: #124578; --accent: #46c3b6; --bg-color: #e0e5ec; 
+            --text-main: #2d3748; --text-muted: #718096; 
+            --shadow-light: #ffffff; --shadow-dark: #a3b1c6;
+            --status-gray: #a0aec0; --status-yellow: #ecc94b; --status-green: #48bb78; --status-red: #f56565;
+        }
+        * { box-sizing: border-box; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+        body { margin: 0; background-color: var(--bg-color); color: var(--text-main); padding-bottom: 2rem; }
+        
+        .card-3d { background: var(--bg-color); border-radius: 15px; box-shadow: 7px 7px 14px var(--shadow-dark), -7px -7px 14px var(--shadow-light); border: none; }
+        .btn-3d { background: var(--bg-color); color: var(--primary); border: none; border-radius: 12px; cursor: pointer; font-weight: bold; box-shadow: 5px 5px 10px var(--shadow-dark), -5px -5px 10px var(--shadow-light); transition: all 0.2s ease; padding: 0.8rem 1rem; }
+        .btn-3d:active { box-shadow: inset 3px 3px 6px var(--shadow-dark), inset -3px -3px 6px var(--shadow-light); color: var(--accent); }
+        .inset-3d { background: var(--bg-color); border-radius: 10px; box-shadow: inset 4px 4px 8px var(--shadow-dark), inset -4px -4px 8px var(--shadow-light); border: none; outline: none; padding: 1rem; color: var(--text-main); font-size: 1rem; width: 100%;}
+
+        header { padding: 1.5rem 1.5rem 0.5rem 1.5rem; text-align: center; position: relative; display: flex; justify-content: center; align-items: center;}
+        .logo-container img { max-width: 220px; height: auto; }
+        .header-actions { position: absolute; right: 1.5rem; display: flex; gap: 10px; }
+        .btn-text-icon { display: flex; align-items: center; justify-content: center; font-size: 0.85rem; padding: 0.5rem 0.8rem; }
+        
+        .search-bar-container { padding: 0 1.5rem 1.5rem 1.5rem; max-width: 600px; margin: 0 auto; }
+        .search-results { background: var(--primary); color: white; border-radius: 10px; margin-top: 10px; padding: 10px; display: none; box-shadow: 5px 5px 10px var(--shadow-dark), -5px -5px 10px var(--shadow-light); }
+        
+        .floating-assistant { position: fixed; bottom: 20px; right: 20px; width: 65px; height: 65px; border-radius: 50%; cursor: pointer; z-index: 999; box-shadow: 5px 5px 15px var(--shadow-dark), -5px -5px 15px var(--shadow-light); border: 3px solid var(--accent); transition: transform 0.3s; background: var(--bg-color); display:flex; justify-content:center; align-items:center; font-weight:bold; color:var(--primary); font-size:0.8rem; }
+        .floating-assistant:hover { transform: scale(1.05); }
+        .floating-assistant img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+
+        .sync-badge { position: fixed; bottom: 20px; left: 20px; z-index: 999; background: var(--bg-color); border-radius: 20px; padding: 8px 14px; font-size: 0.75rem; font-weight: bold; box-shadow: 3px 3px 8px var(--shadow-dark), -3px -3px 8px var(--shadow-light); display: flex; align-items: center; gap: 6px; }
+        .sync-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--status-gray); }
+        .sync-dot.on { background: var(--status-green); }
+        .sync-dot.err { background: var(--status-red); }
+
+        .container { max-width: 600px; margin: 0 auto; padding: 0 1rem; }
+        
+        .calendar-header { display: flex; justify-content: space-between; align-items: center; padding: 1rem; margin-bottom: 1.5rem; }
+        .calendar-header button { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; padding:0; }
+        .weekdays, .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 12px; text-align: center; }
+        .weekdays { font-size: 0.8rem; color: var(--text-muted); font-weight: bold; }
+        .day { aspect-ratio: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 12px; font-weight: bold; color: var(--primary); position: relative; padding-bottom: 15px; }
+        .day.empty { background: transparent; box-shadow: none; cursor: default; }
+        
+        .badges-container { position: absolute; bottom: 4px; display: flex; gap: 4px; width: 100%; justify-content: center; pointer-events: none; }
+        .badge-m, .badge-v { font-size: 0.65rem; padding: 2px 5px; border-radius: 6px; font-weight: bold; color: var(--text-main); }
+        .badge-m { background-color: var(--status-yellow); } 
+        .badge-v { background-color: var(--accent); color: white; } 
+
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(224, 229, 236, 0.8); align-items: center; justify-content: center; z-index: 1000; backdrop-filter: blur(5px); padding: 1rem;}
+        .modal { width: 100%; max-width: 500px; padding: 2rem; max-height: 90vh; overflow-y: auto; background: var(--bg-color); border-radius: 20px; box-shadow: 10px 10px 20px var(--shadow-dark), -10px -10px 20px var(--shadow-light); }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
+        .close-btn { width: 40px; height: 40px; border-radius: 50%; color: #e53e3e; display: flex; align-items: center; justify-content: center; background: var(--bg-color); box-shadow: 3px 3px 6px var(--shadow-dark), -3px -3px 6px var(--shadow-light); border: none; font-weight:bold; padding:0; cursor:pointer;}
+        .close-btn:active { box-shadow: inset 3px 3px 6px var(--shadow-dark), inset -3px -3px 6px var(--shadow-light); }
+        
+        .form-group { margin-bottom: 1.2rem; }
+        .form-group label { display: block; font-size: 0.85rem; font-weight: bold; margin-bottom: 0.6rem; color: var(--primary); }
+        textarea.inset-3d { resize: none; }
+        .time-row { display: flex; gap: 1rem; }
+        .btn-submit { width: 100%; padding: 1.2rem; font-size: 1rem; border-radius: 15px; margin-top: 1rem; color: var(--primary); }
+        
+        .appointment-item { padding: 1rem; border-radius: 12px; margin-bottom: 1rem; font-size: 0.9rem; cursor: pointer; position: relative; background-color: var(--primary); color: white; box-shadow: 5px 5px 10px var(--shadow-dark), -5px -5px 10px var(--shadow-light); transition: all 0.2s ease; }
+        .appointment-item:active { box-shadow: inset 3px 3px 6px rgba(0,0,0,0.5), inset -3px -3px 6px rgba(255,255,255,0.1); }
+        .appointment-header { display: flex; align-items: center; gap: 10px; margin-bottom: 5px; }
+        .appointment-item strong { color: white !important; }
+
+        .status-dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+        .status-gray { background-color: var(--status-gray); border: 1px solid white;}
+        .status-yellow { background-color: var(--status-yellow); border: 1px solid white;}
+        .status-green { background-color: var(--status-green); border: 1px solid white;}
+        .status-red { background-color: var(--status-red); border: 1px solid white;}
+        .status-btn { padding: 0.8rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 10px; width: 100%; justify-content: center;}
+
+        .phone-input-group { display: flex; align-items: center; gap: 10px; }
+        .phone-prefix { font-size: 1.1rem; font-weight: bold; color: var(--text-muted); }
+        .detalle-azul { background-color: var(--primary); color: white; padding: 15px; border-radius: 12px; box-shadow: 5px 5px 10px var(--shadow-dark), -5px -5px 10px var(--shadow-light); margin-bottom: 1.5rem; }
+        .contact-item { display: flex; justify-content: space-between; align-items: center; padding: 1rem; border-bottom: 1px solid var(--shadow-dark); cursor: pointer; }
+        .contact-item:last-child { border-bottom: none; }
+        .contact-item:hover { background-color: rgba(255,255,255,0.5); border-radius: 8px; }
+        .grid-turnos { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; padding: 10px; background: rgba(255,255,255,0.3); border-radius: 10px; }
+
+        .codigo-box { background: var(--accent); color: white; padding: 12px 15px; border-radius: 12px; margin: 10px 0; text-align: center; box-shadow: inset 2px 2px 5px rgba(0,0,0,0.15); }
+        .codigo-box .label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.9; }
+        .codigo-box .code { font-size: 1.6rem; font-weight: bold; letter-spacing: 0.15em; }
+
+        .chat-box { background: rgba(255,255,255,0.4); border-radius: 10px; height: 250px; padding: 10px; overflow-y: auto; margin-bottom: 15px; box-shadow: inset 4px 4px 8px var(--shadow-dark), inset -4px -4px 8px var(--shadow-light); display: flex; flex-direction: column; gap: 10px;}
+        .chat-msg { padding: 10px; border-radius: 10px; max-width: 85%; font-size: 0.9rem; line-height: 1.4;}
+        .chat-ia { background: var(--primary); color: white; align-self: flex-start; border-bottom-left-radius: 0;}
+        .chat-user { background: var(--bg-color); color: var(--primary); font-weight: bold; align-self: flex-end; border-bottom-right-radius: 0; box-shadow: 2px 2px 5px rgba(0,0,0,0.1); border: 1px solid var(--shadow-dark);}
+        .chip-container { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; margin-top: 10px; }
+        .chip { background: var(--bg-color); color: var(--accent); padding: 5px 10px; font-size: 0.8rem; border-radius: 15px; cursor: pointer; border: 1px solid var(--accent); box-shadow: 2px 2px 4px var(--shadow-dark); }
+        .chip:hover { background: var(--accent); color: white; }
+    </style>
+</head>
+<body>
+
+    <!-- ===== PANTALLA DE BLOQUEO (PIN) ===== -->
+    <div id="lockScreen" style="position:fixed; inset:0; z-index:5000; background:var(--bg-color); display:flex; flex-direction:column; align-items:center; justify-content:center; padding:2rem;">
+        <div style="font-size:3rem; margin-bottom:1rem;">🔒</div>
+        <h2 style="color:var(--primary); margin:0 0 0.5rem 0;">DentiAgenda</h2>
+        <p style="color:var(--text-muted); margin:0 0 1.5rem 0; text-align:center; font-size:0.9rem;">Introduce tu clave de acceso</p>
+        <input type="password" id="pinInput" class="inset-3d" style="max-width:280px; text-align:center; font-size:1.3rem; letter-spacing:0.2em; margin-bottom:1rem;" placeholder="••••" onkeypress="if(event.key==='Enter') validarPin()" autocomplete="off">
+        <button class="btn-3d" style="max-width:280px; width:100%; padding:1rem;" onclick="validarPin()">Entrar</button>
+        <p id="pinError" style="color:#e53e3e; font-size:0.85rem; margin-top:1rem; height:1rem; visibility:hidden;">Clave incorrecta</p>
+    </div>
+
+    <header>
+        <div class="logo-container">
+            <img src="SIN FONDO DENTILIKE.png" alt="DENTILIKE" onerror="this.alt='DENTILIKE'; this.style.display='none';">
+        </div>
+        <div class="header-actions">
+            <button class="btn-3d btn-text-icon" onclick="abrirDirectorio()">Directorio</button>
+            <button class="btn-3d btn-text-icon" onclick="openConfig()">Ajustes</button>
+        </div>
+    </header>
+
+    <div class="search-bar-container">
+        <input type="text" id="globalSearch" class="inset-3d" style="width: 100%; border-radius: 20px;" placeholder="Buscar paciente o cita..." onkeyup="ejecutarBusquedaRapida()">
+        <div id="searchResults" class="search-results"></div>
+    </div>
+
+    <div class="sync-badge" id="syncBadge"><span class="sync-dot" id="syncDot"></span><span id="syncText">Conectando…</span></div>
+
+    <div class="floating-assistant" onclick="abrirChatBot()">
+        <img src="avatar.png.png" alt="IA" onerror="this.style.display='none'; this.parentNode.innerText='IA';">
+    </div>
+
+    <div class="container">
+        <div class="calendar-header">
+            <button class="btn-3d" onclick="changeMonth(-1)">&lt;</button>
+            <div id="monthDisplay" style="font-weight: bold; font-size: 1.2rem; color: var(--primary);"></div>
+            <button class="btn-3d" onclick="changeMonth(1)">&gt;</button>
+        </div>
+        
+        <div class="weekdays"><div>DOM</div><div>LUN</div><div>MAR</div><div>MIÉ</div><div>JUE</div><div>VIE</div><div>SÁB</div></div>
+        <div id="calendarGrid" class="calendar-grid"></div>
+    </div>
+
+    <!-- Modal Día y Formulario -->
+    <div class="modal-overlay" id="dayModalOverlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 id="modalDateTitle" style="margin: 0; color: var(--primary);">Citas</h2>
+                <button class="close-btn" onclick="closeModal('dayModalOverlay')">X</button>
+            </div>
+            
+            <div id="appointmentList" style="margin-bottom: 1.5rem;"></div>
+            
+            <button id="btnAbrirFormulario" class="btn-3d btn-submit" onclick="toggleFormulario(true)" style="margin-bottom: 1rem; border: 2px dashed var(--primary); background: transparent;">+ Anadir Nueva Cita</button>
+            
+            <div id="formularioContainer" style="display: none; padding-top: 1rem; border-top: 1px solid var(--shadow-dark);">
+                <h3 id="formTitle" style="font-size: 1.1rem; color: var(--accent); margin-top:0;">Nueva Cita</h3>
+                <div class="form-group">
+                    <label>Paciente</label>
+                    <input type="text" id="paciente" class="inset-3d" list="pacientesGuardados" onchange="autoFillPhone()">
+                    <datalist id="pacientesGuardados"></datalist>
+                </div>
+                <div class="form-group">
+                    <label>Telefono (WhatsApp)</label>
+                    <div class="phone-input-group">
+                        <span class="phone-prefix" title="Mexico">MEX +52</span>
+                        <input type="tel" id="telefono" class="inset-3d" placeholder="Ej. 444 123 4567">
+                    </div>
+                </div>
+                <div class="time-row">
+                    <div class="form-group" style="flex: 1;"><label>Inicio</label><input type="time" id="horaInicio" class="inset-3d" onchange="calcularHoraFin()"></div>
+                    <div class="form-group" style="flex: 1;"><label>Duracion</label>
+                        <select id="duracion" class="inset-3d" onchange="calcularHoraFin()">
+                            <option value="30">30 min</option><option value="60">1 hr</option>
+                            <option value="90">1.5 hrs</option><option value="120">2 hrs</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex: 1;"><label>Fin</label><input type="time" id="horaFin" class="inset-3d"></div>
+                </div>
+                <div class="form-group"><label>Motivo</label><input type="text" id="motivo" class="inset-3d" list="motivosGuardados"><datalist id="motivosGuardados"></datalist></div>
+                <div class="form-group"><label>Notas Adicionales (Opcional)</label><textarea id="notas" class="inset-3d" rows="2"></textarea></div>
+                
+                <button class="btn-3d btn-submit" onclick="guardarCita()" style="background: var(--primary); color: white;">Guardar Cita</button>
+                <button class="btn-3d btn-submit" onclick="toggleFormulario(false)" style="margin-top: 10px; color: var(--text-muted);">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Opciones de Cita -->
+    <div class="modal-overlay" id="opcionesCitaModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 style="margin: 0; color: var(--primary);">Opciones</h2>
+                <button class="close-btn" onclick="closeModal('opcionesCitaModal')">X</button>
+            </div>
+            
+            <div id="detalleCitaData" class="detalle-azul"></div>
+            
+            <button class="btn-3d status-btn" style="color: var(--primary);" onclick="prepararEdicion()">Editar Cita</button>
+            <button class="btn-3d status-btn" style="color: #25D366;" onclick="enviarWhatsAppConfirmacion()">Confirmar por WhatsApp</button>
+            <button class="btn-3d status-btn" style="color: var(--text-main);" onclick="generarIcsManualmente()">Descargar archivo .ICS</button>
+            
+            <h4 style="color: var(--primary); margin: 20px 0 10px 0;">Estado</h4>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <button class="btn-3d status-btn" onclick="cambiarEstadoCita('status-green')"><span class="status-dot status-green"></span> Confirmada</button>
+                <button class="btn-3d status-btn" onclick="cambiarEstadoCita('status-yellow')"><span class="status-dot status-yellow"></span> Pendiente</button>
+                <button class="btn-3d status-btn" onclick="cambiarEstadoCita('status-red')"><span class="status-dot status-red"></span> Cancelada</button>
+                <button class="btn-3d status-btn" onclick="cambiarEstadoCita('status-gray')"><span class="status-dot status-gray"></span> N/A</button>
+            </div>
+            <button class="btn-3d status-btn" style="margin-top: 20px; color: #e53e3e;" onclick="eliminarCita()">Borrar Cita</button>
+        </div>
+    </div>
+
+    <!-- Modal Directorio -->
+    <div class="modal-overlay" id="directorioModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 style="margin: 0; color: var(--primary);">Pacientes</h2>
+                <button class="close-btn" onclick="closeModal('directorioModal')">X</button>
+            </div>
+            
+            <div id="listaContactos" style="max-height: 400px; overflow-y: auto; margin-bottom: 1rem;"></div>
+            
+            <div id="editorContacto" style="display:none; padding-top:1rem; border-top:1px solid var(--shadow-dark);">
+                <h4 style="color: var(--accent); margin-top:0;">Editar Expediente</h4>
+                <div class="form-group"><label>Nombre</label><input type="text" id="editDirNombre" class="inset-3d" readonly></div>
+                <div class="form-group"><label>Telefono</label><input type="tel" id="editDirTel" class="inset-3d"></div>
+
+                <div class="codigo-box">
+                    <div class="label">Código de acceso del paciente (para Mi Sonrisa)</div>
+                    <div class="code" id="editDirCodigo">----</div>
+                </div>
+
+                <div class="form-group">
+                    <label>Foto del Paciente</label>
+                    <div style="display:flex; align-items:center; gap:15px;">
+                        <img id="editDirFotoPreview" src="" style="width:70px; height:70px; border-radius:10px; object-fit:cover; border:2px dashed var(--primary); display:none;">
+                        <input type="file" id="editDirFile" accept="image/*" class="inset-3d" style="padding: 0.5rem;" onchange="procesarFotoDir(event)">
+                        <input type="hidden" id="editDirFotoBase64">
+                    </div>
+                </div>
+                <button class="btn-3d btn-submit" style="color:#25D366;" onclick="enviarCodigoWhatsApp()">Enviar código al paciente por WhatsApp</button>
+                <button class="btn-3d btn-submit" style="background:var(--primary); color:white;" onclick="guardarEdicionDirectorio()">Guardar Cambios</button>
+                <button class="btn-3d btn-submit" style="margin-top:10px;" onclick="cerrarEditorDirectorio()">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Chatbot -->
+    <div class="modal-overlay" id="chatBotModal">
+        <div class="modal">
+            <div class="modal-header">
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <img src="avatar.png.png" style="width:40px; height:40px; border-radius:50%;" onerror="this.style.display='none';">
+                    <h2 style="margin: 0; color: var(--primary);">Asistente DENTILIKE</h2>
+                </div>
+                <button class="close-btn" onclick="closeModal('chatBotModal')">X</button>
+            </div>
+            
+            <div class="chat-box" id="chatBox">
+                <div class="chat-msg chat-ia">Hola Dr. Mike. Puedo revisar tu agenda o buscar pacientes. ¿Que necesitas?</div>
+            </div>
+            
+            <div class="chip-container">
+                <div class="chip" onclick="enviarMensajeChat('¿Cuales son mis citas de hoy?')">Citas de hoy</div>
+                <div class="chip" onclick="enviarMensajeChat('Busca un espacio libre a las 15:00')">Espacio a las 15:00</div>
+            </div>
+
+            <div style="display:flex; gap:10px;">
+                <input type="text" id="chatInput" class="inset-3d" style="flex:1;" placeholder="Escribe aqui..." onkeypress="if(event.key === 'Enter') enviarMensajeChat(this.value)">
+                <button class="btn-3d" onclick="enviarMensajeChat(document.getElementById('chatInput').value)">Enviar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Configuración -->
+    <div class="modal-overlay" id="configModalOverlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 style="margin: 0; color: var(--primary);">Ajustes</h2>
+                <button class="close-btn" onclick="closeModal('configModalOverlay')">X</button>
+            </div>
+            <div class="form-group"><label>Clinica</label><input type="text" id="confClinica" class="inset-3d"></div>
+            <div class="form-group"><label>Doctor</label><input type="text" id="confDoctor" class="inset-3d"></div>
+            <div class="form-group"><label>Especialidad</label><input type="text" id="confEspecialidad" class="inset-3d"></div>
+            
+            <label style="display: block; font-size: 0.85rem; font-weight: bold; margin: 1rem 0 0.5rem 0; color: var(--primary);">Horarios Matutino</label>
+            <div class="grid-turnos">
+                <div><label style="font-size: 0.75rem;">Inicio</label><input type="time" id="confMInicio" class="inset-3d"></div>
+                <div><label style="font-size: 0.75rem;">Fin</label><input type="time" id="confMFin" class="inset-3d"></div>
+            </div>
+
+            <label style="display: block; font-size: 0.85rem; font-weight: bold; margin: 1rem 0 0.5rem 0; color: var(--primary);">Horarios Vespertino</label>
+            <div class="grid-turnos">
+                <div><label style="font-size: 0.75rem;">Inicio</label><input type="time" id="confVInicio" class="inset-3d"></div>
+                <div><label style="font-size: 0.75rem;">Fin</label><input type="time" id="confVFin" class="inset-3d"></div>
+            </div>
+
+            <div class="form-group" style="display:flex; align-items:center; gap:10px; margin-top:1.5rem;">
+                <input type="checkbox" id="confMostrarFotos" style="width:20px; height:20px; accent-color: var(--primary);">
+                <label style="margin:0; font-size:1rem;">Mostrar fotos de pacientes</label>
+            </div>
+            <button class="btn-3d btn-submit" onclick="guardarConfig()">Guardar Ajustes</button>
+        </div>
+    </div>
+
+    <!-- ===== FIREBASE SDK (compat) ===== -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+
+    <script>
+        // ============================================================
+        //   PIN DE ACCESO
+        //   Cambia el valor de PIN_CORRECTO por tu clave secreta.
+        //   Puede ser números o texto. Ej: "1234", "dentimike", etc.
+        //   ⚠️ Elige una clave que solo tú sepas.
+        // ============================================================
+        const PIN_CORRECTO = "CAMBIA_ESTO";  // ← PON AQUÍ TU CLAVE
+
+        function validarPin(){
+            const val = document.getElementById('pinInput').value;
+            const err = document.getElementById('pinError');
+            if(val === PIN_CORRECTO){
+                localStorage.setItem('denti_desbloqueado','1');  // se recuerda para siempre en este dispositivo
+                document.getElementById('lockScreen').style.display = 'none';
+            } else {
+                err.style.visibility = 'visible';
+                document.getElementById('pinInput').value = '';
+                setTimeout(()=>{ err.style.visibility='hidden'; }, 2000);
+            }
+        }
+        // Si este dispositivo ya se desbloqueó una vez, no volver a pedir el PIN nunca
+        window.addEventListener('DOMContentLoaded', ()=>{
+            if(localStorage.getItem('denti_desbloqueado')==='1'){
+                document.getElementById('lockScreen').style.display = 'none';
+            } else {
+                setTimeout(()=>{ const p=document.getElementById('pinInput'); if(p) p.focus(); }, 200);
+            }
+        });
+
+        // ===== Firebase init =====
+        const firebaseConfig = {
+            apiKey: "AIzaSyC4Kws78y5K3-1IuBibxCOo-a11ccuNYUE",
+            authDomain: "misonrisa-citas.firebaseapp.com",
+            projectId: "misonrisa-citas",
+            storageBucket: "misonrisa-citas.firebasestorage.app",
+            messagingSenderId: "601464011103",
+            appId: "1:601464011103:web:e03150d9b86eb40a451eea"
+        };
+        let db = null, auth = null, fbOK = false, authListo = false;
+        try {
+            firebase.initializeApp(firebaseConfig);
+            db = firebase.firestore();
+            auth = firebase.auth();
+            fbOK = true;
+        } catch(e) { console.error('Firebase init error', e); }
+
+        function setSync(state, text){
+            const dot = document.getElementById('syncDot'); const t = document.getElementById('syncText');
+            dot.className = 'sync-dot' + (state==='on'?' on':state==='err'?' err':'');
+            t.innerText = text;
+        }
+
+        // Login anónimo automático (identidad de dispositivo para poder escribir de forma segura)
+        async function iniciarAuth(){
+            if(!fbOK) { setSync('err','Sin conexión'); return; }
+            try{
+                await auth.signInAnonymously();
+                authListo = true;
+                setSync('on','Sincronizado');
+            }catch(e){
+                console.error('auth error', e);
+                setSync('err','Error de acceso');
+            }
+        }
+
+        // ===== HASH seguro: teléfono + código → clave irreconocible =====
+        // Usa SHA-256 (Web Crypto). El código NUNCA se guarda en claro como ID.
+        async function hashLlave(telefono, codigo){
+            const tel = (telefono||'').replace(/\D/g,'');
+            const cod = (codigo||'').trim();
+            const texto = `misonrisa|${tel}|${cod}`;
+            const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(texto));
+            return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+        }
+
+        window.addEventListener('DOMContentLoaded', ()=>{
+            setSync('','Conectando…');
+            iniciarAuth();
+        });
+
+        // ===== Estado local (respaldo) =====
+        let nav = 0; let selectedDate = null; let citaSeleccionadaId = null; let editandoCitaId = null;
+        
+        let citas = JSON.parse(localStorage.getItem('denti_citas_v16')) || [];
+        let motivos = JSON.parse(localStorage.getItem('denti_motivos_v16')) || [];
+        let config = JSON.parse(localStorage.getItem('denti_config_v16')) || { 
+            clinica: 'DENTILIKE', doctor: 'Dr. Miguel Alvarado', especialidad: 'Ortodoncia y Ortopedia Maxilar', 
+            mInicio: '08:00', mFin: '14:00', vInicio: '15:00', vFin: '21:00', mostrarFotos: true 
+        };
+        let pacientes = JSON.parse(localStorage.getItem('denti_pacientes_v16')) || {};
+
+        // ===== Código de acceso =====
+        function generarCodigo(){ return String(Math.floor(1000 + Math.random()*9000)); } // 4 dígitos
+        function getCodigoPaciente(nombre){
+            if(pacientes[nombre] && pacientes[nombre].codigo) return pacientes[nombre].codigo;
+            const cod = generarCodigo();
+            if(!pacientes[nombre]) pacientes[nombre] = { telefono:'', foto:null };
+            pacientes[nombre].codigo = cod;
+            localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes));
+            return cod;
+        }
+
+        // ===== Sincronización a Firebase (SEGURA) =====
+        // Estructura: colección "citas_pacientes" / doc = HASH(teléfono+código)
+        // Así nadie puede leer datos sabiendo solo el teléfono: necesita el código.
+        function limpiarTel(t){ return (t||'').replace(/\D/g,''); }
+        async function syncPacienteAFirebase(nombre){
+            if(!fbOK || !authListo) return;
+            const pac = pacientes[nombre]; if(!pac) return;
+            const tel = limpiarTel(pac.telefono); if(tel.length !== 10) return;
+            const codigo = pac.codigo || getCodigoPaciente(nombre);
+            // Solo citas futuras + la más reciente pasada
+            const hoyStr = new Date().toISOString().split('T')[0];
+            const citasPac = citas.filter(c => c.paciente === nombre);
+            const futuras = citasPac.filter(c => c.fecha >= hoyStr).sort((a,b)=>a.fecha.localeCompare(b.fecha));
+            const pasadas = citasPac.filter(c => c.fecha < hoyStr).sort((a,b)=>b.fecha.localeCompare(a.fecha));
+            const visibles = [...futuras];
+            if(pasadas.length) visibles.push(pasadas[0]);
+            const citasParaApp = visibles.map(c => ({
+                id: String(c.id), fechaISO: c.fecha, hora: c.horaInicio, horaFin: c.horaFin,
+                motivo: c.motivo, estado: c.estado
+            }));
+            try{
+                const llave = await hashLlave(tel, codigo);
+                await db.collection('citas_pacientes').doc(llave).set({
+                    nombre: nombre,
+                    citas: citasParaApp,
+                    actualizado: Date.now()
+                }, { merge:true });
+                setSync('on','Sincronizado');
+            }catch(e){ console.error('sync error', e); setSync('err','Error al sincronizar'); }
+        }
+        async function sincronizarTodo(){
+            if(!fbOK || !authListo) return;
+            const nombres = Object.keys(pacientes);
+            for(const n of nombres){ await syncPacienteAFirebase(n); }
+        }
+
+        function formatearFechaLegible(fechaISO) {
+            if(!fechaISO) return '';
+            const partes = fechaISO.split('-');
+            const mesNum = parseInt(partes[1], 10); const dia = parseInt(partes[2], 10);
+            const meses = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+            return `${dia} de ${meses[mesNum - 1]} de ${partes[0]}`;
+        }
+
+        function init() { loadConfig(); loadCalendar(); updateDatalists(); }
+
+        function loadConfig() {
+            document.getElementById('confClinica').value = config.clinica;
+            document.getElementById('confDoctor').value = config.doctor;
+            document.getElementById('confEspecialidad').value = config.especialidad;
+            document.getElementById('confMInicio').value = config.mInicio;
+            document.getElementById('confMFin').value = config.mFin;
+            document.getElementById('confVInicio').value = config.vInicio;
+            document.getElementById('confVFin').value = config.vFin;
+            document.getElementById('confMostrarFotos').checked = config.mostrarFotos;
+        }
+        function guardarConfig() {
+            config.clinica = document.getElementById('confClinica').value;
+            config.doctor = document.getElementById('confDoctor').value;
+            config.especialidad = document.getElementById('confEspecialidad').value;
+            config.mInicio = document.getElementById('confMInicio').value || '08:00';
+            config.mFin = document.getElementById('confMFin').value || '14:00';
+            config.vInicio = document.getElementById('confVInicio').value || '15:00';
+            config.vFin = document.getElementById('confVFin').value || '21:00';
+            config.mostrarFotos = document.getElementById('confMostrarFotos').checked;
+            localStorage.setItem('denti_config_v16', JSON.stringify(config));
+            closeModal('configModalOverlay'); loadCalendar(); 
+        }
+
+        function changeMonth(dir) { nav += dir; loadCalendar(); }
+        function loadCalendar() {
+            const dt = new Date(); if (nav !== 0) dt.setMonth(new Date().getMonth() + nav);
+            const month = dt.getMonth(), year = dt.getFullYear();
+            const firstDay = new Date(year, month, 1), daysInMonth = new Date(year, month + 1, 0).getDate();
+            const padding = firstDay.getDay();
+            document.getElementById('monthDisplay').innerText = dt.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' }).toUpperCase();
+            const grid = document.getElementById('calendarGrid'); grid.innerHTML = '';
+            for (let i = 1; i <= padding + daysInMonth; i++) {
+                const sq = document.createElement('div'); sq.classList.add('day');
+                if (i > padding) {
+                    const d = i - padding; sq.innerText = d;
+                    const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+                    const citasDelDia = citas.filter(c => c.fecha === dateStr);
+                    if (citasDelDia.length > 0) {
+                        const countM = citasDelDia.filter(c => c.horaInicio >= config.mInicio && c.horaInicio < config.mFin).length;
+                        const countV = citasDelDia.filter(c => c.horaInicio >= config.vInicio && c.horaInicio < config.vFin).length;
+                        const badgesDiv = document.createElement('div'); badgesDiv.classList.add('badges-container');
+                        if(countM > 0) { const bM = document.createElement('span'); bM.classList.add('badge-m'); bM.innerText = `M${countM}`; badgesDiv.appendChild(bM); }
+                        if(countV > 0) { const bV = document.createElement('span'); bV.classList.add('badge-v'); bV.innerText = `V${countV}`; badgesDiv.appendChild(bV); }
+                        sq.appendChild(badgesDiv);
+                    }
+                    sq.classList.add('btn-3d'); sq.addEventListener('click', () => openDay(dateStr));
+                } else { sq.classList.add('empty'); }
+                grid.appendChild(sq);
+            }
+        }
+
+        function toggleFormulario(mostrar) {
+            document.getElementById('formularioContainer').style.display = mostrar ? 'block' : 'none';
+            document.getElementById('btnAbrirFormulario').style.display = mostrar ? 'none' : 'block';
+            if(!mostrar) {
+                editandoCitaId = null; document.getElementById('formTitle').innerText = 'Nueva Cita';
+                ['paciente','telefono','horaInicio','horaFin','motivo','notas'].forEach(id => document.getElementById(id).value = '');
+            }
+        }
+
+        function openDay(dateStr) {
+            selectedDate = dateStr; 
+            document.getElementById('modalDateTitle').innerText = formatearFechaLegible(dateStr);
+            toggleFormulario(false);
+            const list = document.getElementById('appointmentList');
+            const citasDelDia = citas.filter(c => c.fecha === dateStr).sort((a,b) => a.horaInicio.localeCompare(b.horaInicio));
+            if(citasDelDia.length === 0) list.innerHTML = '<p style="text-align:center; color:var(--text-muted);">El calendario esta libre este dia.</p>';
+            else {
+                list.innerHTML = citasDelDia.map(c => {
+                    const textoNotas = c.notas && c.notas.trim() !== '' ? '(Nota)' : '';
+                    return `<div class="appointment-item" onclick="abrirOpcionesCita(${c.id})">
+                        <div class="appointment-header"><span class="status-dot ${c.estado}"></span><strong style="font-size:1.1rem;">${c.horaInicio} - ${c.horaFin}</strong></div>
+                        <div style="margin-left: 22px;">- ${c.motivo}</div>
+                        <div style="margin-left: 22px;">- ${c.paciente} ${textoNotas}</div>
+                    </div>`
+                }).join('');
+            }
+            document.getElementById('dayModalOverlay').style.display = 'flex';
+        }
+
+        function abrirOpcionesCita(id) {
+            citaSeleccionadaId = id; const cita = citas.find(c => c.id === id);
+            const pacData = pacientes[cita.paciente] || { telefono: cita.telefono, foto: null };
+            let htmlFoto = '';
+            if(config.mostrarFotos) {
+                if(pacData.foto) { htmlFoto = `<img src="${pacData.foto}" style="width: 85px; height: 85px; border-radius: 12px; object-fit: cover; border: 2px solid white; box-shadow: 3px 3px 6px rgba(0,0,0,0.3);">`; } 
+                else { htmlFoto = `<div style="width: 85px; height: 85px; border-radius: 12px; border: 2px dashed rgba(255,255,255,0.5); display:flex; align-items:center; justify-content:center; font-size:1rem; color:white;">Sin foto</div>`; }
+            }
+            let htmlDetalle = `
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+                    <div style="flex:1;">
+                        <p style="margin:0; line-height:1.4;">
+                            <strong>Paciente:</strong> ${cita.paciente}<br>
+                            <strong>Telefono:</strong> +52 ${cita.telefono}<br>
+                            <strong>Tratamiento:</strong> ${cita.motivo}<br>
+                            <strong>Horario:</strong> ${cita.horaInicio} - ${cita.horaFin}
+                        </p>
+                    </div>
+                    ${config.mostrarFotos ? `<div>${htmlFoto}</div>` : ''}
+                </div>`;
+            if(cita.notas) htmlDetalle += `<p style="margin-top:10px; padding-top:10px; border-top:1px solid rgba(255,255,255,0.3);"><strong>Nota Adicional:</strong><br>${cita.notas}</p>`;
+            document.getElementById('detalleCitaData').innerHTML = htmlDetalle;
+            document.getElementById('opcionesCitaModal').style.display = 'flex';
+        }
+
+        // --- DIRECTORIO ---
+        function abrirDirectorio() { renderListaContactos(); document.getElementById('editorContacto').style.display = 'none'; document.getElementById('directorioModal').style.display = 'flex'; }
+        function renderListaContactos() {
+            const list = document.getElementById('listaContactos'); const nombres = Object.keys(pacientes).sort();
+            if(nombres.length === 0) { list.innerHTML = '<p style="text-align:center;">No hay pacientes guardados.</p>'; return; }
+            list.innerHTML = nombres.map(nombre => {
+                const pac = pacientes[nombre];
+                let fotoIcon = config.mostrarFotos && pac.foto ? `<img src="${pac.foto}" style="width:30px; height:30px; border-radius:50%; object-fit:cover;">` : '<div style="width:30px;height:30px;border-radius:50%;background:#ccc;"></div>';
+                return `<div class="contact-item" onclick="abrirEditorDirectorio('${nombre.replace(/'/g,"\\'")}')">
+                    <div style="display:flex; align-items:center; gap:10px;">${fotoIcon} <strong>${nombre}</strong></div>
+                    <span style="color:var(--text-muted); font-size:0.8rem;">+52 ${pac.telefono}</span>
+                </div>`;
+            }).join('');
+        }
+        let dirNombreActual = null;
+        function abrirEditorDirectorio(nombre) {
+            dirNombreActual = nombre;
+            const pac = pacientes[nombre];
+            const codigo = getCodigoPaciente(nombre); // genera si no tiene
+            document.getElementById('editDirNombre').value = nombre; 
+            document.getElementById('editDirTel').value = pac.telefono; 
+            document.getElementById('editDirFotoBase64').value = pac.foto || '';
+            document.getElementById('editDirCodigo').innerText = codigo;
+            const preview = document.getElementById('editDirFotoPreview');
+            if(pac.foto) { preview.src = pac.foto; preview.style.display = 'block'; } else { preview.src = ''; preview.style.display = 'none'; }
+            document.getElementById('editDirFile').value = ''; document.getElementById('listaContactos').style.display = 'none'; document.getElementById('editorContacto').style.display = 'block';
+        }
+        function procesarFotoDir(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) { document.getElementById('editDirFotoPreview').src = e.target.result; document.getElementById('editDirFotoPreview').style.display = 'block'; document.getElementById('editDirFotoBase64').value = e.target.result; }
+                reader.readAsDataURL(file); 
+            }
+        }
+        function guardarEdicionDirectorio() {
+            const nombre = document.getElementById('editDirNombre').value, tel = document.getElementById('editDirTel').value, foto = document.getElementById('editDirFotoBase64').value;
+            const codigoPrev = pacientes[nombre] ? pacientes[nombre].codigo : null;
+            pacientes[nombre] = { telefono: tel, foto: foto, codigo: codigoPrev || generarCodigo() }; 
+            localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes));
+            citas.forEach(c => { if(c.paciente === nombre) c.telefono = tel; }); localStorage.setItem('denti_citas_v16', JSON.stringify(citas));
+            syncPacienteAFirebase(nombre); // sube a la nube
+            cerrarEditorDirectorio(); renderListaContactos();
+        }
+        function enviarCodigoWhatsApp(){
+            const nombre = document.getElementById('editDirNombre').value;
+            const tel = document.getElementById('editDirTel').value;
+            const codigo = document.getElementById('editDirCodigo').innerText;
+            const msg = `Hola ${nombre}, este es tu acceso a *Mi Sonrisa* (tus citas):\n\n📱 Teléfono: ${limpiarTel(tel)}\n🔑 Código: ${codigo}\n\nEntra a misonrisa.dentilike.com.mx, ve a "Mis citas" y escribe estos datos para ver y confirmar tus próximas citas.`;
+            abrirWa(tel, msg);
+        }
+        function cerrarEditorDirectorio() { document.getElementById('editorContacto').style.display = 'none'; document.getElementById('listaContactos').style.display = 'block'; }
+
+        function ejecutarBusquedaRapida() {
+            const texto = document.getElementById('globalSearch').value.toLowerCase();
+            const resultadosBox = document.getElementById('searchResults');
+            if(texto.length < 2) { resultadosBox.style.display = 'none'; return; }
+            const hoyStr = new Date().toISOString().split('T')[0];
+            const encontradas = citas.filter(c => c.paciente.toLowerCase().includes(texto) && c.fecha >= hoyStr).sort((a,b) => a.fecha.localeCompare(b.fecha));
+            if(encontradas.length > 0) {
+                resultadosBox.innerHTML = encontradas.map(c => `<div style="padding:5px 0; border-bottom:1px solid rgba(255,255,255,0.3); font-size:0.9rem;"><strong>${c.paciente}</strong> - ${formatearFechaLegible(c.fecha)} a las ${c.horaInicio}</div>`).join('');
+                resultadosBox.style.display = 'block';
+            } else {
+                resultadosBox.innerHTML = '<div style="font-size:0.9rem;">No hay citas futuras para ese nombre.</div>';
+                resultadosBox.style.display = 'block';
+            }
+        }
+
+        function abrirChatBot() { document.getElementById('chatBotModal').style.display = 'flex'; }
+        function enviarMensajeChat(texto) {
+            if(!texto || texto.trim() === '') return;
+            const chatBox = document.getElementById('chatBox');
+            chatBox.innerHTML += `<div class="chat-msg chat-user">${texto}</div>`;
+            document.getElementById('chatInput').value = '';
+            setTimeout(() => {
+                let respuesta = procesarLogicaIA(texto.toLowerCase());
+                chatBox.innerHTML += `<div class="chat-msg chat-ia">${respuesta}</div>`;
+                chatBox.scrollTop = chatBox.scrollHeight;
+            }, 600);
+        }
+        function procesarLogicaIA(texto) {
+            const hoy = new Date();
+            const hoyStr = `${hoy.getFullYear()}-${String(hoy.getMonth()+1).padStart(2,'0')}-${String(hoy.getDate()).padStart(2,'0')}`;
+            if(texto.startsWith('citas de ')) {
+                const nombreBuscado = texto.replace('citas de ', '').trim();
+                const citasPac = citas.filter(c => c.paciente === nombreBuscado && c.fecha >= hoyStr).sort((a,b) => a.fecha.localeCompare(b.fecha));
+                if(citasPac.length === 0) return `El paciente **${nombreBuscado}** esta en tu directorio, pero no tiene citas futuras agendadas.`;
+                let res = `Proximas citas de **${nombreBuscado}**: <br>`;
+                citasPac.forEach(c => res += `- ${formatearFechaLegible(c.fecha)} a las ${c.horaInicio} (${c.motivo})<br>`);
+                return res;
+            }
+            if(texto.includes('hoy')) {
+                const citasHoy = citas.filter(c => c.fecha === hoyStr).sort((a,b) => a.horaInicio.localeCompare(b.horaInicio));
+                if(citasHoy.length === 0) return "Hoy no tienes pacientes agendados. Dia libre para ti.";
+                let resumen = `Tienes ${citasHoy.length} citas hoy:<br>`;
+                citasHoy.forEach(c => resumen += `- ${c.horaInicio}: ${c.paciente} (${c.motivo})<br>`);
+                return resumen;
+            }
+            if(texto.includes('espacio') || (texto.includes('libre') && texto.includes('15:00'))) {
+                for(let i=1; i<=7; i++) {
+                    let nextDay = new Date(hoy); nextDay.setDate(hoy.getDate() + i);
+                    let checkStr = `${nextDay.getFullYear()}-${String(nextDay.getMonth()+1).padStart(2,'0')}-${String(nextDay.getDate()).padStart(2,'0')}`;
+                    if(nextDay.getDay() !== 0) {
+                        let ocupado = citas.some(c => c.fecha === checkStr && c.horaInicio === '15:00');
+                        if(!ocupado) return `Encontre un espacio a las 15:00 hrs el dia <strong>${formatearFechaLegible(checkStr)}</strong>. ¡Esta completamente libre!`;
+                    }
+                }
+                return "Revise esta semana y las 15:00 hrs parece estar ocupado todos los dias laborales.";
+            }
+            const palabras = texto.split(' ');
+            const ignorar = ['que', 'dia', 'tiene', 'cita', 'cuando', 'viene', 'el', 'la', 'los', 'las', 'de', 'a', 'mis', 'buscame', 'busca'];
+            const posiblesNombres = palabras.filter(p => p.length > 2 && !ignorar.includes(p));
+            if (posiblesNombres.length > 0) {
+                let pacientesEncontrados = new Set();
+                const nombresGuardados = Object.keys(pacientes);
+                posiblesNombres.forEach(palabra => { nombresGuardados.forEach(nombrePac => { if(nombrePac.toLowerCase().includes(palabra)) { pacientesEncontrados.add(nombrePac); } }); });
+                const listaPacientes = Array.from(pacientesEncontrados);
+                if (listaPacientes.length === 1) {
+                    const nombreExacto = listaPacientes[0];
+                    const citasPac = citas.filter(c => c.paciente === nombreExacto && c.fecha >= hoyStr).sort((a,b) => a.fecha.localeCompare(b.fecha));
+                    if(citasPac.length === 0) return `El paciente **${nombreExacto}** no tiene citas futuras agendadas.`;
+                    let res = `Citas agendadas para **${nombreExacto}**: <br>`;
+                    citasPac.forEach(c => res += `- ${formatearFechaLegible(c.fecha)} a las ${c.horaInicio} (${c.motivo})<br>`);
+                    return res;
+                } else if (listaPacientes.length > 1) {
+                    let res = `Encontre varios pacientes que coinciden con tu busqueda. ¿A cual te refieres?<br><br><div class="chip-container">`;
+                    listaPacientes.forEach(nom => { res += `<div class="chip" onclick="enviarMensajeChat('Citas de ${nom}')">${nom}</div>`; });
+                    res += `</div>`; return res;
+                }
+            }
+            return "Entendido. Aun estoy aprendiendo, pero puedo revisar tus citas de hoy, buscar espacios libres o decirte cuando viene un paciente si me das su nombre.";
+        }
+
+        function prepararEdicion() {
+            const cita = citas.find(c => c.id === citaSeleccionadaId); if(!cita) return;
+            editandoCitaId = cita.id;
+            ['paciente','telefono','horaInicio','horaFin','motivo'].forEach(id => document.getElementById(id).value = cita[id]);
+            document.getElementById('notas').value = cita.notas || '';
+            document.getElementById('formTitle').innerText = 'Editando Cita';
+            closeModal('opcionesCitaModal'); toggleFormulario(true);
+        }
+        function enviarWhatsAppNueva(pac, tel, hIni, hFin, mot, fecha) {
+            const msg = `Hola ${pac},\n\nTu cita ha sido registrada con exito en DENTILIKE.\n\nEspecialista: ${config.doctor}\nTratamiento: ${mot}\nFecha: ${formatearFechaLegible(fecha)}\nHorario: ${hIni} a ${hFin}\n\nTe esperamos.`;
+            abrirWa(tel, msg);
+        }
+        function enviarWhatsAppConfirmacion() {
+            const cita = citas.find(c => c.id === citaSeleccionadaId);
+            if(cita) {
+                const msg = `Hola ${cita.paciente},\n\nTe contactamos de DENTILIKE para confirmar tu cita programada.\n\nEspecialista: ${config.doctor}\nTratamiento: ${cita.motivo}\nFecha: ${formatearFechaLegible(cita.fecha)}\nHorario: ${cita.horaInicio} a ${cita.horaFin}\n\nPor favor confirmanos de recibido.`;
+                abrirWa(cita.telefono, msg);
+            }
+            closeModal('opcionesCitaModal');
+        }
+        function abrirWa(tel, msg) {
+            let cleanTel = tel.replace(/\D/g,''); if(cleanTel.length === 10) cleanTel = '52' + cleanTel;
+            window.open(`https://wa.me/${cleanTel}?text=${encodeURIComponent(msg)}`, '_blank');
+        }
+        function generarIcsManualmente() {
+            const cita = citas.find(c => c.id === citaSeleccionadaId); if(!cita) return;
+            const fFormat = cita.fecha.replace(/-/g, '');
+            const iniFormat = fFormat + 'T' + cita.horaInicio.replace(':', '') + '00';
+            const finFormat = fFormat + 'T' + cita.horaFin.replace(':', '') + '00';
+            const icsData = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//DentiAgenda//MX', 'BEGIN:VEVENT',
+                `UID:${new Date().getTime()}@dentiagenda`, `DTSTAMP:${iniFormat}Z`, `DTSTART:${iniFormat}`, `DTEND:${finFormat}`,
+                `SUMMARY:Cita: ${cita.motivo} - ${config.clinica}`, `DESCRIPTION:Paciente: ${cita.paciente}\\nDoctor: ${config.doctor}`,
+                `LOCATION:Himno Nacional 1902-C\\, Fraccionamiento Tangamanga\\, San Luis Potosi`, 'END:VEVENT', 'END:VCALENDAR'].join('\n');
+            const blob = new Blob([icsData], { type: 'text/calendar;charset=utf-8' });
+            const link = document.createElement('a'); link.href = window.URL.createObjectURL(blob);
+            link.download = `Cita_${cita.paciente.replace(/\s/g, '_')}.ics`;
+            document.body.appendChild(link); link.click(); document.body.removeChild(link);
+        }
+        function cambiarEstadoCita(nuevoEstado) { 
+            const index = citas.findIndex(c => c.id === citaSeleccionadaId); 
+            if(index !== -1) { 
+                citas[index].estado = nuevoEstado; localStorage.setItem('denti_citas_v16', JSON.stringify(citas)); 
+                syncPacienteAFirebase(citas[index].paciente);
+                closeModal('opcionesCitaModal'); openDay(selectedDate); loadCalendar(); 
+            } 
+        }
+        function eliminarCita() { 
+            if(confirm('¿Seguro que deseas borrar esta cita?')) { 
+                const cita = citas.find(c => c.id === citaSeleccionadaId);
+                const nombrePac = cita ? cita.paciente : null;
+                citas = citas.filter(c => c.id !== citaSeleccionadaId); 
+                localStorage.setItem('denti_citas_v16', JSON.stringify(citas)); 
+                if(nombrePac) syncPacienteAFirebase(nombrePac);
+                closeModal('opcionesCitaModal'); openDay(selectedDate); loadCalendar(); 
+            } 
+        }
+        function openConfig() { document.getElementById('configModalOverlay').style.display = 'flex'; }
+        function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+        function updateDatalists() { document.getElementById('pacientesGuardados').innerHTML = Object.keys(pacientes).map(p => `<option value="${p}">`).join(''); document.getElementById('motivosGuardados').innerHTML = motivos.map(m => `<option value="${m}">`).join(''); }
+        function autoFillPhone() { const name = document.getElementById('paciente').value; if(pacientes[name]) document.getElementById('telefono').value = pacientes[name].telefono; }
+        function calcularHoraFin() {
+            const inicio = document.getElementById('horaInicio').value, duracion = parseInt(document.getElementById('duracion').value);
+            if(!inicio) return;
+            const [h, m] = inicio.split(':').map(Number); const date = new Date(); date.setHours(h, m + duracion);
+            document.getElementById('horaFin').value = `${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}`;
+        }
+        function guardarCita() {
+            const pac = document.getElementById('paciente').value, tel = document.getElementById('telefono').value, hIni = document.getElementById('horaInicio').value, hFin = document.getElementById('horaFin').value, mot = document.getElementById('motivo').value, notasAdicionales = document.getElementById('notas').value;
+            if(!pac || !tel || !hIni || !hFin || !mot) return alert('Por favor completa los campos principales.');
+            let fueEdicion = false;
+            if(editandoCitaId) {
+                fueEdicion = true;
+                const index = citas.findIndex(c => c.id === editandoCitaId);
+                if(index !== -1) { citas[index] = { ...citas[index], paciente: pac, telefono: tel, horaInicio: hIni, horaFin: hFin, motivo: mot, notas: notasAdicionales }; }
+                editandoCitaId = null;
+            } else {
+                citas.push({ id: Date.now(), fecha: selectedDate, paciente: pac, telefono: tel, horaInicio: hIni, horaFin: hFin, motivo: mot, notas: notasAdicionales, estado: 'status-gray' });
+            }
+            localStorage.setItem('denti_citas_v16', JSON.stringify(citas));
+            if(!pacientes[pac]) pacientes[pac] = { telefono: tel, foto: null, codigo: generarCodigo() }; 
+            else { pacientes[pac].telefono = tel; if(!pacientes[pac].codigo) pacientes[pac].codigo = generarCodigo(); }
+            localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes));
+            if(!motivos.includes(mot)) { motivos.push(mot); localStorage.setItem('denti_motivos_v16', JSON.stringify(motivos)); }
+            syncPacienteAFirebase(pac); // sube a la nube
+            updateDatalists(); openDay(selectedDate); loadCalendar();
+            if(!fueEdicion) {
+                if(confirm('Cita guardada. ¿Enviar mensaje de registro por WhatsApp?')) enviarWhatsAppNueva(pac, tel, hIni, hFin, mot, selectedDate);
+            } else { alert('Cita actualizada correctamente.'); }
+        }
+
+        init();
+    </script>
+</body>
+</html>
