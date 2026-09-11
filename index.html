@@ -93,18 +93,48 @@
         .chip-container { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; margin-top: 10px; }
         .chip { background: var(--bg-color); color: var(--accent); padding: 5px 10px; font-size: 0.8rem; border-radius: 15px; cursor: pointer; border: 1px solid var(--accent); box-shadow: 2px 2px 4px var(--shadow-dark); }
         .chip:hover { background: var(--accent); color: white; }
+
+        /* ===== RESPONSIVE MÓVIL ===== */
+        @media (max-width: 600px) {
+            header { flex-direction: column; gap: 12px; padding: 1rem 1rem 0.5rem; }
+            .header-actions { position: static; width: 100%; justify-content: center; }
+            .logo-container img { max-width: 170px; }
+            .search-bar-container { padding: 0 1rem 1rem; }
+            .container { padding: 0 0.5rem; }
+            .calendar-header { padding: 0.5rem; margin-bottom: 1rem; }
+            .weekdays, .calendar-grid { gap: 5px; }
+            .weekdays { font-size: 0.62rem; }
+            .day { font-size: 0.9rem; border-radius: 9px; padding-bottom: 12px; }
+            .badge-m, .badge-v { font-size: 0.55rem; padding: 1px 3px; }
+            .badges-container { bottom: 2px; gap: 2px; }
+            .modal { padding: 1.3rem; }
+            .floating-assistant { width: 55px; height: 55px; bottom: 12px; right: 12px; }
+            .sync-badge { bottom: 12px; left: 12px; font-size: 0.68rem; padding: 6px 10px; }
+            .time-row { flex-direction: column; gap: 0; }
+        }
+        @media (max-width: 380px) {
+            .weekdays, .calendar-grid { gap: 3px; }
+            .day { font-size: 0.8rem; }
+            .weekdays { font-size: 0.55rem; }
+        }
     </style>
 </head>
 <body>
 
-    <!-- ===== PANTALLA DE BLOQUEO (PIN) ===== -->
+    <!-- ===== PANTALLA DE LOGIN (doctor · Google) ===== -->
     <div id="lockScreen" style="position:fixed; inset:0; z-index:5000; background:var(--bg-color); display:flex; flex-direction:column; align-items:center; justify-content:center; padding:2rem;">
-        <div style="font-size:3rem; margin-bottom:1rem;">🔒</div>
+        <div style="font-size:3rem; margin-bottom:1rem;">🔐</div>
         <h2 style="color:var(--primary); margin:0 0 0.5rem 0;">DentiAgenda</h2>
-        <p style="color:var(--text-muted); margin:0 0 1.5rem 0; text-align:center; font-size:0.9rem;">Introduce tu clave de acceso</p>
-        <input type="password" id="pinInput" class="inset-3d" style="max-width:280px; text-align:center; font-size:1.3rem; letter-spacing:0.2em; margin-bottom:1rem;" placeholder="••••" onkeypress="if(event.key==='Enter') validarPin()" autocomplete="off">
-        <button class="btn-3d" style="max-width:280px; width:100%; padding:1rem;" onclick="validarPin()">Entrar</button>
-        <p id="pinError" style="color:#e53e3e; font-size:0.85rem; margin-top:1rem; height:1rem; visibility:hidden;">Clave incorrecta</p>
+        <p style="color:var(--text-muted); margin:0 0 1.5rem 0; text-align:center; font-size:0.9rem;">Acceso exclusivo del Dr. Miguel Alvarado</p>
+        <button class="btn-3d" style="max-width:320px; width:100%; padding:1rem; display:flex; align-items:center; justify-content:center; gap:10px;" onclick="hacerLoginGoogle()">
+            <span style="font-weight:bold; color:#4285F4;">G</span> Entrar con Google
+        </button>
+        <p id="loginError" style="color:#e53e3e; font-size:0.85rem; margin-top:1rem; height:1rem; visibility:hidden;">No se pudo iniciar sesión</p>
+        <div id="uidBox" style="display:none; margin-top:1.5rem; background:var(--accent); color:white; padding:14px; border-radius:12px; max-width:340px; text-align:center;">
+            <div style="font-size:0.75rem; opacity:0.9;">TU UID (cópialo y pásaselo a tu asistente):</div>
+            <div id="uidValor" style="font-size:0.9rem; font-weight:bold; word-break:break-all; margin-top:6px;"></div>
+            <button class="btn-3d" style="margin-top:10px; padding:0.5rem 1rem; font-size:0.85rem;" onclick="copiarUID()">Copiar UID</button>
+        </div>
     </div>
 
     <header>
@@ -308,35 +338,6 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 
     <script>
-        // ============================================================
-        //   PIN DE ACCESO
-        //   Cambia el valor de PIN_CORRECTO por tu clave secreta.
-        //   Puede ser números o texto. Ej: "1234", "dentimike", etc.
-        //   ⚠️ Elige una clave que solo tú sepas.
-        // ============================================================
-        const PIN_CORRECTO = "2305";  // ← PON AQUÍ TU CLAVE
-
-        function validarPin(){
-            const val = document.getElementById('pinInput').value;
-            const err = document.getElementById('pinError');
-            if(val === PIN_CORRECTO){
-                localStorage.setItem('denti_desbloqueado','1');  // se recuerda para siempre en este dispositivo
-                document.getElementById('lockScreen').style.display = 'none';
-            } else {
-                err.style.visibility = 'visible';
-                document.getElementById('pinInput').value = '';
-                setTimeout(()=>{ err.style.visibility='hidden'; }, 2000);
-            }
-        }
-        // Si este dispositivo ya se desbloqueó una vez, no volver a pedir el PIN nunca
-        window.addEventListener('DOMContentLoaded', ()=>{
-            if(localStorage.getItem('denti_desbloqueado')==='1'){
-                document.getElementById('lockScreen').style.display = 'none';
-            } else {
-                setTimeout(()=>{ const p=document.getElementById('pinInput'); if(p) p.focus(); }, 200);
-            }
-        });
-
         // ===== Firebase init =====
         const firebaseConfig = {
             apiKey: "AIzaSyC4Kws78y5K3-1IuBibxCOo-a11ccuNYUE",
@@ -351,6 +352,8 @@
             firebase.initializeApp(firebaseConfig);
             db = firebase.firestore();
             auth = firebase.auth();
+            // Recordar sesión en este dispositivo (no pedir login cada vez)
+            auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
             fbOK = true;
         } catch(e) { console.error('Firebase init error', e); }
 
@@ -360,17 +363,50 @@
             t.innerText = text;
         }
 
-        // Login anónimo automático (identidad de dispositivo para poder escribir de forma segura)
-        async function iniciarAuth(){
-            if(!fbOK) { setSync('err','Sin conexión'); return; }
+        // ===== LOGIN REAL DEL DOCTOR (Google) =====
+        async function hacerLoginGoogle(){
+            const err = document.getElementById('loginError');
             try{
-                await auth.signInAnonymously();
-                authListo = true;
-                setSync('on','Sincronizado');
+                const provider = new firebase.auth.GoogleAuthProvider();
+                await auth.signInWithPopup(provider);
+                // onAuthStateChanged se encarga del resto
             }catch(e){
-                console.error('auth error', e);
-                setSync('err','Error de acceso');
+                console.error('login google error', e);
+                err.style.visibility = 'visible';
+                setTimeout(()=>{ err.style.visibility='hidden'; }, 3000);
             }
+        }
+        function copiarUID(){
+            const uid = document.getElementById('uidValor').innerText;
+            navigator.clipboard.writeText(uid).then(()=>{ alert('UID copiado. Pégalo en tu chat.'); });
+        }
+
+        // Detecta si ya hay sesión iniciada (persistente por dispositivo)
+        function iniciarAuth(){
+            if(!fbOK){ setSync('err','Sin conexión'); return; }
+            auth.onAuthStateChanged((user)=>{
+                if(user && !user.isAnonymous){
+                    // Doctor autenticado con Google
+                    authListo = true;
+                    // Mostrar UID en el aviso (útil la primera vez para configurar reglas)
+                    document.getElementById('uidValor').innerText = user.uid;
+                    document.getElementById('uidBox').style.display = 'block';
+                    console.log('TU UID:', user.uid);
+                    // Ocultar login tras un momento (para que alcances a copiar el UID si quieres)
+                    document.getElementById('lockScreen').style.display = 'none';
+                    setSync('on','Sincronizado');
+                    escucharAgendaEnTiempoReal();
+                } else {
+                    // No hay sesión: mostrar login
+                    authListo = false;
+                    document.getElementById('lockScreen').style.display = 'flex';
+                    setSync('','Bloqueado');
+                }
+            });
+        }
+
+        function cerrarSesion(){
+            if(auth) auth.signOut();
         }
 
         // ===== HASH seguro: teléfono + código → clave irreconocible =====
@@ -399,6 +435,75 @@
         };
         let pacientes = JSON.parse(localStorage.getItem('denti_pacientes_v16')) || {};
 
+        // Fotos de pacientes: SOLO local, no se sincronizan (pesan mucho)
+        let fotosLocales = JSON.parse(localStorage.getItem('denti_fotos_v16')) || {};
+
+        // ===== Sincronización GLOBAL de toda la agenda entre dispositivos =====
+        // Documento único: agenda/principal  (protegido: solo escribe/lee quien tenga el PIN + auth)
+        let syncGlobalActivo = false;
+        let ultimoGuardadoLocal = 0;
+
+        function separarFotos(){
+            // Quita las fotos de 'pacientes' y las guarda aparte (local). Devuelve pacientes SIN fotos.
+            const limpio = {};
+            Object.keys(pacientes).forEach(n => {
+                const p = pacientes[n];
+                if(p && p.foto){ fotosLocales[n] = p.foto; }
+                limpio[n] = { telefono: p.telefono||'', codigo: p.codigo||'' };
+            });
+            localStorage.setItem('denti_fotos_v16', JSON.stringify(fotosLocales));
+            return limpio;
+        }
+        function reinsertarFotos(){
+            // Al recibir pacientes de la nube (sin fotos), re-agrega las fotos locales.
+            Object.keys(pacientes).forEach(n => {
+                if(fotosLocales[n]) pacientes[n].foto = fotosLocales[n];
+            });
+        }
+
+        async function guardarAgendaEnNube(){
+            if(!fbOK || !authListo || !syncGlobalActivo) return;
+            try{
+                const pacientesSinFoto = separarFotos();
+                await db.collection('agenda').doc('principal').set({
+                    citas: citas,
+                    pacientes: pacientesSinFoto,
+                    motivos: motivos,
+                    config: config,
+                    actualizado: Date.now()
+                });
+                setSync('on','Sincronizado');
+            }catch(e){ console.error('guardar agenda error', e); setSync('err','Error al sincronizar'); }
+        }
+
+        function escucharAgendaEnTiempoReal(){
+            if(!fbOK || !authListo) return;
+            db.collection('agenda').doc('principal').onSnapshot((doc)=>{
+                if(!doc.exists){
+                    // Primera vez: sube lo que haya local
+                    syncGlobalActivo = true;
+                    guardarAgendaEnNube();
+                    return;
+                }
+                const data = doc.data();
+                // Aplica lo de la nube a este dispositivo
+                citas = data.citas || [];
+                pacientes = data.pacientes || {};
+                motivos = data.motivos || [];
+                if(data.config) config = data.config;
+                reinsertarFotos(); // vuelve a poner las fotos locales
+                // Guarda copia local de respaldo
+                localStorage.setItem('denti_citas_v16', JSON.stringify(citas));
+                localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes));
+                localStorage.setItem('denti_motivos_v16', JSON.stringify(motivos));
+                localStorage.setItem('denti_config_v16', JSON.stringify(config));
+                syncGlobalActivo = true;
+                // Refresca la vista
+                loadCalendar(); updateDatalists(); loadConfig();
+                setSync('on','Sincronizado');
+            }, (err)=>{ console.error('snapshot error', err); setSync('err','Error de conexión'); });
+        }
+
         // ===== Código de acceso =====
         function generarCodigo(){ return String(Math.floor(1000 + Math.random()*9000)); } // 4 dígitos
         function getCodigoPaciente(nombre){
@@ -410,9 +515,8 @@
             return cod;
         }
 
-        // ===== Sincronización a Firebase (SEGURA) =====
+        // ===== Sincronización a Firebase para PACIENTES (Mi Sonrisa) =====
         // Estructura: colección "citas_pacientes" / doc = HASH(teléfono+código)
-        // Así nadie puede leer datos sabiendo solo el teléfono: necesita el código.
         function limpiarTel(t){ return (t||'').replace(/\D/g,''); }
         async function syncPacienteAFirebase(nombre){
             if(!fbOK || !authListo) return;
@@ -437,8 +541,9 @@
                     citas: citasParaApp,
                     actualizado: Date.now()
                 }, { merge:true });
-                setSync('on','Sincronizado');
-            }catch(e){ console.error('sync error', e); setSync('err','Error al sincronizar'); }
+            }catch(e){ console.error('sync paciente error', e); }
+            // También guarda la agenda global
+            guardarAgendaEnNube();
         }
         async function sincronizarTodo(){
             if(!fbOK || !authListo) return;
@@ -476,6 +581,7 @@
             config.vFin = document.getElementById('confVFin').value || '21:00';
             config.mostrarFotos = document.getElementById('confMostrarFotos').checked;
             localStorage.setItem('denti_config_v16', JSON.stringify(config));
+            guardarAgendaEnNube();
             closeModal('configModalOverlay'); loadCalendar(); 
         }
 
