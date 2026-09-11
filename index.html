@@ -86,6 +86,25 @@
         .codigo-box .label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.9; }
         .codigo-box .code { font-size: 1.6rem; font-weight: bold; letter-spacing: 0.15em; }
 
+        /* Plan de tratamiento */
+        .plan-box { margin: 15px 0; padding: 12px; background: rgba(255,255,255,0.35); border-radius: 12px; }
+        .plan-box h5 { margin: 0 0 10px 0; color: var(--primary); font-size: 0.95rem; }
+        .plan-item { background: var(--bg-color); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; box-shadow: 3px 3px 6px var(--shadow-dark), -3px -3px 6px var(--shadow-light); display:flex; align-items:center; gap:10px; }
+        .plan-item.hecho { opacity: 0.6; }
+        .plan-item .pi-check { width: 26px; height: 26px; border-radius: 7px; border: 2px solid var(--status-gray); flex-shrink:0; display:flex; align-items:center; justify-content:center; cursor:pointer; font-weight:bold; color:white; }
+        .plan-item.hecho .pi-check { background: var(--status-green); border-color: var(--status-green); }
+        .plan-item .pi-info { flex:1; font-size: 0.85rem; }
+        .plan-item .pi-info b { color: var(--primary); }
+        .plan-item.hecho .pi-info { text-decoration: line-through; }
+        .plan-item .pi-prio { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+        .pi-prio.urgente { background: var(--status-red); }
+        .pi-prio.normal { background: var(--status-green); }
+        .plan-item .pi-del { color:#e53e3e; cursor:pointer; font-weight:bold; padding:0 4px; }
+        .plan-form { display:grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+        .plan-form select, .plan-form input { padding: 0.6rem; font-size: 0.85rem; border-radius: 8px; box-shadow: inset 3px 3px 6px var(--shadow-dark), inset -3px -3px 6px var(--shadow-light); border:none; background: var(--bg-color); color: var(--text-main); width:100%; }
+        .plan-form .full { grid-column: 1 / -1; }
+        .plan-add-btn { grid-column: 1 / -1; background: var(--accent); color: white; border:none; border-radius: 8px; padding: 0.6rem; font-weight: bold; cursor:pointer; }
+
         .chat-box { background: rgba(255,255,255,0.4); border-radius: 10px; height: 250px; padding: 10px; overflow-y: auto; margin-bottom: 15px; box-shadow: inset 4px 4px 8px var(--shadow-dark), inset -4px -4px 8px var(--shadow-light); display: flex; flex-direction: column; gap: 10px;}
         .chat-msg { padding: 10px; border-radius: 10px; max-width: 85%; font-size: 0.9rem; line-height: 1.4;}
         .chat-ia { background: var(--primary); color: white; align-self: flex-start; border-bottom-left-radius: 0;}
@@ -267,6 +286,39 @@
                         <input type="hidden" id="editDirFotoBase64">
                     </div>
                 </div>
+                <div class="plan-box">
+                    <h5>🦷 Plan de tratamiento (lo verá el paciente en Mi Sonrisa)</h5>
+                    <div id="planLista"></div>
+                    <div class="plan-form">
+                        <select id="planTipo">
+                            <option value="Caries / Resina">Caries / Resina</option>
+                            <option value="Endodoncia">Endodoncia</option>
+                            <option value="Perio (limpieza profunda)">Perio (limpieza profunda)</option>
+                            <option value="Extracción">Extracción</option>
+                            <option value="Extracción de terceros molares">Extracción de terceros molares</option>
+                            <option value="Limpieza (profilaxis)">Limpieza (profilaxis)</option>
+                            <option value="Prótesis">Prótesis</option>
+                            <option value="Corona">Corona</option>
+                            <option value="Ortodoncia">Ortodoncia</option>
+                            <option value="Otro">Otro</option>
+                        </select>
+                        <input type="text" id="planDiente" placeholder="Diente (FDI) o zona" list="dientesFDI">
+                        <datalist id="dientesFDI">
+                            <option value="Boca completa"><option value="Cuadrante superior derecho"><option value="Cuadrante superior izquierdo">
+                            <option value="Cuadrante inferior derecho"><option value="Cuadrante inferior izquierdo">
+                            <option value="11"><option value="12"><option value="13"><option value="14"><option value="15"><option value="16"><option value="17"><option value="18">
+                            <option value="21"><option value="22"><option value="23"><option value="24"><option value="25"><option value="26"><option value="27"><option value="28">
+                            <option value="31"><option value="32"><option value="33"><option value="34"><option value="35"><option value="36"><option value="37"><option value="38">
+                            <option value="41"><option value="42"><option value="43"><option value="44"><option value="45"><option value="46"><option value="47"><option value="48">
+                        </datalist>
+                        <select id="planPrioridad" class="full">
+                            <option value="normal">Prioridad: Normal</option>
+                            <option value="urgente">Prioridad: Urgente</option>
+                        </select>
+                        <button class="plan-add-btn" onclick="agregarTratamientoPlan()">+ Agregar al plan</button>
+                    </div>
+                </div>
+
                 <button class="btn-3d btn-submit" style="color:#25D366;" onclick="enviarCodigoWhatsApp()">Enviar código al paciente por WhatsApp</button>
                 <button class="btn-3d btn-submit" style="background:var(--primary); color:white;" onclick="guardarEdicionDirectorio()">Guardar Cambios</button>
                 <button class="btn-3d btn-submit" style="margin-top:10px;" onclick="cerrarEditorDirectorio()">Cancelar</button>
@@ -539,6 +591,7 @@
                 await db.collection('citas_pacientes').doc(llave).set({
                     nombre: nombre,
                     citas: citasParaApp,
+                    plan: pac.plan || [],
                     actualizado: Date.now()
                 }, { merge:true });
             }catch(e){ console.error('sync paciente error', e); }
@@ -693,7 +746,55 @@
             const preview = document.getElementById('editDirFotoPreview');
             if(pac.foto) { preview.src = pac.foto; preview.style.display = 'block'; } else { preview.src = ''; preview.style.display = 'none'; }
             document.getElementById('editDirFile').value = ''; document.getElementById('listaContactos').style.display = 'none'; document.getElementById('editorContacto').style.display = 'block';
+            renderPlanTratamiento(nombre);
         }
+
+        // ===== Plan de tratamiento =====
+        function renderPlanTratamiento(nombre){
+            const pac = pacientes[nombre];
+            const plan = (pac && pac.plan) ? pac.plan : [];
+            const cont = document.getElementById('planLista');
+            if(!plan.length){ cont.innerHTML = '<p style="font-size:0.8rem; color:var(--text-muted); text-align:center; margin:6px 0;">Sin tratamientos en el plan aún.</p>'; return; }
+            cont.innerHTML = plan.map((t,i)=>{
+                const dienteTxt = t.diente ? ` · Diente/zona: <b>${t.diente}</b>` : '';
+                return `<div class="plan-item ${t.hecho?'hecho':''}">
+                    <div class="pi-check" onclick="togglePlanHecho(${i})">${t.hecho?'✓':''}</div>
+                    <div class="pi-prio ${t.prioridad||'normal'}" title="${t.prioridad==='urgente'?'Urgente':'Normal'}"></div>
+                    <div class="pi-info"><b>${t.tipo}</b>${dienteTxt}</div>
+                    <div class="pi-del" onclick="eliminarPlanItem(${i})">✕</div>
+                </div>`;
+            }).join('');
+        }
+        function agregarTratamientoPlan(){
+            const nombre = dirNombreActual; if(!nombre) return;
+            if(!pacientes[nombre].plan) pacientes[nombre].plan = [];
+            const tipo = document.getElementById('planTipo').value;
+            const diente = document.getElementById('planDiente').value.trim();
+            const prioridad = document.getElementById('planPrioridad').value;
+            pacientes[nombre].plan.push({ tipo, diente, prioridad, hecho:false });
+            document.getElementById('planDiente').value = '';
+            document.getElementById('planPrioridad').value = 'normal';
+            guardarPlan(nombre);
+            renderPlanTratamiento(nombre);
+        }
+        function togglePlanHecho(i){
+            const nombre = dirNombreActual; if(!nombre) return;
+            pacientes[nombre].plan[i].hecho = !pacientes[nombre].plan[i].hecho;
+            guardarPlan(nombre);
+            renderPlanTratamiento(nombre);
+        }
+        function eliminarPlanItem(i){
+            const nombre = dirNombreActual; if(!nombre) return;
+            if(!confirm('¿Quitar este tratamiento del plan?')) return;
+            pacientes[nombre].plan.splice(i,1);
+            guardarPlan(nombre);
+            renderPlanTratamiento(nombre);
+        }
+        function guardarPlan(nombre){
+            localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes));
+            syncPacienteAFirebase(nombre); // sube el plan a la nube (Mi Sonrisa lo leerá)
+        }
+
         function procesarFotoDir(event) {
             const file = event.target.files[0];
             if (file) {
@@ -704,8 +805,8 @@
         }
         function guardarEdicionDirectorio() {
             const nombre = document.getElementById('editDirNombre').value, tel = document.getElementById('editDirTel').value, foto = document.getElementById('editDirFotoBase64').value;
-            const codigoPrev = pacientes[nombre] ? pacientes[nombre].codigo : null;
-            pacientes[nombre] = { telefono: tel, foto: foto, codigo: codigoPrev || generarCodigo() }; 
+            const prev = pacientes[nombre] || {};
+            pacientes[nombre] = { telefono: tel, foto: foto, codigo: prev.codigo || generarCodigo(), plan: prev.plan || [] }; 
             localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes));
             citas.forEach(c => { if(c.paciente === nombre) c.telefono = tel; }); localStorage.setItem('denti_citas_v16', JSON.stringify(citas));
             syncPacienteAFirebase(nombre); // sube a la nube
