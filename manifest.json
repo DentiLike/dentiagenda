@@ -1,0 +1,15 @@
+{
+  "name": "DentiAgenda · Dentilike",
+  "short_name": "DentiAgenda",
+  "description": "Agenda y expedientes del consultorio Dentilike.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#e0e5ec",
+  "theme_color": "#124578",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "favicon.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

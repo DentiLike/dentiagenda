@@ -3,7 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DentiAgenda V17 · Firebase</title>
+    <title>DentiAgenda · Dentilike</title>
+    <link rel="manifest" href="manifest.json"/>
+    <link rel="icon" type="image/png" href="favicon.png"/>
+    <link rel="apple-touch-icon" href="favicon.png"/>
+    <meta name="theme-color" content="#124578"/>
     <style>
         :root { 
             --primary: #124578; --accent: #46c3b6; --bg-color: #e0e5ec; 
@@ -171,7 +175,7 @@
 
     <header>
         <div class="logo-container">
-            <img src="SIN FONDO DENTILIKE.png" alt="DENTILIKE" onerror="this.alt='DENTILIKE'; this.style.display='none';">
+            <img src="logo-dentiagenda.png" alt="DentiAgenda" style="max-width:220px;" onerror="this.style.display='none';">
         </div>
         <div class="header-actions">
             <button class="btn-3d btn-text-icon" onclick="abrirDirectorio()">Directorio</button>
@@ -411,6 +415,7 @@
                 <label style="margin:0; font-size:1rem;">Mostrar fotos de pacientes</label>
             </div>
             <button class="btn-3d btn-submit" onclick="guardarConfig()">Guardar Ajustes</button>
+            <button class="btn-3d btn-submit" style="color:var(--accent); margin-top:10px;" onclick="instalarDentiAgenda()">📲 Instalar DentiAgenda en este dispositivo</button>
         </div>
     </div>
 
@@ -1071,6 +1076,23 @@
                 if(confirm('Cita guardada. ¿Enviar mensaje de registro por WhatsApp?')) enviarWhatsAppNueva(pac, tel, hIni, hFin, mot, selectedDate);
             } else { alert('Cita actualizada correctamente.'); }
         }
+
+        // ===== Instalar como app (PWA) =====
+        let dentiDeferredPrompt = null;
+        window.addEventListener('beforeinstallprompt', (e)=>{ e.preventDefault(); dentiDeferredPrompt = e; });
+        function instalarDentiAgenda(){
+            const ua = navigator.userAgent||'';
+            const esIOS = /iPad|iPhone|iPod/.test(ua);
+            if(dentiDeferredPrompt){
+                dentiDeferredPrompt.prompt();
+                dentiDeferredPrompt.userChoice.then(()=>{ dentiDeferredPrompt=null; });
+            } else if(esIOS){
+                alert('Para instalar en iPhone:\n\n1. Abre esta página en Safari\n2. Toca el botón compartir ⬆️\n3. "Agregar a inicio"');
+            } else {
+                alert('Para instalar:\n\nToca el menú ⋮ de tu navegador y elige "Instalar app" o "Agregar a pantalla de inicio".');
+            }
+        }
+        if('serviceWorker' in navigator){ navigator.serviceWorker.register('sw.js').catch(()=>{}); }
 
         init();
     </script>
