@@ -101,9 +101,12 @@
         .pi-prio.normal { background: var(--status-green); }
         .plan-item .pi-del { color:#e53e3e; cursor:pointer; font-weight:bold; padding:0 4px; }
         .plan-form { display:grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
-        .plan-form select, .plan-form input { padding: 0.6rem; font-size: 0.85rem; border-radius: 8px; box-shadow: inset 3px 3px 6px var(--shadow-dark), inset -3px -3px 6px var(--shadow-light); border:none; background: var(--bg-color); color: var(--text-main); width:100%; }
+        .plan-form select, .plan-form input { padding: 0.7rem 0.6rem; font-size: 0.85rem; border-radius: 8px; border: 1.5px solid #b8cce4; background: #eef4fb; color: var(--primary); width:100%; box-shadow:none; }
+        .plan-form select:focus, .plan-form input:focus { outline:none; border-color: var(--accent); }
+        .plan-form input::placeholder { color: #7a96b8; }
         .plan-form .full { grid-column: 1 / -1; }
-        .plan-add-btn { grid-column: 1 / -1; background: var(--accent); color: white; border:none; border-radius: 8px; padding: 0.6rem; font-weight: bold; cursor:pointer; }
+        .plan-add-btn { grid-column: 1 / -1; background: var(--accent); color: white; border:none; border-radius: 8px; padding: 0.7rem; font-weight: bold; cursor:pointer; box-shadow: 3px 3px 6px var(--shadow-dark), -3px -3px 6px var(--shadow-light); }
+        .plan-add-btn:active { box-shadow: inset 3px 3px 6px rgba(0,0,0,0.2); }
 
         .chat-box { background: rgba(255,255,255,0.4); border-radius: 10px; height: 250px; padding: 10px; overflow-y: auto; margin-bottom: 15px; box-shadow: inset 4px 4px 8px var(--shadow-dark), inset -4px -4px 8px var(--shadow-light); display: flex; flex-direction: column; gap: 10px;}
         .chat-msg { padding: 10px; border-radius: 10px; max-width: 85%; font-size: 0.9rem; line-height: 1.4;}
@@ -494,14 +497,18 @@
         // Documento único: agenda/principal  (protegido: solo escribe/lee quien tenga el PIN + auth)
         let syncGlobalActivo = false;
         let ultimoGuardadoLocal = 0;
+        let ignorarProximoSnapshot = false;
 
         function separarFotos(){
-            // Quita las fotos de 'pacientes' y las guarda aparte (local). Devuelve pacientes SIN fotos.
+            // Quita SOLO las fotos de 'pacientes' (las guarda aparte local).
+            // Conserva todo lo demás: telefono, codigo, plan, etc.
             const limpio = {};
             Object.keys(pacientes).forEach(n => {
-                const p = pacientes[n];
-                if(p && p.foto){ fotosLocales[n] = p.foto; }
-                limpio[n] = { telefono: p.telefono||'', codigo: p.codigo||'' };
+                const p = pacientes[n] || {};
+                if(p.foto){ fotosLocales[n] = p.foto; }
+                const copia = Object.assign({}, p);
+                delete copia.foto;   // solo la foto no se sube
+                limpio[n] = copia;
             });
             localStorage.setItem('denti_fotos_v16', JSON.stringify(fotosLocales));
             return limpio;
@@ -517,6 +524,7 @@
             if(!fbOK || !authListo || !syncGlobalActivo) return;
             try{
                 const pacientesSinFoto = separarFotos();
+                ignorarProximoSnapshot = true;  // el eco de esta escritura no debe pisar nada
                 await db.collection('agenda').doc('principal').set({
                     citas: citas,
                     pacientes: pacientesSinFoto,
@@ -537,6 +545,8 @@
                     guardarAgendaEnNube();
                     return;
                 }
+                // Si acabamos de guardar nosotros, ignora este eco (evita pisar cambios)
+                if(ignorarProximoSnapshot){ ignorarProximoSnapshot = false; syncGlobalActivo = true; return; }
                 const data = doc.data();
                 // Aplica lo de la nube a este dispositivo
                 citas = data.citas || [];
@@ -552,6 +562,10 @@
                 syncGlobalActivo = true;
                 // Refresca la vista
                 loadCalendar(); updateDatalists(); loadConfig();
+                // Si el editor de un paciente está abierto, refresca su plan
+                if(dirNombreActual && document.getElementById('editorContacto').style.display === 'block'){
+                    renderPlanTratamiento(dirNombreActual);
+                }
                 setSync('on','Sincronizado');
             }, (err)=>{ console.error('snapshot error', err); setSync('err','Error de conexión'); });
         }
