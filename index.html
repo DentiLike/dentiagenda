@@ -108,6 +108,16 @@
         .plan-add-btn { grid-column: 1 / -1; background: var(--accent); color: white; border:none; border-radius: 8px; padding: 0.7rem; font-weight: bold; cursor:pointer; box-shadow: 3px 3px 6px var(--shadow-dark), -3px -3px 6px var(--shadow-light); }
         .plan-add-btn:active { box-shadow: inset 3px 3px 6px rgba(0,0,0,0.2); }
 
+        /* Ortodoncia */
+        .orto-box { margin: 15px 0; padding: 14px; background: rgba(70,195,182,0.12); border-radius: 12px; border: 1.5px solid var(--accent); }
+        .orto-switch-row { display:flex; align-items:center; justify-content:space-between; }
+        .orto-switch-row span { font-weight:bold; color: var(--primary); font-size:0.9rem; }
+        .orto-fases { margin-top: 12px; display:none; }
+        .orto-fases.show { display:block; }
+        .orto-fase-btn { display:block; width:100%; text-align:left; padding:10px 12px; margin-bottom:7px; border-radius:9px; border:1.5px solid #b8cce4; background:#eef4fb; color:var(--primary); font-size:0.85rem; cursor:pointer; }
+        .orto-fase-btn.activa { background: var(--accent); color:white; border-color: var(--accent); font-weight:bold; }
+        .orto-fase-btn .num { font-weight:bold; }
+
         .chat-box { background: rgba(255,255,255,0.4); border-radius: 10px; height: 250px; padding: 10px; overflow-y: auto; margin-bottom: 15px; box-shadow: inset 4px 4px 8px var(--shadow-dark), inset -4px -4px 8px var(--shadow-light); display: flex; flex-direction: column; gap: 10px;}
         .chat-msg { padding: 10px; border-radius: 10px; max-width: 85%; font-size: 0.9rem; line-height: 1.4;}
         .chat-ia { background: var(--primary); color: white; align-self: flex-start; border-bottom-left-radius: 0;}
@@ -246,6 +256,7 @@
             
             <div id="detalleCitaData" class="detalle-azul"></div>
             
+            <button class="btn-3d status-btn" style="color: var(--accent);" onclick="verExpedienteDesdeCita()">📋 Ver expediente completo</button>
             <button class="btn-3d status-btn" style="color: var(--primary);" onclick="prepararEdicion()">Editar Cita</button>
             <button class="btn-3d status-btn" style="color: #25D366;" onclick="enviarWhatsAppConfirmacion()">Confirmar por WhatsApp</button>
             <button class="btn-3d status-btn" style="color: var(--text-main);" onclick="generarIcsManualmente()">Descargar archivo .ICS</button>
@@ -289,6 +300,22 @@
                         <input type="hidden" id="editDirFotoBase64">
                     </div>
                 </div>
+                <div class="orto-box">
+                    <div class="orto-switch-row">
+                        <span>😬 Paciente en ortodoncia</span>
+                        <label style="position:relative; display:inline-block; width:50px; height:28px;">
+                            <input type="checkbox" id="ortoSwitch" onchange="toggleOrtodoncia()" style="opacity:0; width:0; height:0;">
+                            <span id="ortoSlider" style="position:absolute; inset:0; background:var(--status-gray); border-radius:999px; transition:.2s; cursor:pointer;"></span>
+                        </label>
+                    </div>
+                    <div class="orto-fases" id="ortoFases">
+                        <div style="font-size:0.78rem; color:var(--text-muted); margin-bottom:8px;">¿En qué fase va el tratamiento?</div>
+                        <button class="orto-fase-btn" data-fase="1" onclick="setFaseOrto(1)"><span class="num">Fase 1:</span> Alineación y nivelación</button>
+                        <button class="orto-fase-btn" data-fase="2" onclick="setFaseOrto(2)"><span class="num">Fase 2:</span> Trabajo / biomecánica</button>
+                        <button class="orto-fase-btn" data-fase="3" onclick="setFaseOrto(3)"><span class="num">Fase 3:</span> Finalización y estabilización</button>
+                    </div>
+                </div>
+
                 <div class="plan-box">
                     <h5>🦷 Plan de tratamiento (lo verá el paciente en Mi Sonrisa)</h5>
                     <div id="planLista"></div>
@@ -606,6 +633,8 @@
                     nombre: nombre,
                     citas: citasParaApp,
                     plan: pac.plan || [],
+                    ortodoncia: !!pac.ortodoncia,
+                    ortoFase: pac.ortoFase || 1,
                     actualizado: Date.now()
                 }, { merge:true });
             }catch(e){ console.error('sync paciente error', e); }
@@ -761,6 +790,34 @@
             if(pac.foto) { preview.src = pac.foto; preview.style.display = 'block'; } else { preview.src = ''; preview.style.display = 'none'; }
             document.getElementById('editDirFile').value = ''; document.getElementById('listaContactos').style.display = 'none'; document.getElementById('editorContacto').style.display = 'block';
             renderPlanTratamiento(nombre);
+            renderOrtodoncia(nombre);
+        }
+
+        // ===== Ortodoncia =====
+        function renderOrtodoncia(nombre){
+            const pac = pacientes[nombre] || {};
+            const enOrto = !!pac.ortodoncia;
+            document.getElementById('ortoSwitch').checked = enOrto;
+            document.getElementById('ortoSlider').style.background = enOrto ? 'var(--accent)' : 'var(--status-gray)';
+            document.getElementById('ortoFases').classList.toggle('show', enOrto);
+            const fase = pac.ortoFase || 1;
+            document.querySelectorAll('.orto-fase-btn').forEach(b=>{
+                b.classList.toggle('activa', parseInt(b.dataset.fase) === fase);
+            });
+        }
+        function toggleOrtodoncia(){
+            const nombre = dirNombreActual; if(!nombre) return;
+            const on = document.getElementById('ortoSwitch').checked;
+            pacientes[nombre].ortodoncia = on;
+            if(on && !pacientes[nombre].ortoFase) pacientes[nombre].ortoFase = 1;
+            guardarPlan(nombre); // reusa el guardado (localStorage + nube)
+            renderOrtodoncia(nombre);
+        }
+        function setFaseOrto(fase){
+            const nombre = dirNombreActual; if(!nombre) return;
+            pacientes[nombre].ortoFase = fase;
+            guardarPlan(nombre);
+            renderOrtodoncia(nombre);
         }
 
         // ===== Plan de tratamiento =====
@@ -913,6 +970,16 @@
                 }
             }
             return "Entendido. Aun estoy aprendiendo, pero puedo revisar tus citas de hoy, buscar espacios libres o decirte cuando viene un paciente si me das su nombre.";
+        }
+
+        function verExpedienteDesdeCita(){
+            const cita = citas.find(c => c.id === citaSeleccionadaId);
+            if(!cita) return;
+            closeModal('opcionesCitaModal');
+            // Abrir el directorio y directamente el expediente de este paciente
+            renderListaContactos();
+            document.getElementById('directorioModal').style.display = 'flex';
+            abrirEditorDirectorio(cita.paciente);
         }
 
         function prepararEdicion() {
