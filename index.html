@@ -317,10 +317,21 @@
                         </label>
                     </div>
                     <div class="orto-fases" id="ortoFases">
-                        <div style="font-size:0.78rem; color:var(--text-muted); margin-bottom:8px;">¿En qué fase va el tratamiento?</div>
-                        <button class="orto-fase-btn" data-fase="1" onclick="setFaseOrto(1)"><span class="num">Fase 1:</span> Alineación y nivelación</button>
-                        <button class="orto-fase-btn" data-fase="2" onclick="setFaseOrto(2)"><span class="num">Fase 2:</span> Trabajo / biomecánica</button>
-                        <button class="orto-fase-btn" data-fase="3" onclick="setFaseOrto(3)"><span class="num">Fase 3:</span> Finalización y estabilización</button>
+                        <div style="font-size:0.78rem; color:var(--text-muted); margin-bottom:6px;">Tipo de caso:</div>
+                        <select id="ortoTipoCaso" onchange="cambiarTipoCasoOrto()" style="width:100%; padding:9px; border-radius:8px; border:1.5px solid #b8cce4; background:#eef4fb; color:var(--primary); font-size:0.85rem; margin-bottom:10px;">
+                            <option value="sin_extracciones">Sin extracciones</option>
+                            <option value="con_extracciones">Con extracciones</option>
+                        </select>
+                        <div id="ortoResumen" style="text-align:center; padding:10px; background:var(--accent); color:white; border-radius:8px; margin-bottom:10px; font-weight:bold;">0% · Fase 1</div>
+                        <div style="font-size:0.72rem; color:var(--text-muted); margin-bottom:6px;">Marca los arcos colocados (superior / inferior):</div>
+                        <table style="width:100%; border-collapse:collapse; font-size:0.8rem;">
+                            <thead><tr style="background:var(--primary); color:white;">
+                                <th style="padding:6px; text-align:left; border-radius:6px 0 0 0;">Arco</th>
+                                <th style="padding:6px;">Sup</th>
+                                <th style="padding:6px; border-radius:0 6px 0 0;">Inf</th>
+                            </tr></thead>
+                            <tbody id="ortoTablaBody"></tbody>
+                        </table>
                     </div>
                 </div>
 
@@ -642,7 +653,10 @@
                     citas: citasParaApp,
                     plan: pac.plan || [],
                     ortodoncia: !!pac.ortodoncia,
-                    ortoFase: pac.ortoFase || 1,
+                    ortoTipoCaso: pac.ortoTipoCaso || 'sin_extracciones',
+                    ortoArcos: pac.ortoArcos || {},
+                    ortoPorcentaje: pac.ortoPorcentaje || 0,
+                    ortoFaseTexto: pac.ortoFaseTexto || 'Fase 1: Alineación y nivelación',
                     actualizado: Date.now()
                 }, { merge:true });
             }catch(e){ console.error('sync paciente error', e); }
@@ -818,35 +832,123 @@
             renderOrtodoncia(nombre);
         }
 
-        // ===== Ortodoncia =====
+        // ===== Ortodoncia (secuencias de arcos) =====
+        const ORTO_SECUENCIAS = {
+            sin_extracciones: [
+                { id:'niti_012', name:'NiTi .012', pct:5 },
+                { id:'niti_014', name:'NiTi .014', pct:10 },
+                { id:'niti_016', name:'NiTi .016', pct:15 },
+                { id:'niti_018', name:'NiTi .018', pct:20 },
+                { id:'niti_16x22', name:'NiTi 16x22', pct:26 },
+                { id:'niti_17x25', name:'NiTi 17x25', pct:32 },
+                { id:'niti_19x25', name:'NiTi 19x25', pct:39 },
+                { id:'acero_16x22_trabajo', name:'Acero 16x22', pct:47 },
+                { id:'acero_17x25', name:'Acero 17x25', pct:56 },
+                { id:'acero_19x25', name:'Acero 19x25', pct:65 },
+                { id:'cadena_act1', name:'Activación Cadena #1', pct:70 },
+                { id:'cadena_act2', name:'Activación Cadena #2', pct:75 },
+                { id:'acero_16x22_asent', name:'Acero 16x22 (Asentamiento)', pct:84 },
+                { id:'acero_018_asent', name:'Acero .018 (Asentamiento)', pct:92 },
+                { id:'acero_016_asent', name:'Acero .016 (Asentamiento)', pct:100 }
+            ],
+            con_extracciones: [
+                { id:'niti_012', name:'NiTi .012', pct:3 },
+                { id:'niti_014', name:'NiTi .014', pct:6 },
+                { id:'niti_016', name:'NiTi .016', pct:9 },
+                { id:'niti_018', name:'NiTi .018', pct:13 },
+                { id:'niti_16x22', name:'NiTi 16x22', pct:17 },
+                { id:'niti_17x25', name:'NiTi 17x25', pct:21 },
+                { id:'niti_19x25', name:'NiTi 19x25', pct:25 },
+                { id:'acero_16x22_trabajo', name:'Acero 16x22 (Preparación)', pct:29 },
+                { id:'acero_17x25_cierre', name:'Acero 17x25 (Arco de cierre)', pct:33 },
+                { id:'cadena_act1', name:'Activación Cadena #1', pct:37 },
+                { id:'cadena_act2', name:'Activación Cadena #2', pct:41 },
+                { id:'cadena_act3', name:'Activación Cadena #3', pct:45 },
+                { id:'cadena_act4', name:'Activación Cadena #4', pct:49 },
+                { id:'cadena_act5', name:'Activación Cadena #5', pct:53 },
+                { id:'cadena_act6', name:'Activación Cadena #6', pct:57 },
+                { id:'cadena_act7', name:'Activación Cadena #7', pct:61 },
+                { id:'cadena_act8', name:'Activación Cadena #8', pct:65 },
+                { id:'cadena_act9', name:'Activación Cadena #9', pct:69 },
+                { id:'cadena_act10', name:'Activación Cadena #10 (Cierre total)', pct:73 },
+                { id:'acero_19x25_consol', name:'Acero 19x25 (Consolidación)', pct:78 },
+                { id:'acero_16x22_asent', name:'Acero 16x22 (Asentamiento)', pct:86 },
+                { id:'acero_018_asent', name:'Acero .018 (Asentamiento)', pct:93 },
+                { id:'acero_016_asent', name:'Acero .016 (Asentamiento)', pct:100 }
+            ]
+        };
+        function calcularProgresoOrto(tipoCaso, arcos){
+            const sec = ORTO_SECUENCIAS[tipoCaso] || ORTO_SECUENCIAS.sin_extracciones;
+            let exacto = 0, prev = 0;
+            for(const paso of sec){
+                const delta = paso.pct - prev;
+                const a = arcos[paso.id] || {};
+                if(a.sup) exacto += delta/2;
+                if(a.inf) exacto += delta/2;
+                prev = paso.pct;
+            }
+            const porcentaje = Math.round(exacto);
+            const l1 = tipoCaso==='sin_extracciones'?20:13;
+            const l2 = tipoCaso==='sin_extracciones'?75:78;
+            let fase;
+            if(porcentaje<=l1) fase='Fase 1: Alineación y nivelación';
+            else if(porcentaje<=l2) fase='Fase 2: Trabajo y Cierre';
+            else fase='Fase 3: Asentamiento y finalización';
+            return { porcentaje, fase };
+        }
         function renderOrtodoncia(nombre){
             const pac = pacientes[nombre] || {};
             const enOrto = !!pac.ortodoncia;
             document.getElementById('ortoSwitch').checked = enOrto;
             document.getElementById('ortoSlider').style.background = enOrto ? 'var(--accent)' : 'var(--status-gray)';
             document.getElementById('ortoFases').classList.toggle('show', enOrto);
-            const fase = pac.ortoFase || 1;
-            document.querySelectorAll('.orto-fase-btn').forEach(b=>{
-                b.classList.toggle('activa', parseInt(b.dataset.fase) === fase);
-            });
+            if(!enOrto) return;
+            const tipoCaso = pac.ortoTipoCaso || 'sin_extracciones';
+            document.getElementById('ortoTipoCaso').value = tipoCaso;
+            const arcos = pac.ortoArcos || {};
+            const sec = ORTO_SECUENCIAS[tipoCaso];
+            const tbody = document.getElementById('ortoTablaBody');
+            tbody.innerHTML = sec.map(paso=>{
+                const a = arcos[paso.id] || {};
+                return `<tr>
+                    <td style="padding:6px; text-align:left; border-bottom:1px solid var(--gris-borde,#e2e8f0);">${paso.name}</td>
+                    <td style="padding:6px; text-align:center; border-bottom:1px solid #e2e8f0;"><input type="checkbox" ${a.sup?'checked':''} onchange="toggleArcoOrto('${paso.id}','sup',this.checked)"></td>
+                    <td style="padding:6px; text-align:center; border-bottom:1px solid #e2e8f0;"><input type="checkbox" ${a.inf?'checked':''} onchange="toggleArcoOrto('${paso.id}','inf',this.checked)"></td>
+                </tr>`;
+            }).join('');
+            const r = calcularProgresoOrto(tipoCaso, arcos);
+            document.getElementById('ortoResumen').innerText = `${r.porcentaje}% · ${r.fase}`;
         }
         function toggleOrtodoncia(){
             const nombre = dirNombreActual; if(!nombre) return;
             if(!pacientes[nombre]) pacientes[nombre] = { telefono:'', codigo:generarCodigo() };
             const on = document.getElementById('ortoSwitch').checked;
             pacientes[nombre].ortodoncia = on;
-            if(on && !pacientes[nombre].ortoFase) pacientes[nombre].ortoFase = 1;
+            if(on){
+                if(!pacientes[nombre].ortoTipoCaso) pacientes[nombre].ortoTipoCaso = 'sin_extracciones';
+                if(!pacientes[nombre].ortoArcos) pacientes[nombre].ortoArcos = {};
+            }
             guardarPlan(nombre);
             renderOrtodoncia(nombre);
         }
-        function setFaseOrto(fase){
+        function cambiarTipoCasoOrto(){
             const nombre = dirNombreActual; if(!nombre) return;
-            if(!pacientes[nombre]) pacientes[nombre] = { telefono:'', codigo:generarCodigo() };
-            pacientes[nombre].ortoFase = fase;
-            pacientes[nombre].ortodoncia = true; // si eligió fase, está en ortodoncia
-            document.getElementById('ortoSwitch').checked = true;
+            pacientes[nombre].ortoTipoCaso = document.getElementById('ortoTipoCaso').value;
             guardarPlan(nombre);
             renderOrtodoncia(nombre);
+        }
+        function toggleArcoOrto(idArco, arcada, valor){
+            const nombre = dirNombreActual; if(!nombre) return;
+            if(!pacientes[nombre].ortoArcos) pacientes[nombre].ortoArcos = {};
+            if(!pacientes[nombre].ortoArcos[idArco]) pacientes[nombre].ortoArcos[idArco] = { sup:false, inf:false };
+            pacientes[nombre].ortoArcos[idArco][arcada] = valor;
+            // recalcular y guardar
+            const tipoCaso = pacientes[nombre].ortoTipoCaso || 'sin_extracciones';
+            const r = calcularProgresoOrto(tipoCaso, pacientes[nombre].ortoArcos);
+            pacientes[nombre].ortoPorcentaje = r.porcentaje;
+            pacientes[nombre].ortoFaseTexto = r.fase;
+            document.getElementById('ortoResumen').innerText = `${r.porcentaje}% · ${r.fase}`;
+            guardarPlan(nombre);
         }
 
         // ===== Plan de tratamiento =====
