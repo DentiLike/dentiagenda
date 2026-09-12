@@ -288,8 +288,19 @@
                 <button class="close-btn" onclick="closeModal('directorioModal')">X</button>
             </div>
             
+            <button class="btn-3d" id="btnNuevoPaciente" style="width:100%; padding:0.9rem; margin-bottom:1rem; color:var(--accent); font-size:0.95rem;" onclick="abrirNuevoPaciente()">+ Nuevo paciente</button>
             <div id="listaContactos" style="max-height: 400px; overflow-y: auto; margin-bottom: 1rem;"></div>
             
+            <div id="formNuevoPaciente" style="display:none; padding-top:1rem; border-top:1px solid var(--shadow-dark);">
+                <h4 style="color: var(--accent); margin-top:0;">Nuevo paciente</h4>
+                <div class="form-group"><label>Nombre completo</label><input type="text" id="nuevoPacNombre" class="inset-3d" placeholder="Ej. María López García"></div>
+                <div class="form-group"><label>Teléfono (10 dígitos)</label>
+                    <div class="phone-input-group"><span class="phone-prefix">MEX +52</span><input type="tel" id="nuevoPacTel" class="inset-3d" placeholder="Ej. 444 123 4567"></div>
+                </div>
+                <button class="btn-3d btn-submit" style="background:var(--primary); color:white;" onclick="guardarNuevoPaciente()">Guardar paciente</button>
+                <button class="btn-3d btn-submit" style="margin-top:10px;" onclick="cancelarNuevoPaciente()">Cancelar</button>
+            </div>
+
             <div id="editorContacto" style="display:none; padding-top:1rem; border-top:1px solid var(--shadow-dark);">
                 <h4 style="color: var(--accent); margin-top:0;">Editar Expediente</h4>
                 <div class="form-group"><label>Nombre</label><input type="text" id="editDirNombre" class="inset-3d" readonly></div>
@@ -792,7 +803,42 @@
         }
 
         // --- DIRECTORIO ---
-        function abrirDirectorio() { renderListaContactos(); document.getElementById('editorContacto').style.display = 'none'; document.getElementById('directorioModal').style.display = 'flex'; }
+        function abrirDirectorio() { renderListaContactos(); document.getElementById('editorContacto').style.display = 'none'; document.getElementById('formNuevoPaciente').style.display = 'none'; document.getElementById('directorioModal').style.display = 'flex'; }
+
+        // ===== Nuevo paciente =====
+        function abrirNuevoPaciente(){
+            editandoAhora = true;
+            document.getElementById('listaContactos').style.display = 'none';
+            document.getElementById('btnNuevoPaciente').style.display = 'none';
+            document.getElementById('editorContacto').style.display = 'none';
+            document.getElementById('nuevoPacNombre').value = '';
+            document.getElementById('nuevoPacTel').value = '';
+            document.getElementById('formNuevoPaciente').style.display = 'block';
+        }
+        function cancelarNuevoPaciente(){
+            editandoAhora = false;
+            document.getElementById('formNuevoPaciente').style.display = 'none';
+            document.getElementById('listaContactos').style.display = 'block';
+            document.getElementById('btnNuevoPaciente').style.display = 'block';
+        }
+        function guardarNuevoPaciente(){
+            const nombre = document.getElementById('nuevoPacNombre').value.trim();
+            const tel = document.getElementById('nuevoPacTel').value.replace(/\D/g,'');
+            if(!nombre){ alert('Escribe el nombre del paciente.'); return; }
+            if(pacientes[nombre]){ alert('Ya existe un paciente con ese nombre. Usa un nombre distinto o edítalo desde la lista.'); return; }
+            pacientes[nombre] = { telefono: tel, foto: null, codigo: generarCodigo(), plan: [] };
+            localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes));
+            guardarAgendaEnNube();
+            syncPacienteAFirebase(nombre);
+            updateDatalists();
+            editandoAhora = false;
+            document.getElementById('formNuevoPaciente').style.display = 'none';
+            document.getElementById('btnNuevoPaciente').style.display = 'block';
+            document.getElementById('listaContactos').style.display = 'block';
+            renderListaContactos();
+            // abrir directamente su expediente para completar datos
+            abrirEditorDirectorio(nombre);
+        }
         function renderListaContactos() {
             const list = document.getElementById('listaContactos');
             if(!list) return;
@@ -827,7 +873,7 @@
             document.getElementById('editDirCodigo').innerText = codigo;
             const preview = document.getElementById('editDirFotoPreview');
             if(pac.foto) { preview.src = pac.foto; preview.style.display = 'block'; } else { preview.src = ''; preview.style.display = 'none'; }
-            document.getElementById('editDirFile').value = ''; document.getElementById('listaContactos').style.display = 'none'; document.getElementById('editorContacto').style.display = 'block';
+            document.getElementById('editDirFile').value = ''; document.getElementById('listaContactos').style.display = 'none'; document.getElementById('btnNuevoPaciente').style.display = 'none'; document.getElementById('editorContacto').style.display = 'block';
             renderPlanTratamiento(nombre);
             renderOrtodoncia(nombre);
         }
@@ -1031,7 +1077,7 @@
             const msg = `Hola ${nombre}, este es tu acceso a *Mi Sonrisa* (tus citas):\n\n📱 Teléfono: ${limpiarTel(tel)}\n🔑 Código: ${codigo}\n\nEntra a misonrisa.dentilike.com.mx, ve a "Mis citas" y escribe estos datos para ver y confirmar tus próximas citas.`;
             abrirWa(tel, msg);
         }
-        function cerrarEditorDirectorio() { editandoAhora = false; dirNombreActual = null; document.getElementById('editorContacto').style.display = 'none'; document.getElementById('listaContactos').style.display = 'block'; }
+        function cerrarEditorDirectorio() { editandoAhora = false; dirNombreActual = null; document.getElementById('editorContacto').style.display = 'none'; document.getElementById('listaContactos').style.display = 'block'; var b=document.getElementById('btnNuevoPaciente'); if(b) b.style.display='block'; }
 
         function ejecutarBusquedaRapida() {
             const texto = document.getElementById('globalSearch').value.toLowerCase();
