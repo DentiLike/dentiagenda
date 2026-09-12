@@ -311,9 +311,9 @@
                 <div class="orto-box">
                     <div class="orto-switch-row">
                         <span>😬 Paciente en ortodoncia</span>
-                        <label style="position:relative; display:inline-block; width:50px; height:28px;">
-                            <input type="checkbox" id="ortoSwitch" onchange="toggleOrtodoncia()" style="opacity:0; width:0; height:0;">
-                            <span id="ortoSlider" style="position:absolute; inset:0; background:var(--status-gray); border-radius:999px; transition:.2s; cursor:pointer;"></span>
+                        <label style="position:relative; display:inline-block; width:50px; height:28px; cursor:pointer;">
+                            <input type="checkbox" id="ortoSwitch" onchange="toggleOrtodoncia()" style="position:absolute; inset:0; width:100%; height:100%; margin:0; opacity:0; cursor:pointer; z-index:2;">
+                            <span id="ortoSlider" style="position:absolute; inset:0; background:var(--status-gray); border-radius:999px; transition:.2s; z-index:1;"></span>
                         </label>
                     </div>
                     <div class="orto-fases" id="ortoFases">
@@ -528,10 +528,9 @@
         let fotosLocales = JSON.parse(localStorage.getItem('denti_fotos_v16')) || {};
 
         // ===== Sincronización GLOBAL de toda la agenda entre dispositivos =====
-        // Documento único: agenda/principal  (protegido: solo escribe/lee quien tenga el PIN + auth)
         let syncGlobalActivo = false;
-        let ultimoGuardadoLocal = 0;
-        let ignorarProximoSnapshot = false;
+        let miUltimaEscritura = 0;   // marca de tiempo de MI última escritura
+        let editandoAhora = false;   // true mientras el doctor edita un expediente
 
         function separarFotos(){
             // Quita SOLO las fotos de 'pacientes' (las guarda aparte local).
@@ -558,13 +557,14 @@
             if(!fbOK || !authListo || !syncGlobalActivo) return;
             try{
                 const pacientesSinFoto = separarFotos();
-                ignorarProximoSnapshot = true;  // el eco de esta escritura no debe pisar nada
+                const sello = Date.now();
+                miUltimaEscritura = sello;
                 await db.collection('agenda').doc('principal').set({
                     citas: citas,
                     pacientes: pacientesSinFoto,
                     motivos: motivos,
                     config: config,
-                    actualizado: Date.now()
+                    escritoPor: sello   // sello para reconocer mi propio eco
                 });
                 setSync('on','Sincronizado');
             }catch(e){ console.error('guardar agenda error', e); setSync('err','Error al sincronizar'); }
@@ -574,32 +574,33 @@
             if(!fbOK || !authListo) return;
             db.collection('agenda').doc('principal').onSnapshot((doc)=>{
                 if(!doc.exists){
-                    // Primera vez: sube lo que haya local
                     syncGlobalActivo = true;
                     guardarAgendaEnNube();
                     return;
                 }
-                // Si acabamos de guardar nosotros, ignora este eco (evita pisar cambios)
-                if(ignorarProximoSnapshot){ ignorarProximoSnapshot = false; syncGlobalActivo = true; return; }
                 const data = doc.data();
-                // Aplica lo de la nube a este dispositivo
+                // Si este cambio lo escribí YO (mismo sello), ignóralo: mis datos locales ya están al día
+                if(data.escritoPor && data.escritoPor === miUltimaEscritura){
+                    syncGlobalActivo = true;
+                    return;
+                }
+                // Si estoy editando un expediente en este momento, NO piso mis cambios locales
+                if(editandoAhora){
+                    syncGlobalActivo = true;
+                    return;
+                }
+                // Cambio legítimo de otro dispositivo: aplícalo
                 citas = data.citas || [];
                 pacientes = data.pacientes || {};
                 motivos = data.motivos || [];
                 if(data.config) config = data.config;
-                reinsertarFotos(); // vuelve a poner las fotos locales
-                // Guarda copia local de respaldo
+                reinsertarFotos();
                 localStorage.setItem('denti_citas_v16', JSON.stringify(citas));
                 localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes));
                 localStorage.setItem('denti_motivos_v16', JSON.stringify(motivos));
                 localStorage.setItem('denti_config_v16', JSON.stringify(config));
                 syncGlobalActivo = true;
-                // Refresca la vista
                 loadCalendar(); updateDatalists(); loadConfig();
-                // Si el editor de un paciente está abierto, refresca su plan
-                if(dirNombreActual && document.getElementById('editorContacto').style.display === 'block'){
-                    renderPlanTratamiento(dirNombreActual);
-                }
                 setSync('on','Sincronizado');
             }, (err)=>{ console.error('snapshot error', err); setSync('err','Error de conexión'); });
         }
@@ -803,6 +804,7 @@
         let dirNombreActual = null;
         function abrirEditorDirectorio(nombre) {
             dirNombreActual = nombre;
+            editandoAhora = true;   // evita que el snapshot pise mientras edito
             const pac = pacientes[nombre];
             const codigo = getCodigoPaciente(nombre); // genera si no tiene
             document.getElementById('editDirNombre').value = nombre; 
@@ -890,8 +892,10 @@
         }
         function guardarPlan(nombre){
             localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes));
-            syncPacienteAFirebase(nombre); // sube plan/ortodoncia al doc del paciente (Mi Sonrisa)
-            guardarAgendaEnNube();          // guarda también en la agenda global (sync entre dispositivos)
+            // guardarAgendaEnNube ya sube pacientes[nombre] completo (con plan y ortodoncia)
+            guardarAgendaEnNube();
+            // Además actualiza el documento que lee Mi Sonrisa (citas + plan + ortodoncia del paciente)
+            syncPacienteAFirebase(nombre);
         }
 
         function procesarFotoDir(event) {
@@ -918,7 +922,7 @@
             const msg = `Hola ${nombre}, este es tu acceso a *Mi Sonrisa* (tus citas):\n\n📱 Teléfono: ${limpiarTel(tel)}\n🔑 Código: ${codigo}\n\nEntra a misonrisa.dentilike.com.mx, ve a "Mis citas" y escribe estos datos para ver y confirmar tus próximas citas.`;
             abrirWa(tel, msg);
         }
-        function cerrarEditorDirectorio() { document.getElementById('editorContacto').style.display = 'none'; document.getElementById('listaContactos').style.display = 'block'; }
+        function cerrarEditorDirectorio() { editandoAhora = false; dirNombreActual = null; document.getElementById('editorContacto').style.display = 'none'; document.getElementById('listaContactos').style.display = 'block'; }
 
         function ejecutarBusquedaRapida() {
             const texto = document.getElementById('globalSearch').value.toLowerCase();
@@ -1067,7 +1071,10 @@
             } 
         }
         function openConfig() { document.getElementById('configModalOverlay').style.display = 'flex'; }
-        function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+        function closeModal(id) { 
+            if(id === 'directorioModal'){ editandoAhora = false; dirNombreActual = null; }
+            document.getElementById(id).style.display = 'none'; 
+        }
         function updateDatalists() { document.getElementById('pacientesGuardados').innerHTML = Object.keys(pacientes).map(p => `<option value="${p}">`).join(''); document.getElementById('motivosGuardados').innerHTML = motivos.map(m => `<option value="${m}">`).join(''); }
         function autoFillPhone() { const name = document.getElementById('paciente').value; if(pacientes[name]) document.getElementById('telefono').value = pacientes[name].telefono; }
         function calcularHoraFin() {
