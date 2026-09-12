@@ -1,5 +1,5 @@
 // DentiAgenda — service worker v1
-const CACHE_NAME = "dentiagenda-v3";
+const CACHE_NAME = "dentiagenda-v4";
 const ASSETS = ["./","./index.html","./manifest.json","./favicon.png","./icon-maskable.png","./logo-dentiagenda.png"];
 self.addEventListener("install",(e)=>{ self.skipWaiting(); e.waitUntil(caches.open(CACHE_NAME).then(c=>Promise.all(ASSETS.map(u=>c.add(u).catch(()=>{}))))); });
 self.addEventListener("activate",(e)=>{ e.waitUntil(caches.keys().then(k=>Promise.all(k.filter(x=>x!==CACHE_NAME).map(x=>caches.delete(x))))); self.clients.claim(); });

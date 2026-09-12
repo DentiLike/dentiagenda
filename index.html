@@ -646,8 +646,8 @@
                     actualizado: Date.now()
                 }, { merge:true });
             }catch(e){ console.error('sync paciente error', e); }
-            // También guarda la agenda global
-            guardarAgendaEnNube();
+            // NOTA: esta función solo actualiza el doc del paciente (para Mi Sonrisa).
+            // NO llama a guardarAgendaEnNube para no crear doble escritura con sellos distintos.
         }
         async function sincronizarTodo(){
             if(!fbOK || !authListo) return;
@@ -892,10 +892,14 @@
         }
         function guardarPlan(nombre){
             localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes));
-            // guardarAgendaEnNube ya sube pacientes[nombre] completo (con plan y ortodoncia)
+            guardarAgendaEnNube();          // sube pacientes+citas+config (con plan y ortodoncia)
+            syncPacienteAFirebase(nombre);  // actualiza el doc que lee Mi Sonrisa
+        }
+        // Guarda cambios de CITAS (estado, borrado, nueva): agenda global + doc del paciente
+        function guardarCambioCita(nombrePaciente){
+            localStorage.setItem('denti_citas_v16', JSON.stringify(citas));
             guardarAgendaEnNube();
-            // Además actualiza el documento que lee Mi Sonrisa (citas + plan + ortodoncia del paciente)
-            syncPacienteAFirebase(nombre);
+            if(nombrePaciente) syncPacienteAFirebase(nombrePaciente);
         }
 
         function procesarFotoDir(event) {
@@ -909,10 +913,13 @@
         function guardarEdicionDirectorio() {
             const nombre = document.getElementById('editDirNombre').value, tel = document.getElementById('editDirTel').value, foto = document.getElementById('editDirFotoBase64').value;
             const prev = pacientes[nombre] || {};
-            pacientes[nombre] = { telefono: tel, foto: foto, codigo: prev.codigo || generarCodigo(), plan: prev.plan || [] }; 
+            // conservar TODO lo previo, solo actualizar tel y foto
+            pacientes[nombre] = Object.assign({}, prev, { telefono: tel, foto: foto, codigo: prev.codigo || generarCodigo() });
+            citas.forEach(c => { if(c.paciente === nombre) c.telefono = tel; });
             localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes));
-            citas.forEach(c => { if(c.paciente === nombre) c.telefono = tel; }); localStorage.setItem('denti_citas_v16', JSON.stringify(citas));
-            syncPacienteAFirebase(nombre); // sube a la nube
+            localStorage.setItem('denti_citas_v16', JSON.stringify(citas));
+            guardarAgendaEnNube();
+            syncPacienteAFirebase(nombre);
             cerrarEditorDirectorio(); renderListaContactos();
         }
         function enviarCodigoWhatsApp(){
@@ -1055,8 +1062,8 @@
         function cambiarEstadoCita(nuevoEstado) { 
             const index = citas.findIndex(c => c.id === citaSeleccionadaId); 
             if(index !== -1) { 
-                citas[index].estado = nuevoEstado; localStorage.setItem('denti_citas_v16', JSON.stringify(citas)); 
-                syncPacienteAFirebase(citas[index].paciente);
+                citas[index].estado = nuevoEstado;
+                guardarCambioCita(citas[index].paciente);
                 closeModal('opcionesCitaModal'); openDay(selectedDate); loadCalendar(); 
             } 
         }
@@ -1065,8 +1072,7 @@
                 const cita = citas.find(c => c.id === citaSeleccionadaId);
                 const nombrePac = cita ? cita.paciente : null;
                 citas = citas.filter(c => c.id !== citaSeleccionadaId); 
-                localStorage.setItem('denti_citas_v16', JSON.stringify(citas)); 
-                if(nombrePac) syncPacienteAFirebase(nombrePac);
+                guardarCambioCita(nombrePac);
                 closeModal('opcionesCitaModal'); openDay(selectedDate); loadCalendar(); 
             } 
         }
@@ -1100,7 +1106,8 @@
             else { pacientes[pac].telefono = tel; if(!pacientes[pac].codigo) pacientes[pac].codigo = generarCodigo(); }
             localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes));
             if(!motivos.includes(mot)) { motivos.push(mot); localStorage.setItem('denti_motivos_v16', JSON.stringify(motivos)); }
-            syncPacienteAFirebase(pac); // sube a la nube
+            guardarAgendaEnNube();      // sube citas+pacientes+motivos
+            syncPacienteAFirebase(pac); // actualiza doc del paciente para Mi Sonrisa
             updateDatalists(); openDay(selectedDate); loadCalendar();
             if(!fueEdicion) {
                 if(confirm('Cita guardada. ¿Enviar mensaje de registro por WhatsApp?')) enviarWhatsAppNueva(pac, tel, hIni, hFin, mot, selectedDate);
