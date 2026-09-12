@@ -48,6 +48,10 @@
         .weekdays { font-size: 0.8rem; color: var(--text-muted); font-weight: bold; }
         .day { aspect-ratio: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 12px; font-weight: bold; color: var(--primary); position: relative; padding-bottom: 15px; }
         .day.empty { background: transparent; box-shadow: none; cursor: default; }
+        .day.dia-hoy { border: 3px solid var(--status-yellow); }
+        .day.dia-pasado { color: var(--status-gray); opacity: 0.65; }
+        .day.dia-futuro { color: var(--primary); }
+        .day.dia-hoy.dia-futuro, .day.dia-hoy.dia-pasado { color: var(--primary); opacity: 1; }
         
         .badges-container { position: absolute; bottom: 4px; display: flex; gap: 4px; width: 100%; justify-content: center; pointer-events: none; }
         .badge-m, .badge-v { font-size: 0.65rem; padding: 2px 5px; border-radius: 6px; font-weight: bold; color: var(--text-main); }
@@ -178,7 +182,7 @@
             <img src="logo-dentiagenda.png" alt="DentiAgenda" style="max-width:220px;" onerror="this.style.display='none';">
         </div>
         <div class="header-actions">
-            <button class="btn-3d btn-text-icon" onclick="abrirDirectorio()">Directorio</button>
+            <button class="btn-3d btn-text-icon" onclick="abrirDirectorio()">Pacientes</button>
             <button class="btn-3d btn-text-icon" onclick="openConfig()">Ajustes</button>
         </div>
     </header>
@@ -329,11 +333,9 @@
                             <option value="Endodoncia">Endodoncia</option>
                             <option value="Perio (limpieza profunda)">Perio (limpieza profunda)</option>
                             <option value="Extracción">Extracción</option>
-                            <option value="Extracción de terceros molares">Extracción de terceros molares</option>
                             <option value="Limpieza (profilaxis)">Limpieza (profilaxis)</option>
                             <option value="Prótesis">Prótesis</option>
                             <option value="Corona">Corona</option>
-                            <option value="Ortodoncia">Ortodoncia</option>
                             <option value="Otro">Otro</option>
                         </select>
                         <input type="text" id="planDiente" placeholder="Diente (FDI) o zona" list="dientesFDI">
@@ -694,6 +696,8 @@
             const padding = firstDay.getDay();
             document.getElementById('monthDisplay').innerText = dt.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' }).toUpperCase();
             const grid = document.getElementById('calendarGrid'); grid.innerHTML = '';
+            const hoy = new Date();
+            const hoyStr = `${hoy.getFullYear()}-${String(hoy.getMonth()+1).padStart(2,'0')}-${String(hoy.getDate()).padStart(2,'0')}`;
             for (let i = 1; i <= padding + daysInMonth; i++) {
                 const sq = document.createElement('div'); sq.classList.add('day');
                 if (i > padding) {
@@ -707,7 +711,11 @@
                         if(countM > 0) { const bM = document.createElement('span'); bM.classList.add('badge-m'); bM.innerText = `M${countM}`; badgesDiv.appendChild(bM); }
                         if(countV > 0) { const bV = document.createElement('span'); bV.classList.add('badge-v'); bV.innerText = `V${countV}`; badgesDiv.appendChild(bV); }
                         sq.appendChild(badgesDiv);
+                        // color según pasado/futuro
+                        if(dateStr < hoyStr) sq.classList.add('dia-pasado');
+                        else sq.classList.add('dia-futuro');
                     }
+                    if(dateStr === hoyStr) sq.classList.add('dia-hoy');
                     sq.classList.add('btn-3d'); sq.addEventListener('click', () => openDay(dateStr));
                 } else { sq.classList.add('empty'); }
                 grid.appendChild(sq);
@@ -771,16 +779,26 @@
         // --- DIRECTORIO ---
         function abrirDirectorio() { renderListaContactos(); document.getElementById('editorContacto').style.display = 'none'; document.getElementById('directorioModal').style.display = 'flex'; }
         function renderListaContactos() {
-            const list = document.getElementById('listaContactos'); const nombres = Object.keys(pacientes).sort();
-            if(nombres.length === 0) { list.innerHTML = '<p style="text-align:center;">No hay pacientes guardados.</p>'; return; }
-            list.innerHTML = nombres.map(nombre => {
-                const pac = pacientes[nombre];
-                let fotoIcon = config.mostrarFotos && pac.foto ? `<img src="${pac.foto}" style="width:30px; height:30px; border-radius:50%; object-fit:cover;">` : '<div style="width:30px;height:30px;border-radius:50%;background:#ccc;"></div>';
-                return `<div class="contact-item" onclick="abrirEditorDirectorio('${nombre.replace(/'/g,"\\'")}')">
-                    <div style="display:flex; align-items:center; gap:10px;">${fotoIcon} <strong>${nombre}</strong></div>
-                    <span style="color:var(--text-muted); font-size:0.8rem;">+52 ${pac.telefono}</span>
-                </div>`;
-            }).join('');
+            const list = document.getElementById('listaContactos');
+            if(!list) return;
+            // filtrar entradas válidas (evita que un dato corrupto rompa toda la lista)
+            const nombres = Object.keys(pacientes || {}).filter(n => n && pacientes[n]).sort((a,b)=>a.localeCompare(b));
+            if(nombres.length === 0) { list.innerHTML = '<p style="text-align:center; padding:1rem; color:var(--text-muted);">No hay pacientes guardados aún.</p>'; return; }
+            try {
+                list.innerHTML = nombres.map(nombre => {
+                    const pac = pacientes[nombre] || {};
+                    const tel = pac.telefono || 'sin teléfono';
+                    let fotoIcon = (config.mostrarFotos && pac.foto) ? `<img src="${pac.foto}" style="width:30px; height:30px; border-radius:50%; object-fit:cover;">` : '<div style="width:30px;height:30px;border-radius:50%;background:#ccc;"></div>';
+                    const nombreEsc = nombre.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+                    return `<div class="contact-item" onclick="abrirEditorDirectorio('${nombreEsc}')">
+                        <div style="display:flex; align-items:center; gap:10px;">${fotoIcon} <strong>${nombre}</strong></div>
+                        <span style="color:var(--text-muted); font-size:0.8rem;">+52 ${tel}</span>
+                    </div>`;
+                }).join('');
+            } catch(e){
+                console.error('render pacientes error', e);
+                list.innerHTML = '<p style="text-align:center; padding:1rem; color:#e53e3e;">Error al mostrar pacientes. Recarga la página.</p>';
+            }
         }
         let dirNombreActual = null;
         function abrirEditorDirectorio(nombre) {
@@ -812,15 +830,19 @@
         }
         function toggleOrtodoncia(){
             const nombre = dirNombreActual; if(!nombre) return;
+            if(!pacientes[nombre]) pacientes[nombre] = { telefono:'', codigo:generarCodigo() };
             const on = document.getElementById('ortoSwitch').checked;
             pacientes[nombre].ortodoncia = on;
             if(on && !pacientes[nombre].ortoFase) pacientes[nombre].ortoFase = 1;
-            guardarPlan(nombre); // reusa el guardado (localStorage + nube)
+            guardarPlan(nombre);
             renderOrtodoncia(nombre);
         }
         function setFaseOrto(fase){
             const nombre = dirNombreActual; if(!nombre) return;
+            if(!pacientes[nombre]) pacientes[nombre] = { telefono:'', codigo:generarCodigo() };
             pacientes[nombre].ortoFase = fase;
+            pacientes[nombre].ortodoncia = true; // si eligió fase, está en ortodoncia
+            document.getElementById('ortoSwitch').checked = true;
             guardarPlan(nombre);
             renderOrtodoncia(nombre);
         }
@@ -868,7 +890,8 @@
         }
         function guardarPlan(nombre){
             localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes));
-            syncPacienteAFirebase(nombre); // sube el plan a la nube (Mi Sonrisa lo leerá)
+            syncPacienteAFirebase(nombre); // sube plan/ortodoncia al doc del paciente (Mi Sonrisa)
+            guardarAgendaEnNube();          // guarda también en la agenda global (sync entre dispositivos)
         }
 
         function procesarFotoDir(event) {
