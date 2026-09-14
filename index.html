@@ -396,12 +396,13 @@
             </div>
             
             <div class="chat-box" id="chatBox">
-                <div class="chat-msg chat-ia">Hola Dr. Mike. Puedo revisar tu agenda o buscar pacientes. ¿Que necesitas?</div>
+                <div class="chat-msg chat-ia">Hola. Puedo revisar tu agenda o buscar pacientes. ¿Que necesitas?</div>
             </div>
             
             <div class="chip-container">
-                <div class="chip" onclick="enviarMensajeChat('¿Cuales son mis citas de hoy?')">Citas de hoy</div>
-                <div class="chip" onclick="enviarMensajeChat('Busca un espacio libre a las 15:00')">Espacio a las 15:00</div>
+                <div class="chip" onclick="enviarMensajeChat('¿Cuales son mis citas de hoy?')">Pacientes de hoy</div>
+                <div class="chip" onclick="enviarMensajeChat('Confirmar pacientes de pasado mañana')">Confirmar pasado mañana</div>
+                <div class="chip" onclick="enviarMensajeChat('Pacientes con mas de 2 meses sin cita')">Sin cita +2 meses</div>
             </div>
 
             <div style="display:flex; gap:10px;">
@@ -686,6 +687,9 @@
             const mesNum = parseInt(partes[1], 10); const dia = parseInt(partes[2], 10);
             const meses = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
             return `${dia} de ${meses[mesNum - 1]} de ${partes[0]}`;
+        }
+        function fechaAISO(date) {
+            return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
         }
 
         function init() { loadConfig(); loadCalendar(); updateDatalists(); }
@@ -1094,7 +1098,35 @@
             }
         }
 
-        function abrirChatBot() { document.getElementById('chatBotModal').style.display = 'flex'; }
+        function pacientesSinCitaReciente(diasLimite) {
+            const hoy = new Date(); const hoyStr = fechaAISO(hoy);
+            const limite = new Date(hoy); limite.setDate(hoy.getDate() - diasLimite);
+            const limiteStr = fechaAISO(limite);
+            const resultado = [];
+            Object.keys(pacientes).forEach(nombre => {
+                const citasPac = citas.filter(c => c.paciente === nombre);
+                if(citasPac.length === 0) return;
+                const tieneFutura = citasPac.some(c => c.fecha >= hoyStr);
+                if(tieneFutura) return;
+                const ultimaFecha = citasPac.map(c => c.fecha).sort().pop();
+                if(ultimaFecha < limiteStr) resultado.push({ nombre, ultimaFecha, telefono: pacientes[nombre].telefono });
+            });
+            return resultado.sort((a,b) => a.ultimaFecha.localeCompare(b.ultimaFecha));
+        }
+        function confirmarCitaDesdeChat(id) {
+            const cita = citas.find(c => c.id === id);
+            if(!cita) return;
+            const msg = `Hola ${cita.paciente},\n\nTe contactamos de DENTILIKE para confirmar tu cita programada.\n\nEspecialista: ${config.doctor}\nTratamiento: ${cita.motivo}\nFecha: ${formatearFechaLegible(cita.fecha)}\nHorario: ${cita.horaInicio} a ${cita.horaFin}\n\nPor favor confirmanos de recibido.`;
+            abrirWa(cita.telefono, msg);
+        }
+        function abrirChatBot() {
+            document.getElementById('chatBotModal').style.display = 'flex';
+            const chatBox = document.getElementById('chatBox');
+            let nombreDoctor = (config.doctor || 'Dr. Miguel Alvarado').trim();
+            if(!/^dr/i.test(nombreDoctor)) nombreDoctor = 'Dr. ' + nombreDoctor;
+            chatBox.innerHTML = `<div class="chat-msg chat-ia">Hola ${nombreDoctor}, ¿quiere ver los pacientes de hoy, confirmar los pacientes de pasado mañana, o revisar quiénes llevan más de 2 meses sin cita?</div>`;
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
         function enviarMensajeChat(texto) {
             if(!texto || texto.trim() === '') return;
             const chatBox = document.getElementById('chatBox');
@@ -1123,6 +1155,23 @@
                 let resumen = `Tienes ${citasHoy.length} citas hoy:<br>`;
                 citasHoy.forEach(c => resumen += `- ${c.horaInicio}: ${c.paciente} (${c.motivo})<br>`);
                 return resumen;
+            }
+            if(texto.includes('pasado')) {
+                const destino = new Date(hoy); destino.setDate(hoy.getDate() + 2);
+                const destinoStr = fechaAISO(destino);
+                const citasDestino = citas.filter(c => c.fecha === destinoStr).sort((a,b) => a.horaInicio.localeCompare(b.horaInicio));
+                if(citasDestino.length === 0) return `No tienes pacientes agendados para pasado mañana (${formatearFechaLegible(destinoStr)}).`;
+                let res = `Pacientes de pasado mañana, ${formatearFechaLegible(destinoStr)}:<br><br><div class="chip-container">`;
+                citasDestino.forEach(c => { res += `<div class="chip" onclick="confirmarCitaDesdeChat(${c.id})">✓ ${c.horaInicio} ${c.paciente}</div>`; });
+                res += `</div><br>Toca un nombre para enviarle su confirmacion por WhatsApp.`;
+                return res;
+            }
+            if(texto.includes('2 meses') || texto.includes('sin cita')) {
+                const rezagados = pacientesSinCitaReciente(60);
+                if(rezagados.length === 0) return "Ningun paciente lleva mas de 2 meses sin cita. Buen seguimiento.";
+                let res = `${rezagados.length} paciente(s) llevan mas de 2 meses sin cita:<br><br>`;
+                rezagados.forEach(p => res += `- ${p.nombre} (ultima cita: ${formatearFechaLegible(p.ultimaFecha)})<br>`);
+                return res;
             }
             if(texto.includes('espacio') || (texto.includes('libre') && texto.includes('15:00'))) {
                 for(let i=1; i<=7; i++) {
