@@ -83,6 +83,7 @@
         .appointment-item:active { box-shadow: inset 3px 3px 6px rgba(0,0,0,0.5), inset -3px -3px 6px rgba(255,255,255,0.1); }
         .appointment-header { display: flex; align-items: center; gap: 10px; margin-bottom: 5px; }
         .appointment-item strong { color: white !important; }
+        .potencial-item, .potencial-item strong { color: var(--primary) !important; }
 
         .status-dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
         .status-gray { background-color: var(--status-gray); border: 1px solid white;}
@@ -1069,7 +1070,7 @@
                     const esPotencial = pacientes[c.paciente] && pacientes[c.paciente].esPotencial;
                     const estiloPotencial = esPotencial ? 'border-left: 4px solid var(--accent); background: rgba(0,180,180,0.08);' : '';
                     const etiquetaPotencial = esPotencial ? ' <span style="color:var(--accent); font-size:0.75rem; font-weight:bold;">🎯 Potencial</span>' : '';
-                    return `<div class="appointment-item" style="${estiloPotencial}" onclick="abrirOpcionesCita(${c.id})">
+                    return `<div class="appointment-item ${esPotencial ? 'potencial-item' : ''}" style="${estiloPotencial}" onclick="abrirOpcionesCita(${c.id})">
                         <div class="appointment-header"><span class="status-dot ${c.estado}"></span><strong style="font-size:1.1rem;">${c.horaInicio} - ${c.horaFin}</strong>${etiquetaPotencial}</div>
                         <div style="margin-left: 22px;">- ${c.motivo}</div>
                         <div style="margin-left: 22px;">- ${c.paciente} ${textoNotas}</div>
