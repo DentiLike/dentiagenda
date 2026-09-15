@@ -214,6 +214,9 @@
     </div>
 
     <div class="container">
+        <div id="bannerSolicitudes" style="display:none; background:var(--accent); color:white; padding:0.9rem; border-radius:12px; margin-bottom:1rem; text-align:center; font-weight:bold; cursor:pointer;" onclick="abrirSolicitudes()">
+            📥 Tienes <span id="bannerSolicitudesCount">0</span> solicitud(es) de cita nueva(s) — toca para revisar
+        </div>
         <div class="calendar-header">
             <button class="btn-3d" onclick="changeMonth(-1)">&lt;</button>
             <div id="monthDisplay" style="font-weight: bold; font-size: 1.2rem; color: var(--primary);"></div>
@@ -471,6 +474,18 @@
         </div>
     </div>
 
+    <!-- Modal Solicitudes de cita (desde Mi Sonrisa) -->
+    <div class="modal-overlay" id="solicitudesModalOverlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 style="margin: 0; color: var(--primary);">📥 Solicitudes de cita</h2>
+                <button class="close-btn" onclick="closeModal('solicitudesModalOverlay')">X</button>
+            </div>
+            <p style="font-size:0.85rem; color:var(--text-muted); margin-top:0;">Pacientes que pidieron una cita desde Mi Sonrisa. Nada entra a tu agenda hasta que la aceptes.</p>
+            <div id="listaSolicitudes"></div>
+        </div>
+    </div>
+
     <!-- Modal Pacientes Potenciales -->
     <div class="modal-overlay" id="potencialesModalOverlay">
         <div class="modal">
@@ -571,6 +586,8 @@
                     document.getElementById('lockScreen').style.display = 'none';
                     setSync('on','Sincronizado');
                     escucharAgendaEnTiempoReal();
+                    escucharSolicitudes();
+                    publicarConfigPublica();
                     sincronizarConfirmaciones(true);
                     if(!intervaloConfirmaciones) intervaloConfirmaciones = setInterval(()=>sincronizarConfirmaciones(true), 3*60*1000);
                 } else {
@@ -809,6 +826,86 @@
             return cod;
         }
 
+        // ===== Solicitudes de cita (pacientes agendando desde Mi Sonrisa) =====
+        let solicitudes = [];
+        function escucharSolicitudes(){
+            if(!fbOK) return;
+            db.collection('solicitudes').where('estado','==','pendiente').onSnapshot((snap) => {
+                solicitudes = snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
+                actualizarBadgeSolicitudes();
+                renderSolicitudes();
+            }, (err) => console.error('escucharSolicitudes', err));
+        }
+        function actualizarBadgeSolicitudes(){
+            const banner = document.getElementById('bannerSolicitudes');
+            if(!banner) return;
+            if(solicitudes.length > 0){
+                banner.style.display = 'block';
+                document.getElementById('bannerSolicitudesCount').innerText = solicitudes.length;
+            } else banner.style.display = 'none';
+        }
+        function abrirSolicitudes(){
+            renderSolicitudes();
+            document.getElementById('solicitudesModalOverlay').style.display = 'flex';
+        }
+        function renderSolicitudes(){
+            const cont = document.getElementById('listaSolicitudes');
+            if(!cont) return;
+            if(solicitudes.length === 0){ cont.innerHTML = '<p style="text-align:center; color:var(--text-muted);">No hay solicitudes pendientes.</p>'; return; }
+            cont.innerHTML = solicitudes.map(s => `
+                <div class="inset-3d" style="padding:10px; margin-bottom:10px; border-radius:12px;">
+                    <div style="font-weight:bold;">${s.nombre}</div>
+                    <div style="font-size:0.85rem; color:var(--text-muted);">${s.telefono} · ${s.motivo}</div>
+                    <div style="font-size:0.85rem; margin-top:4px;">${formatearFechaLegible(s.fecha)} · ${s.horaInicio} - ${s.horaFin}</div>
+                    <div style="display:flex; gap:8px; margin-top:8px;">
+                        <button class="btn-3d" style="flex:1; color:var(--status-green);" onclick="aceptarSolicitud('${s.id}')">✅ Aceptar</button>
+                        <button class="btn-3d" style="flex:1; color:var(--status-red);" onclick="rechazarSolicitud('${s.id}')">❌ Rechazar</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+        async function aceptarSolicitud(id){
+            const s = solicitudes.find(x => x.id === id);
+            if(!s) return;
+            const conflictos = citasSobrepuestas(s.fecha, s.horaInicio, s.horaFin, null);
+            if(conflictos.length > 0){
+                const detalle = conflictos.map(c => `${c.paciente} (${c.horaInicio}-${c.horaFin})`).join(', ');
+                if(!confirm(`⚠️ Esta solicitud se sobrepone con: ${detalle}.\n\n¿Aceptarla de todas formas?`)) return;
+            }
+            citas.push({ id: Date.now(), fecha: s.fecha, paciente: s.nombre, telefono: s.telefono, horaInicio: s.horaInicio, horaFin: s.horaFin, motivo: s.motivo, notas: 'Agendada por el paciente desde Mi Sonrisa', estado: 'status-yellow' });
+            localStorage.setItem('denti_citas_v16', JSON.stringify(citas));
+            if(!pacientes[s.nombre]) pacientes[s.nombre] = { telefono: s.telefono, foto: null, codigo: s.codigoPaciente || generarCodigo() };
+            else if(!pacientes[s.nombre].codigo) pacientes[s.nombre].codigo = s.codigoPaciente || generarCodigo();
+            localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes));
+            if(s.motivo && !motivos.includes(s.motivo)) { motivos.push(s.motivo); localStorage.setItem('denti_motivos_v16', JSON.stringify(motivos)); }
+            guardarAgendaEnNube();
+            syncPacienteAFirebase(s.nombre);
+            try{ await db.collection('solicitudes').doc(id).delete(); }catch(e){ console.error('borrar solicitud', e); }
+            updateDatalists(); loadCalendar();
+            if(selectedDate === s.fecha) openDay(selectedDate);
+            alert(`Cita de ${s.nombre} confirmada. Ya se sincronizó con Mi Sonrisa.`);
+        }
+        async function rechazarSolicitud(id){
+            const s = solicitudes.find(x => x.id === id);
+            if(!s) return;
+            if(!confirm(`¿Rechazar la solicitud de ${s.nombre}?`)) return;
+            try{ await db.collection('solicitudes').doc(id).delete(); }catch(e){ console.error('rechazar solicitud', e); }
+            if(confirm('¿Avisarle por WhatsApp que ese horario ya no está disponible?')){
+                const msg = `Hola ${nombrePreferido(s.nombre)},\n\nGracias por tu solicitud de cita para el ${formatearFechaLegible(s.fecha)} a las ${s.horaInicio}. Ese horario ya no está disponible — contáctanos para buscar otro horario juntos.`;
+                abrirWa(s.telefono, msg);
+            }
+        }
+        // Horarios públicos (sin datos sensibles) para que Mi Sonrisa pueda armar el selector de horario.
+        async function publicarConfigPublica(){
+            if(!fbOK || !authListo) return;
+            try{
+                await db.collection('config_publica').doc('horarios').set({
+                    clinica: config.clinica, doctor: config.doctor,
+                    mInicio: config.mInicio, mFin: config.mFin,
+                    vInicio: config.vInicio, vFin: config.vFin
+                });
+            }catch(e){ console.error('publicarConfigPublica', e); }
+        }
         // ===== Sincronización a Firebase para PACIENTES (Mi Sonrisa) =====
         // Estructura: colección "citas_pacientes" / doc = HASH(teléfono+código)
         function limpiarTel(t){ return (t||'').replace(/\D/g,''); }
@@ -925,6 +1022,7 @@
             config.promoTexto = document.getElementById('confPromoTexto').value;
             localStorage.setItem('denti_config_v16', JSON.stringify(config));
             guardarAgendaEnNube();
+            publicarConfigPublica();
             closeModal('configModalOverlay'); loadCalendar(); 
         }
 
