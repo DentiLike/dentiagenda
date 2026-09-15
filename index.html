@@ -54,9 +54,18 @@
         .day.dia-hoy.dia-futuro, .day.dia-hoy.dia-pasado { color: var(--primary); opacity: 1; }
         
         .badges-container { position: absolute; bottom: 4px; display: flex; gap: 4px; width: 100%; justify-content: center; pointer-events: none; }
-        .badge-m, .badge-v { font-size: 0.65rem; padding: 2px 5px; border-radius: 6px; font-weight: bold; color: var(--text-main); }
-        .badge-m { background-color: var(--status-yellow); } 
-        .badge-v { background-color: var(--accent); color: white; } 
+        .badge-m, .badge-v { font-size: 0.65rem; padding: 2px 5px; border-radius: 6px; font-weight: bold; color: white; }
+        .carga-baja { background-color: var(--status-green); } 
+        .carga-media { background-color: var(--status-yellow); color:#3a2e00; } 
+        .carga-alta { background-color: var(--status-red); } 
+        #areaImprimible { display: none; }
+        @media print {
+            body * { visibility: hidden; }
+            #areaImprimible, #areaImprimible * { visibility: visible; }
+            #areaImprimible { display: block; position: absolute; top: 0; left: 0; width: 100%; padding: 1rem; color: #000; }
+            #areaImprimible table { width: 100%; border-collapse: collapse; margin-bottom: 1.2rem; }
+            #areaImprimible td { padding: 4px 6px; border-bottom: 1px solid #ccc; font-size: 0.9rem; }
+        }
 
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(224, 229, 236, 0.8); align-items: center; justify-content: center; z-index: 1000; backdrop-filter: blur(5px); padding: 1rem;}
         .modal { width: 100%; max-width: 500px; padding: 2rem; max-height: 90vh; overflow-y: auto; background: var(--bg-color); border-radius: 20px; box-shadow: 10px 10px 20px var(--shadow-dark), -10px -10px 20px var(--shadow-light); }
@@ -80,6 +89,10 @@
         .status-yellow { background-color: var(--status-yellow); border: 1px solid white;}
         .status-green { background-color: var(--status-green); border: 1px solid white;}
         .status-red { background-color: var(--status-red); border: 1px solid white;}
+        .dash-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+        .dash-card { background: var(--bg-color); border-radius: 12px; box-shadow: 5px 5px 10px var(--shadow-dark), -5px -5px 10px var(--shadow-light); padding: 1rem; text-align: center; }
+        .dash-num { font-size: 1.8rem; font-weight: bold; color: var(--primary); }
+        .dash-label { font-size: 0.8rem; color: var(--text-muted); margin-top: 4px; }
         .status-btn { padding: 0.8rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 10px; width: 100%; justify-content: center;}
 
         .phone-input-group { display: flex; align-items: center; gap: 10px; }
@@ -183,6 +196,7 @@
         </div>
         <div class="header-actions">
             <button class="btn-3d btn-text-icon" onclick="abrirDirectorio()">Pacientes</button>
+            <button class="btn-3d btn-text-icon" onclick="abrirDashboard()">📊 Dashboard</button>
             <button class="btn-3d btn-text-icon" onclick="openConfig()">Ajustes</button>
         </div>
     </header>
@@ -204,6 +218,7 @@
             <div id="monthDisplay" style="font-weight: bold; font-size: 1.2rem; color: var(--primary);"></div>
             <button class="btn-3d" onclick="changeMonth(1)">&gt;</button>
         </div>
+        <button class="btn-3d btn-submit" onclick="exportarMesPDF()" style="margin-bottom:1rem; color:var(--primary);">📄 Exportar mes visible a PDF</button>
         
         <div class="weekdays"><div>DOM</div><div>LUN</div><div>MAR</div><div>MIÉ</div><div>JUE</div><div>VIE</div><div>SÁB</div></div>
         <div id="calendarGrid" class="calendar-grid"></div>
@@ -219,6 +234,7 @@
             
             <div id="appointmentList" style="margin-bottom: 1.5rem;"></div>
             
+            <button class="btn-3d btn-submit" onclick="exportarDiaPDF()" style="margin-bottom: 1rem; color:var(--primary);">📄 Exportar este día a PDF</button>
             <button id="btnAbrirFormulario" class="btn-3d btn-submit" onclick="toggleFormulario(true)" style="margin-bottom: 1rem; border: 2px dashed var(--primary); background: transparent;">+ Anadir Nueva Cita</button>
             
             <div id="formularioContainer" style="display: none; padding-top: 1rem; border-top: 1px solid var(--shadow-dark);">
@@ -304,6 +320,7 @@
             <div id="editorContacto" style="display:none; padding-top:1rem; border-top:1px solid var(--shadow-dark);">
                 <h4 style="color: var(--accent); margin-top:0;">Editar Expediente</h4>
                 <div class="form-group"><label>Nombre</label><input type="text" id="editDirNombre" class="inset-3d" readonly></div>
+                <div class="form-group"><label>¿Cómo le gusta que le digan?</label><input type="text" id="editDirApodo" class="inset-3d" placeholder="Ej. Male (si lo dejas vacío, se usa su primer nombre)"></div>
                 <div class="form-group"><label>Telefono</label><input type="tel" id="editDirTel" class="inset-3d"></div>
 
                 <div class="codigo-box">
@@ -378,6 +395,7 @@
                 </div>
 
                 <button class="btn-3d btn-submit" style="color:#25D366;" onclick="enviarCodigoWhatsApp()">Enviar código al paciente por WhatsApp</button>
+                <button class="btn-3d btn-submit" style="color:var(--accent);" onclick="enviarMensajePromocion()">🎁 Enviar mensaje de promociones</button>
                 <button class="btn-3d btn-submit" style="background:var(--primary); color:white;" onclick="guardarEdicionDirectorio()">Guardar Cambios</button>
                 <button class="btn-3d btn-submit" style="margin-top:10px;" onclick="cerrarEditorDirectorio()">Cancelar</button>
             </div>
@@ -439,10 +457,29 @@
                 <input type="checkbox" id="confMostrarFotos" style="width:20px; height:20px; accent-color: var(--primary);">
                 <label style="margin:0; font-size:1rem;">Mostrar fotos de pacientes</label>
             </div>
+
+            <label style="display: block; font-size: 0.85rem; font-weight: bold; margin: 1.5rem 0 0.5rem 0; color: var(--primary);">🎁 Promos de cumpleaños</label>
+            <div class="form-group"><textarea id="confPromoTexto" class="inset-3d" rows="4" placeholder="Ej. ¡Feliz cumpleaños de parte de todo el equipo DENTILIKE! Como regalo, tienes 20% de descuento en tu próxima limpieza durante este mes."></textarea></div>
+
             <button class="btn-3d btn-submit" onclick="guardarConfig()">Guardar Ajustes</button>
             <button class="btn-3d btn-submit" style="color:var(--accent); margin-top:10px;" onclick="instalarDentiAgenda()">📲 Instalar DentiAgenda en este dispositivo</button>
+            <button class="btn-3d btn-submit" style="margin-top:10px;" onclick="sincronizarConfirmaciones(false)">🔄 Revisar confirmaciones de pacientes ahora</button>
         </div>
     </div>
+
+    <!-- Modal Dashboard -->
+    <div class="modal-overlay" id="dashboardModalOverlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 style="margin: 0; color: var(--primary);">📊 Dashboard</h2>
+                <button class="close-btn" onclick="closeModal('dashboardModalOverlay')">X</button>
+            </div>
+            <div id="dashboardBody"></div>
+        </div>
+    </div>
+
+    <!-- Área usada solo para generar el PDF (oculta en pantalla, visible al imprimir) -->
+    <div id="areaImprimible"></div>
 
     <!-- ===== FIREBASE SDK (compat) ===== -->
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -459,7 +496,7 @@
             messagingSenderId: "601464011103",
             appId: "1:601464011103:web:e03150d9b86eb40a451eea"
         };
-        let db = null, auth = null, fbOK = false, authListo = false;
+        let db = null, auth = null, fbOK = false, authListo = false, intervaloConfirmaciones = null;
         try {
             firebase.initializeApp(firebaseConfig);
             db = firebase.firestore();
@@ -508,6 +545,8 @@
                     document.getElementById('lockScreen').style.display = 'none';
                     setSync('on','Sincronizado');
                     escucharAgendaEnTiempoReal();
+                    sincronizarConfirmaciones(true);
+                    if(!intervaloConfirmaciones) intervaloConfirmaciones = setInterval(()=>sincronizarConfirmaciones(true), 3*60*1000);
                 } else {
                     // No hay sesión: mostrar login
                     authListo = false;
@@ -543,7 +582,7 @@
         let motivos = JSON.parse(localStorage.getItem('denti_motivos_v16')) || [];
         let config = JSON.parse(localStorage.getItem('denti_config_v16')) || { 
             clinica: 'DENTILIKE', doctor: 'Dr. Miguel Alvarado', especialidad: 'Ortodoncia y Ortopedia Maxilar', 
-            mInicio: '08:00', mFin: '14:00', vInicio: '15:00', vFin: '21:00', mostrarFotos: true 
+            mInicio: '08:00', mFin: '14:00', vInicio: '15:00', vFin: '21:00', mostrarFotos: true, promoTexto: '' 
         };
         let pacientes = JSON.parse(localStorage.getItem('denti_pacientes_v16')) || {};
 
@@ -642,6 +681,39 @@
         // ===== Sincronización a Firebase para PACIENTES (Mi Sonrisa) =====
         // Estructura: colección "citas_pacientes" / doc = HASH(teléfono+código)
         function limpiarTel(t){ return (t||'').replace(/\D/g,''); }
+
+        // ===== Sincronización de vuelta: cuando el paciente confirma/cambia estado desde Mi Sonrisa =====
+        // No usamos onSnapshot en vivo por paciente (serían demasiadas lecturas); se revisa al
+        // iniciar sesión y cada pocos minutos, y también manualmente desde Ajustes.
+        async function sincronizarConfirmaciones(silencioso){
+            if(!fbOK || !authListo) return;
+            const hoyStr = new Date().toISOString().split('T')[0];
+            const nombresConFuturas = Object.keys(pacientes).filter(nombre => citas.some(c => c.paciente === nombre && c.fecha >= hoyStr));
+            let huboCambios = false;
+            for(const nombre of nombresConFuturas){
+                const pac = pacientes[nombre];
+                const tel = limpiarTel(pac.telefono);
+                const codigo = pac.codigo;
+                if(tel.length !== 10 || !codigo) continue;
+                try{
+                    const llave = await hashLlave(tel, codigo);
+                    const doc = await db.collection('citas_pacientes').doc(llave).get();
+                    if(!doc.exists) continue;
+                    const citasRemotas = doc.data().citas || [];
+                    citasRemotas.forEach(cr => {
+                        const idx = citas.findIndex(c => String(c.id) === String(cr.id));
+                        if(idx !== -1 && cr.estado && citas[idx].estado !== cr.estado){ citas[idx].estado = cr.estado; huboCambios = true; }
+                    });
+                }catch(e){ console.error('sincronizarConfirmaciones', nombre, e); }
+            }
+            if(huboCambios){
+                localStorage.setItem('denti_citas_v16', JSON.stringify(citas));
+                guardarAgendaEnNube();
+                loadCalendar();
+                if(selectedDate) openDay(selectedDate);
+            }
+            if(!silencioso) alert(huboCambios ? 'Se actualizaron confirmaciones de pacientes.' : 'Todo está al día, sin cambios nuevos.');
+        }
         async function syncPacienteAFirebase(nombre){
             if(!fbOK || !authListo) return;
             const pac = pacientes[nombre]; if(!pac) return;
@@ -691,6 +763,11 @@
         function fechaAISO(date) {
             return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
         }
+        function nombrePreferido(nombreCompleto) {
+            const pac = pacientes[nombreCompleto];
+            if(pac && pac.apodo && pac.apodo.trim()) return pac.apodo.trim();
+            return (nombreCompleto || '').trim().split(' ')[0] || nombreCompleto;
+        }
 
         function init() { loadConfig(); loadCalendar(); updateDatalists(); }
 
@@ -703,6 +780,7 @@
             document.getElementById('confVInicio').value = config.vInicio;
             document.getElementById('confVFin').value = config.vFin;
             document.getElementById('confMostrarFotos').checked = config.mostrarFotos;
+            document.getElementById('confPromoTexto').value = config.promoTexto || '';
         }
         function guardarConfig() {
             config.clinica = document.getElementById('confClinica').value;
@@ -713,11 +791,82 @@
             config.vInicio = document.getElementById('confVInicio').value || '15:00';
             config.vFin = document.getElementById('confVFin').value || '21:00';
             config.mostrarFotos = document.getElementById('confMostrarFotos').checked;
+            config.promoTexto = document.getElementById('confPromoTexto').value;
             localStorage.setItem('denti_config_v16', JSON.stringify(config));
             guardarAgendaEnNube();
             closeModal('configModalOverlay'); loadCalendar(); 
         }
 
+        function minutosEntre(hIni, hFin) {
+            const [h1,m1] = hIni.split(':').map(Number), [h2,m2] = hFin.split(':').map(Number);
+            return (h2*60+m2) - (h1*60+m1);
+        }
+        function pctOcupacion(citasTurno, inicioTurno, finTurno) {
+            const totalTurno = minutosEntre(inicioTurno, finTurno);
+            if(totalTurno <= 0) return 0;
+            const ocupado = citasTurno.reduce((s,c) => s + Math.max(0, minutosEntre(c.horaInicio, c.horaFin)), 0);
+            return Math.min(100, Math.round(ocupado / totalTurno * 100));
+        }
+        function claseCarga(pct) { return pct >= 75 ? 'carga-alta' : pct >= 40 ? 'carga-media' : 'carga-baja'; }
+
+        // ===== Exportar a PDF (usa el diálogo de impresión del navegador) =====
+        function generarAgendaImprimible(citasLista, titulo) {
+            let html = `<h1 style="color:#124578;">${titulo}</h1><p>${config.clinica} — ${config.doctor}</p>`;
+            if(citasLista.length === 0) { html += '<p>Sin citas registradas.</p>'; return html; }
+            const porFecha = {};
+            citasLista.forEach(c => { (porFecha[c.fecha] = porFecha[c.fecha] || []).push(c); });
+            Object.keys(porFecha).sort().forEach(fecha => {
+                html += `<h3>${formatearFechaLegible(fecha)}</h3><table>`;
+                porFecha[fecha].sort((a,b) => a.horaInicio.localeCompare(b.horaInicio)).forEach(c => {
+                    html += `<tr><td>${c.horaInicio}-${c.horaFin}</td><td>${c.paciente}</td><td>${c.motivo}</td></tr>`;
+                });
+                html += `</table>`;
+            });
+            return html;
+        }
+        function exportarDiaPDF() {
+            const citasDelDia = citas.filter(c => c.fecha === selectedDate);
+            document.getElementById('areaImprimible').innerHTML = generarAgendaImprimible(citasDelDia, `Agenda del ${formatearFechaLegible(selectedDate)}`);
+            window.print();
+        }
+        function exportarMesPDF() {
+            const dt = new Date(); if(nav !== 0) dt.setMonth(new Date().getMonth() + nav);
+            const prefijo = `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}`;
+            const nombreMes = dt.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' });
+            const citasDelMes = citas.filter(c => c.fecha.startsWith(prefijo));
+            document.getElementById('areaImprimible').innerHTML = generarAgendaImprimible(citasDelMes, `Agenda de ${nombreMes}`);
+            window.print();
+        }
+
+        // ===== Dashboard =====
+        function abrirDashboard() {
+            const dt = new Date(); if(nav !== 0) dt.setMonth(new Date().getMonth() + nav);
+            const prefijo = `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}`;
+            const nombreMes = dt.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' });
+            const citasMes = citas.filter(c => c.fecha.startsWith(prefijo));
+            const confirmadas = citasMes.filter(c => c.estado === 'status-green').length;
+            const pendientes = citasMes.filter(c => c.estado === 'status-yellow' || c.estado === 'status-gray').length;
+            const canceladas = citasMes.filter(c => c.estado === 'status-red').length;
+            const pacientesNuevos = Object.keys(pacientes).filter(nombre => {
+                const fechas = citas.filter(c => c.paciente === nombre).map(c => c.fecha).sort();
+                return fechas.length > 0 && fechas[0].startsWith(prefijo);
+            }).length;
+            const conteoMotivos = {};
+            citasMes.forEach(c => { conteoMotivos[c.motivo] = (conteoMotivos[c.motivo] || 0) + 1; });
+            const motivoTop = Object.entries(conteoMotivos).sort((a,b) => b[1]-a[1])[0];
+            document.getElementById('dashboardBody').innerHTML = `
+                <p style="text-transform:capitalize; color:var(--text-muted); margin-top:0;">${nombreMes}</p>
+                <div class="dash-grid">
+                    <div class="dash-card"><div class="dash-num">${citasMes.length}</div><div class="dash-label">Citas este mes</div></div>
+                    <div class="dash-card"><div class="dash-num" style="color:var(--status-green)">${confirmadas}</div><div class="dash-label">Confirmadas</div></div>
+                    <div class="dash-card"><div class="dash-num" style="color:var(--status-yellow)">${pendientes}</div><div class="dash-label">Pendientes</div></div>
+                    <div class="dash-card"><div class="dash-num" style="color:var(--status-red)">${canceladas}</div><div class="dash-label">Canceladas</div></div>
+                    <div class="dash-card" style="grid-column:span 2;"><div class="dash-num">${pacientesNuevos}</div><div class="dash-label">Pacientes nuevos</div></div>
+                </div>
+                <p style="margin-top:1.2rem;"><strong>Motivo más frecuente:</strong> ${motivoTop ? motivoTop[0] + ' (' + motivoTop[1] + ')' : 'N/A'}</p>
+            `;
+            document.getElementById('dashboardModalOverlay').style.display = 'flex';
+        }
         function changeMonth(dir) { nav += dir; loadCalendar(); }
         function loadCalendar() {
             const dt = new Date(); if (nav !== 0) dt.setMonth(new Date().getMonth() + nav);
@@ -735,11 +884,13 @@
                     const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
                     const citasDelDia = citas.filter(c => c.fecha === dateStr);
                     if (citasDelDia.length > 0) {
-                        const countM = citasDelDia.filter(c => c.horaInicio >= config.mInicio && c.horaInicio < config.mFin).length;
-                        const countV = citasDelDia.filter(c => c.horaInicio >= config.vInicio && c.horaInicio < config.vFin).length;
+                        const citasM = citasDelDia.filter(c => c.horaInicio >= config.mInicio && c.horaInicio < config.mFin);
+                        const citasV = citasDelDia.filter(c => c.horaInicio >= config.vInicio && c.horaInicio < config.vFin);
+                        const pctM = pctOcupacion(citasM, config.mInicio, config.mFin);
+                        const pctV = pctOcupacion(citasV, config.vInicio, config.vFin);
                         const badgesDiv = document.createElement('div'); badgesDiv.classList.add('badges-container');
-                        if(countM > 0) { const bM = document.createElement('span'); bM.classList.add('badge-m'); bM.innerText = `M${countM}`; badgesDiv.appendChild(bM); }
-                        if(countV > 0) { const bV = document.createElement('span'); bV.classList.add('badge-v'); bV.innerText = `V${countV}`; badgesDiv.appendChild(bV); }
+                        if(citasM.length > 0) { const bM = document.createElement('span'); bM.classList.add('badge-m', claseCarga(pctM)); bM.innerText = `M${citasM.length}`; bM.title = `Mañana: ${pctM}% ocupada`; badgesDiv.appendChild(bM); }
+                        if(citasV.length > 0) { const bV = document.createElement('span'); bV.classList.add('badge-v', claseCarga(pctV)); bV.innerText = `V${citasV.length}`; bV.title = `Tarde: ${pctV}% ocupada`; badgesDiv.appendChild(bV); }
                         sq.appendChild(badgesDiv);
                         // color según pasado/futuro
                         if(dateStr < hoyStr) sq.classList.add('dia-pasado');
@@ -767,9 +918,17 @@
             toggleFormulario(false);
             const list = document.getElementById('appointmentList');
             const citasDelDia = citas.filter(c => c.fecha === dateStr).sort((a,b) => a.horaInicio.localeCompare(b.horaInicio));
-            if(citasDelDia.length === 0) list.innerHTML = '<p style="text-align:center; color:var(--text-muted);">El calendario esta libre este dia.</p>';
+            const citasM = citasDelDia.filter(c => c.horaInicio >= config.mInicio && c.horaInicio < config.mFin);
+            const citasV = citasDelDia.filter(c => c.horaInicio >= config.vInicio && c.horaInicio < config.vFin);
+            const pctM = pctOcupacion(citasM, config.mInicio, config.mFin);
+            const pctV = pctOcupacion(citasV, config.vInicio, config.vFin);
+            let resumenCarga = `<div style="display:flex; gap:10px; margin-bottom:1rem; font-size:0.85rem;">
+                <span class="badge-m ${claseCarga(pctM)}" style="padding:4px 8px;">Mañana ${pctM}%</span>
+                <span class="badge-v ${claseCarga(pctV)}" style="padding:4px 8px;">Tarde ${pctV}%</span>
+            </div>`;
+            if(citasDelDia.length === 0) list.innerHTML = resumenCarga + '<p style="text-align:center; color:var(--text-muted);">El calendario esta libre este dia.</p>';
             else {
-                list.innerHTML = citasDelDia.map(c => {
+                list.innerHTML = resumenCarga + citasDelDia.map(c => {
                     const textoNotas = c.notas && c.notas.trim() !== '' ? '(Nota)' : '';
                     return `<div class="appointment-item" onclick="abrirOpcionesCita(${c.id})">
                         <div class="appointment-header"><span class="status-dot ${c.estado}"></span><strong style="font-size:1.1rem;">${c.horaInicio} - ${c.horaFin}</strong></div>
@@ -872,6 +1031,7 @@
             const pac = pacientes[nombre];
             const codigo = getCodigoPaciente(nombre); // genera si no tiene
             document.getElementById('editDirNombre').value = nombre; 
+            document.getElementById('editDirApodo').value = pac.apodo || '';
             document.getElementById('editDirTel').value = pac.telefono; 
             document.getElementById('editDirFotoBase64').value = pac.foto || '';
             document.getElementById('editDirCodigo').innerText = codigo;
@@ -1064,9 +1224,10 @@
         }
         function guardarEdicionDirectorio() {
             const nombre = document.getElementById('editDirNombre').value, tel = document.getElementById('editDirTel').value, foto = document.getElementById('editDirFotoBase64').value;
+            const apodo = document.getElementById('editDirApodo').value.trim();
             const prev = pacientes[nombre] || {};
-            // conservar TODO lo previo, solo actualizar tel y foto
-            pacientes[nombre] = Object.assign({}, prev, { telefono: tel, foto: foto, codigo: prev.codigo || generarCodigo() });
+            // conservar TODO lo previo, solo actualizar tel, foto y apodo
+            pacientes[nombre] = Object.assign({}, prev, { telefono: tel, foto: foto, apodo: apodo, codigo: prev.codigo || generarCodigo() });
             citas.forEach(c => { if(c.paciente === nombre) c.telefono = tel; });
             localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes));
             localStorage.setItem('denti_citas_v16', JSON.stringify(citas));
@@ -1078,7 +1239,15 @@
             const nombre = document.getElementById('editDirNombre').value;
             const tel = document.getElementById('editDirTel').value;
             const codigo = document.getElementById('editDirCodigo').innerText;
-            const msg = `Hola ${nombre}, este es tu acceso a *Mi Sonrisa* (tus citas):\n\n📱 Teléfono: ${limpiarTel(tel)}\n🔑 Código: ${codigo}\n\nEntra a misonrisa.dentilike.com.mx, ve a "Mis citas" y escribe estos datos para ver y confirmar tus próximas citas.`;
+            const msg = `Hola ${nombrePreferido(nombre)}, este es tu acceso a *Mi Sonrisa* (tus citas):\n\n📱 Teléfono: ${limpiarTel(tel)}\n🔑 Código: ${codigo}\n\nEntra a misonrisa.dentilike.com.mx, ve a "Mis citas" y escribe estos datos para ver y confirmar tus próximas citas.`;
+            abrirWa(tel, msg);
+        }
+        function enviarMensajePromocion(){
+            const nombre = document.getElementById('editDirNombre').value;
+            const tel = document.getElementById('editDirTel').value;
+            const texto = (config.promoTexto || '').trim();
+            if(!texto){ alert('Primero escribe el texto de promociones en Ajustes → Promos de cumpleaños.'); return; }
+            const msg = `Hola ${nombrePreferido(nombre)},\n\n${texto}`;
             abrirWa(tel, msg);
         }
         function cerrarEditorDirectorio() { editandoAhora = false; dirNombreActual = null; document.getElementById('editorContacto').style.display = 'none'; document.getElementById('listaContactos').style.display = 'block'; var b=document.getElementById('btnNuevoPaciente'); if(b) b.style.display='block'; }
@@ -1116,7 +1285,7 @@
         function confirmarCitaDesdeChat(id) {
             const cita = citas.find(c => c.id === id);
             if(!cita) return;
-            const msg = `Hola ${cita.paciente},\n\nTe contactamos de DENTILIKE para confirmar tu cita programada.\n\nEspecialista: ${config.doctor}\nTratamiento: ${cita.motivo}\nFecha: ${formatearFechaLegible(cita.fecha)}\nHorario: ${cita.horaInicio} a ${cita.horaFin}\n\nPor favor confirmanos de recibido.`;
+            const msg = `Hola ${nombrePreferido(cita.paciente)},\n\nTe contactamos de DENTILIKE para confirmar tu cita programada.\n\nEspecialista: ${config.doctor}\nTratamiento: ${cita.motivo}\nFecha: ${formatearFechaLegible(cita.fecha)}\nHorario: ${cita.horaInicio} a ${cita.horaFin}\n\nPor favor confirmanos de recibido.`;
             abrirWa(cita.telefono, msg);
         }
         function abrirChatBot() {
@@ -1227,13 +1396,13 @@
             closeModal('opcionesCitaModal'); toggleFormulario(true);
         }
         function enviarWhatsAppNueva(pac, tel, hIni, hFin, mot, fecha) {
-            const msg = `Hola ${pac},\n\nTu cita ha sido registrada con exito en DENTILIKE.\n\nEspecialista: ${config.doctor}\nTratamiento: ${mot}\nFecha: ${formatearFechaLegible(fecha)}\nHorario: ${hIni} a ${hFin}\n\nTe esperamos.`;
+            const msg = `Hola ${nombrePreferido(pac)},\n\nTu cita ha sido registrada con exito en DENTILIKE.\n\nEspecialista: ${config.doctor}\nTratamiento: ${mot}\nFecha: ${formatearFechaLegible(fecha)}\nHorario: ${hIni} a ${hFin}\n\nTe esperamos.`;
             abrirWa(tel, msg);
         }
         function enviarWhatsAppConfirmacion() {
             const cita = citas.find(c => c.id === citaSeleccionadaId);
             if(cita) {
-                const msg = `Hola ${cita.paciente},\n\nTe contactamos de DENTILIKE para confirmar tu cita programada.\n\nEspecialista: ${config.doctor}\nTratamiento: ${cita.motivo}\nFecha: ${formatearFechaLegible(cita.fecha)}\nHorario: ${cita.horaInicio} a ${cita.horaFin}\n\nPor favor confirmanos de recibido.`;
+                const msg = `Hola ${nombrePreferido(cita.paciente)},\n\nTe contactamos de DENTILIKE para confirmar tu cita programada.\n\nEspecialista: ${config.doctor}\nTratamiento: ${cita.motivo}\nFecha: ${formatearFechaLegible(cita.fecha)}\nHorario: ${cita.horaInicio} a ${cita.horaFin}\n\nPor favor confirmanos de recibido.`;
                 abrirWa(cita.telefono, msg);
             }
             closeModal('opcionesCitaModal');
@@ -1286,9 +1455,19 @@
             const [h, m] = inicio.split(':').map(Number); const date = new Date(); date.setHours(h, m + duracion);
             document.getElementById('horaFin').value = `${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}`;
         }
+        function citasSobrepuestas(fecha, hIni, hFin, excluirId) {
+            return citas.filter(c => c.fecha === fecha && c.id !== excluirId && hIni < c.horaFin && hFin > c.horaInicio);
+        }
         function guardarCita() {
             const pac = document.getElementById('paciente').value, tel = document.getElementById('telefono').value, hIni = document.getElementById('horaInicio').value, hFin = document.getElementById('horaFin').value, mot = document.getElementById('motivo').value, notasAdicionales = document.getElementById('notas').value;
             if(!pac || !tel || !hIni || !hFin || !mot) return alert('Por favor completa los campos principales.');
+            const citaPrevia = editandoCitaId ? citas.find(c => c.id === editandoCitaId) : null;
+            const fechaCita = citaPrevia ? citaPrevia.fecha : selectedDate;
+            const conflictos = citasSobrepuestas(fechaCita, hIni, hFin, editandoCitaId);
+            if(conflictos.length > 0) {
+                const detalle = conflictos.map(c => `${c.paciente} (${c.horaInicio}-${c.horaFin})`).join(', ');
+                if(!confirm(`⚠️ Esta cita se sobrepone con: ${detalle}.\n\n¿Deseas continuar y guardarla de todas formas?`)) return;
+            }
             let fueEdicion = false;
             if(editandoCitaId) {
                 fueEdicion = true;
