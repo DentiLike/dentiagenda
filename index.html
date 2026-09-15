@@ -233,7 +233,6 @@
             
             <div id="appointmentList" style="margin-bottom: 1.5rem;"></div>
             
-            <button class="btn-3d btn-submit" onclick="exportarDiaPDF()" style="margin-bottom: 1rem; color:var(--primary);">📄 Exportar este día a PDF</button>
             <button id="btnAbrirFormulario" class="btn-3d btn-submit" onclick="toggleFormulario(true)" style="margin-bottom: 1rem; border: 2px dashed var(--primary); background: transparent;">+ Anadir Nueva Cita</button>
             
             <div id="formularioContainer" style="display: none; padding-top: 1rem; border-top: 1px solid var(--shadow-dark);">
@@ -333,6 +332,7 @@
                         <img id="editDirFotoPreview" src="" style="width:70px; height:70px; border-radius:10px; object-fit:cover; border:2px dashed var(--primary); display:none;">
                         <input type="file" id="editDirFile" accept="image/*" class="inset-3d" style="padding: 0.5rem;" onchange="procesarFotoDir(event)">
                         <input type="hidden" id="editDirFotoBase64">
+                        <button type="button" class="btn-3d" style="color:var(--status-red); padding:6px 10px; font-size:0.8rem;" onclick="quitarFotoDir()">🗑️ Quitar</button>
                     </div>
                 </div>
                 <div class="orto-box">
@@ -464,6 +464,7 @@
             <button class="btn-3d btn-submit" style="color:var(--accent); margin-top:10px;" onclick="instalarDentiAgenda()">📲 Instalar DentiAgenda en este dispositivo</button>
             <button class="btn-3d btn-submit" style="margin-top:10px;" onclick="sincronizarConfirmaciones(false)">🔄 Revisar confirmaciones de pacientes ahora</button>
             <button class="btn-3d btn-submit" style="margin-top:10px; color:var(--primary);" onclick="abrirDashboard()">📊 Ver Dashboard</button>
+            <button class="btn-3d btn-submit" style="margin-top:10px; color:var(--primary);" onclick="exportarDiaPDF()">📄 Exportar el día de hoy a PDF</button>
             <button class="btn-3d btn-submit" style="margin-top:10px; color:var(--primary);" onclick="exportarMesPDF()">📄 Exportar mes visible a PDF</button>
         </div>
     </div>
@@ -608,7 +609,11 @@
             mInicio: '08:00', mFin: '14:00', vInicio: '15:00', vFin: '21:00', mostrarFotos: true, promoTexto: '' 
         };
         let pacientes = JSON.parse(localStorage.getItem('denti_pacientes_v16')) || {};
+        if(Object.keys(pacientes).length > 0 && !localStorage.getItem('denti_pacientes_backup_v16')){
+            localStorage.setItem('denti_pacientes_backup_v16', JSON.stringify(pacientes));
+        }
         let potenciales = JSON.parse(localStorage.getItem('denti_potenciales_v16')) || [];
+        let potencialParaAgendar = null;
 
         // Fotos de pacientes: SOLO local, no se sincronizan (pesan mucho)
         let fotosLocales = JSON.parse(localStorage.getItem('denti_fotos_v16')) || {};
@@ -645,6 +650,21 @@
         async function guardarAgendaEnNube(){
             if(!fbOK || !authListo || !syncGlobalActivo) return;
             try{
+                // Protección: si el directorio de pacientes en memoria aparece vacío pero
+                // antes tenía datos, es casi seguro un error pasajero, no una decisión real.
+                // Se restaura del respaldo local en vez de subir un directorio vacío que
+                // borraría a todos los pacientes en la nube y en todos los dispositivos.
+                if(Object.keys(pacientes).length === 0){
+                    const respaldo = JSON.parse(localStorage.getItem('denti_pacientes_backup_v16') || '{}');
+                    if(Object.keys(respaldo).length > 0){
+                        console.warn('Directorio de pacientes vacío detectado: se restauró del respaldo local.');
+                        pacientes = respaldo;
+                        localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes));
+                        updateDatalists();
+                    }
+                } else {
+                    localStorage.setItem('denti_pacientes_backup_v16', JSON.stringify(pacientes));
+                }
                 const pacientesSinFoto = separarFotos();
                 const sello = Date.now();
                 miUltimaEscritura = sello;
@@ -681,7 +701,15 @@
                 }
                 // Cambio legítimo de otro dispositivo: aplícalo
                 citas = data.citas || [];
-                pacientes = data.pacientes || {};
+                const pacientesEntrantes = data.pacientes || {};
+                if(Object.keys(pacientesEntrantes).length === 0 && Object.keys(pacientes).length > 0){
+                    // La nube llegó con el directorio vacío pero localmente sí hay pacientes.
+                    // Casi seguro un error pasajero: no lo aplico, para no perder el directorio.
+                    console.warn('Se ignoró un directorio de pacientes vacío recibido de la nube.');
+                } else {
+                    pacientes = pacientesEntrantes;
+                    if(Object.keys(pacientes).length > 0) localStorage.setItem('denti_pacientes_backup_v16', JSON.stringify(pacientes));
+                }
                 motivos = data.motivos || [];
                 potenciales = data.potenciales || [];
                 if(data.config) config = data.config;
@@ -721,6 +749,7 @@
                         <label for="chkCautivo-${p.id}" style="margin:0; font-size:0.85rem;">Ya es paciente cautivo</label>
                         <button class="btn-3d" style="margin-left:auto; padding:4px 10px; font-size:0.8rem; color:var(--status-red);" onclick="eliminarPotencial(${p.id})">Eliminar</button>
                     </div>
+                    <button class="btn-3d btn-submit" style="margin-top:8px; color:var(--accent);" onclick="agendarDesdePotencial(${p.id})">📅 Agendar cita</button>
                 </div>
             `).join('');
         }
@@ -741,16 +770,31 @@
             guardarPotenciales();
             renderPotenciales();
         }
+        function agendarDesdePotencial(id) {
+            const p = potenciales.find(x => x.id === id);
+            if(!p) return;
+            if(!pacientes[p.nombre]) pacientes[p.nombre] = { telefono: p.telefono, foto: null, codigo: generarCodigo(), apodo: '', esPotencial: true };
+            else pacientes[p.nombre].esPotencial = true;
+            localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes));
+            guardarAgendaEnNube();
+            updateDatalists();
+            potencialParaAgendar = { nombre: p.nombre, telefono: p.telefono, motivo: p.motivo };
+            closeModal('potencialesModalOverlay');
+            alert(`Listo. Toca el día donde quieres agendar a ${p.nombre}, luego "+ Añadir Nueva Cita" y sus datos ya estarán precargados. Su cita se verá con un color distinto por ser paciente potencial, hasta que lo marques como cautivo.`);
+        }
         function migrarPotencial(id) {
             const p = potenciales.find(x => x.id === id);
             if(!p) return;
             if(!confirm(`¿Pasar a ${p.nombre} a tu directorio de pacientes? Podrás agendarle su primera cita desde ahí.`)) { renderPotenciales(); return; }
             if(!pacientes[p.nombre]) pacientes[p.nombre] = { telefono: p.telefono, foto: null, codigo: generarCodigo(), apodo: '' };
+            else delete pacientes[p.nombre].esPotencial; // ya es cautivo: sus citas vuelven al color normal
             potenciales = potenciales.filter(x => x.id !== id);
             localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes));
             guardarPotenciales();
             updateDatalists();
             renderPotenciales();
+            loadCalendar();
+            if(selectedDate) openDay(selectedDate);
             alert(`${p.nombre} ya está en tu directorio de pacientes. Ahora puedes agendarle su cita.`);
         }
         function generarCodigo(){ return String(Math.floor(1000 + Math.random()*9000)); } // 4 dígitos
@@ -910,8 +954,9 @@
             return html;
         }
         function exportarDiaPDF() {
-            const citasDelDia = citas.filter(c => c.fecha === selectedDate);
-            document.getElementById('areaImprimible').innerHTML = generarAgendaImprimible(citasDelDia, `Agenda del ${formatearFechaLegible(selectedDate)}`);
+            const hoyStr = fechaAISO(new Date());
+            const citasDelDia = citas.filter(c => c.fecha === hoyStr);
+            document.getElementById('areaImprimible').innerHTML = generarAgendaImprimible(citasDelDia, `Agenda de hoy, ${formatearFechaLegible(hoyStr)}`);
             window.print();
         }
         function exportarMesPDF() {
@@ -994,6 +1039,11 @@
             if(!mostrar) {
                 editandoCitaId = null; document.getElementById('formTitle').innerText = 'Nueva Cita';
                 ['paciente','telefono','horaInicio','horaFin','motivo','notas'].forEach(id => document.getElementById(id).value = '');
+            } else if(potencialParaAgendar) {
+                document.getElementById('paciente').value = potencialParaAgendar.nombre;
+                document.getElementById('telefono').value = potencialParaAgendar.telefono;
+                document.getElementById('motivo').value = potencialParaAgendar.motivo || '';
+                potencialParaAgendar = null; // uso de una sola vez
             }
         }
 
@@ -1015,8 +1065,11 @@
             else {
                 list.innerHTML = resumenCarga + citasDelDia.map(c => {
                     const textoNotas = c.notas && c.notas.trim() !== '' ? '(Nota)' : '';
-                    return `<div class="appointment-item" onclick="abrirOpcionesCita(${c.id})">
-                        <div class="appointment-header"><span class="status-dot ${c.estado}"></span><strong style="font-size:1.1rem;">${c.horaInicio} - ${c.horaFin}</strong></div>
+                    const esPotencial = pacientes[c.paciente] && pacientes[c.paciente].esPotencial;
+                    const estiloPotencial = esPotencial ? 'border-left: 4px solid var(--accent); background: rgba(0,180,180,0.08);' : '';
+                    const etiquetaPotencial = esPotencial ? ' <span style="color:var(--accent); font-size:0.75rem; font-weight:bold;">🎯 Potencial</span>' : '';
+                    return `<div class="appointment-item" style="${estiloPotencial}" onclick="abrirOpcionesCita(${c.id})">
+                        <div class="appointment-header"><span class="status-dot ${c.estado}"></span><strong style="font-size:1.1rem;">${c.horaInicio} - ${c.horaFin}</strong>${etiquetaPotencial}</div>
                         <div style="margin-left: 22px;">- ${c.motivo}</div>
                         <div style="margin-left: 22px;">- ${c.paciente} ${textoNotas}</div>
                     </div>`
@@ -1299,6 +1352,16 @@
             if(nombrePaciente) syncPacienteAFirebase(nombrePaciente);
         }
 
+        function quitarFotoDir(){
+            const actual = document.getElementById('editDirFotoBase64').value;
+            if(actual && actual.indexOf('https://') === 0 && storage){
+                storage.refFromURL(actual).delete().catch(()=>{}); // limpieza silenciosa, no bloquea el flujo
+            }
+            document.getElementById('editDirFotoBase64').value = '';
+            document.getElementById('editDirFotoPreview').src = '';
+            document.getElementById('editDirFotoPreview').style.display = 'none';
+            document.getElementById('editDirFile').value = '';
+        }
         function comprimirImagen(file, maxLado, calidad) {
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
