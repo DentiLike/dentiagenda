@@ -196,7 +196,7 @@
         </div>
         <div class="header-actions">
             <button class="btn-3d btn-text-icon" onclick="abrirDirectorio()">Pacientes</button>
-            <button class="btn-3d btn-text-icon" onclick="abrirDashboard()">📊 Dashboard</button>
+            <button class="btn-3d btn-text-icon" onclick="abrirPotenciales()">🎯 Px Potencial</button>
             <button class="btn-3d btn-text-icon" onclick="openConfig()">Ajustes</button>
         </div>
     </header>
@@ -218,7 +218,6 @@
             <div id="monthDisplay" style="font-weight: bold; font-size: 1.2rem; color: var(--primary);"></div>
             <button class="btn-3d" onclick="changeMonth(1)">&gt;</button>
         </div>
-        <button class="btn-3d btn-submit" onclick="exportarMesPDF()" style="margin-bottom:1rem; color:var(--primary);">📄 Exportar mes visible a PDF</button>
         
         <div class="weekdays"><div>DOM</div><div>LUN</div><div>MAR</div><div>MIÉ</div><div>JUE</div><div>VIE</div><div>SÁB</div></div>
         <div id="calendarGrid" class="calendar-grid"></div>
@@ -464,6 +463,28 @@
             <button class="btn-3d btn-submit" onclick="guardarConfig()">Guardar Ajustes</button>
             <button class="btn-3d btn-submit" style="color:var(--accent); margin-top:10px;" onclick="instalarDentiAgenda()">📲 Instalar DentiAgenda en este dispositivo</button>
             <button class="btn-3d btn-submit" style="margin-top:10px;" onclick="sincronizarConfirmaciones(false)">🔄 Revisar confirmaciones de pacientes ahora</button>
+            <button class="btn-3d btn-submit" style="margin-top:10px; color:var(--primary);" onclick="abrirDashboard()">📊 Ver Dashboard</button>
+            <button class="btn-3d btn-submit" style="margin-top:10px; color:var(--primary);" onclick="exportarMesPDF()">📄 Exportar mes visible a PDF</button>
+        </div>
+    </div>
+
+    <!-- Modal Pacientes Potenciales -->
+    <div class="modal-overlay" id="potencialesModalOverlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 style="margin: 0; color: var(--primary);">🎯 Pacientes Potenciales</h2>
+                <button class="close-btn" onclick="closeModal('potencialesModalOverlay')">X</button>
+            </div>
+            <p style="font-size:0.85rem; color:var(--text-muted); margin-top:0;">Leads de primer contacto que aún no confirman si continúan. Marca "Ya es paciente cautivo" para pasarlo a tu directorio real.</p>
+
+            <div id="listaPotenciales" style="margin-bottom: 1.5rem;"></div>
+
+            <label style="display: block; font-size: 0.85rem; font-weight: bold; margin: 1rem 0 0.5rem 0; color: var(--primary);">+ Agregar potencial</label>
+            <div class="form-group"><input type="text" id="potNombre" class="inset-3d" placeholder="Nombre"></div>
+            <div class="form-group"><input type="tel" id="potTelefono" class="inset-3d" placeholder="Teléfono"></div>
+            <div class="form-group"><input type="text" id="potMotivo" class="inset-3d" placeholder="Motivo de contacto"></div>
+            <div class="form-group"><textarea id="potNotas" class="inset-3d" rows="2" placeholder="Notas (opcional)"></textarea></div>
+            <button class="btn-3d btn-submit" style="background:var(--primary); color:white;" onclick="agregarPotencial()">Agregar</button>
         </div>
     </div>
 
@@ -485,6 +506,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
 
     <script>
         // ===== Firebase init =====
@@ -496,11 +518,12 @@
             messagingSenderId: "601464011103",
             appId: "1:601464011103:web:e03150d9b86eb40a451eea"
         };
-        let db = null, auth = null, fbOK = false, authListo = false, intervaloConfirmaciones = null;
+        let db = null, auth = null, storage = null, fbOK = false, authListo = false, intervaloConfirmaciones = null, subidaFotoPromise = null;
         try {
             firebase.initializeApp(firebaseConfig);
             db = firebase.firestore();
             auth = firebase.auth();
+            storage = firebase.storage();
             // Recordar sesión en este dispositivo (no pedir login cada vez)
             auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
             fbOK = true;
@@ -585,6 +608,7 @@
             mInicio: '08:00', mFin: '14:00', vInicio: '15:00', vFin: '21:00', mostrarFotos: true, promoTexto: '' 
         };
         let pacientes = JSON.parse(localStorage.getItem('denti_pacientes_v16')) || {};
+        let potenciales = JSON.parse(localStorage.getItem('denti_potenciales_v16')) || [];
 
         // Fotos de pacientes: SOLO local, no se sincronizan (pesan mucho)
         let fotosLocales = JSON.parse(localStorage.getItem('denti_fotos_v16')) || {};
@@ -595,23 +619,26 @@
         let editandoAhora = false;   // true mientras el doctor edita un expediente
 
         function separarFotos(){
-            // Quita SOLO las fotos de 'pacientes' (las guarda aparte local).
-            // Conserva todo lo demás: telefono, codigo, plan, etc.
+            // Las fotos que ya son URL de Storage (livianas) SÍ viajan normal en el documento.
+            // Solo las fotos viejas en base64 (pesadas, de antes de tener Storage) se quedan aparte.
             const limpio = {};
             Object.keys(pacientes).forEach(n => {
                 const p = pacientes[n] || {};
-                if(p.foto){ fotosLocales[n] = p.foto; }
                 const copia = Object.assign({}, p);
-                delete copia.foto;   // solo la foto no se sube
+                if(p.foto && p.foto.indexOf('data:') === 0){
+                    fotosLocales[n] = p.foto;
+                    delete copia.foto;
+                }
                 limpio[n] = copia;
             });
             localStorage.setItem('denti_fotos_v16', JSON.stringify(fotosLocales));
             return limpio;
         }
         function reinsertarFotos(){
-            // Al recibir pacientes de la nube (sin fotos), re-agrega las fotos locales.
+            // Al recibir pacientes de la nube: si ya trae una foto (URL de Storage), se respeta tal cual.
+            // Solo si no trae ninguna, se rescata la vieja copia local en base64 (si existe).
             Object.keys(pacientes).forEach(n => {
-                if(fotosLocales[n]) pacientes[n].foto = fotosLocales[n];
+                if(!pacientes[n].foto && fotosLocales[n]) pacientes[n].foto = fotosLocales[n];
             });
         }
 
@@ -626,6 +653,7 @@
                     pacientes: pacientesSinFoto,
                     motivos: motivos,
                     config: config,
+                    potenciales: potenciales,
                     escritoPor: sello   // sello para reconocer mi propio eco
                 });
                 setSync('on','Sincronizado');
@@ -655,19 +683,76 @@
                 citas = data.citas || [];
                 pacientes = data.pacientes || {};
                 motivos = data.motivos || [];
+                potenciales = data.potenciales || [];
                 if(data.config) config = data.config;
                 reinsertarFotos();
                 localStorage.setItem('denti_citas_v16', JSON.stringify(citas));
                 localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes));
                 localStorage.setItem('denti_motivos_v16', JSON.stringify(motivos));
+                localStorage.setItem('denti_potenciales_v16', JSON.stringify(potenciales));
                 localStorage.setItem('denti_config_v16', JSON.stringify(config));
                 syncGlobalActivo = true;
-                loadCalendar(); updateDatalists(); loadConfig();
+                loadCalendar(); updateDatalists(); loadConfig(); renderPotenciales();
                 setSync('on','Sincronizado');
             }, (err)=>{ console.error('snapshot error', err); setSync('err','Error de conexión'); });
         }
 
-        // ===== Código de acceso =====
+        // ===== Pacientes Potenciales =====
+        function guardarPotenciales() {
+            localStorage.setItem('denti_potenciales_v16', JSON.stringify(potenciales));
+            guardarAgendaEnNube();
+        }
+        function abrirPotenciales() {
+            renderPotenciales();
+            document.getElementById('potencialesModalOverlay').style.display = 'flex';
+        }
+        function renderPotenciales() {
+            const cont = document.getElementById('listaPotenciales');
+            if(!cont) return;
+            if(potenciales.length === 0) { cont.innerHTML = '<p style="text-align:center; color:var(--text-muted);">Sin pacientes potenciales por ahora.</p>'; return; }
+            cont.innerHTML = potenciales.map(p => `
+                <div class="inset-3d" style="padding:10px; margin-bottom:10px; border-radius:12px;">
+                    <div style="font-weight:bold;">${p.nombre}</div>
+                    <div style="font-size:0.85rem; color:var(--text-muted);">${p.telefono} · ${p.motivo || 'Sin motivo especificado'}</div>
+                    <div style="font-size:0.8rem; color:var(--text-muted);">Contactado: ${formatearFechaLegible(p.fechaContacto)}</div>
+                    ${p.notas ? `<div style="font-size:0.8rem; margin-top:4px;">${p.notas}</div>` : ''}
+                    <div style="display:flex; align-items:center; gap:8px; margin-top:8px;">
+                        <input type="checkbox" id="chkCautivo-${p.id}" style="width:20px; height:20px; accent-color: var(--primary);" onchange="migrarPotencial(${p.id})">
+                        <label for="chkCautivo-${p.id}" style="margin:0; font-size:0.85rem;">Ya es paciente cautivo</label>
+                        <button class="btn-3d" style="margin-left:auto; padding:4px 10px; font-size:0.8rem; color:var(--status-red);" onclick="eliminarPotencial(${p.id})">Eliminar</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+        function agregarPotencial() {
+            const nombre = document.getElementById('potNombre').value.trim();
+            const telefono = document.getElementById('potTelefono').value.trim();
+            const motivo = document.getElementById('potMotivo').value.trim();
+            const notas = document.getElementById('potNotas').value.trim();
+            if(!nombre || !telefono) return alert('Por favor ingresa al menos nombre y teléfono.');
+            potenciales.push({ id: Date.now(), nombre, telefono, motivo, notas, fechaContacto: fechaAISO(new Date()) });
+            guardarPotenciales();
+            renderPotenciales();
+            document.getElementById('potNombre').value = ''; document.getElementById('potTelefono').value = ''; document.getElementById('potMotivo').value = ''; document.getElementById('potNotas').value = '';
+        }
+        function eliminarPotencial(id) {
+            if(!confirm('¿Eliminar este contacto potencial?')) return;
+            potenciales = potenciales.filter(p => p.id !== id);
+            guardarPotenciales();
+            renderPotenciales();
+        }
+        function migrarPotencial(id) {
+            const p = potenciales.find(x => x.id === id);
+            if(!p) return;
+            if(!confirm(`¿Pasar a ${p.nombre} a tu directorio de pacientes? Podrás agendarle su primera cita desde ahí.`)) { renderPotenciales(); return; }
+            if(!pacientes[p.nombre]) pacientes[p.nombre] = { telefono: p.telefono, foto: null, codigo: generarCodigo(), apodo: '' };
+            potenciales = potenciales.filter(x => x.id !== id);
+            localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes));
+            guardarPotenciales();
+            updateDatalists();
+            renderPotenciales();
+            alert(`${p.nombre} ya está en tu directorio de pacientes. Ahora puedes agendarle su cita.`);
+        }
         function generarCodigo(){ return String(Math.floor(1000 + Math.random()*9000)); } // 4 dígitos
         function getCodigoPaciente(nombre){
             if(pacientes[nombre] && pacientes[nombre].codigo) return pacientes[nombre].codigo;
@@ -1214,15 +1299,52 @@
             if(nombrePaciente) syncPacienteAFirebase(nombrePaciente);
         }
 
+        function comprimirImagen(file, maxLado, calidad) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        let w = img.width, h = img.height;
+                        if(w > h) { if(w > maxLado) { h = Math.round(h * maxLado / w); w = maxLado; } }
+                        else { if(h > maxLado) { w = Math.round(w * maxLado / h); h = maxLado; } }
+                        const canvas = document.createElement('canvas');
+                        canvas.width = w; canvas.height = h;
+                        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                        resolve(canvas.toDataURL('image/jpeg', calidad));
+                    };
+                    img.onerror = reject;
+                    img.src = e.target.result;
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
+        async function subirFotoAStorage(nombre, dataUrlComprimido) {
+            if(!fbOK || !storage) throw new Error('Storage no disponible');
+            const ref = storage.ref().child(`fotos_pacientes/${encodeURIComponent(nombre)}.jpg`);
+            await ref.putString(dataUrlComprimido, 'data_url');
+            return await ref.getDownloadURL();
+        }
         function procesarFotoDir(event) {
             const file = event.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = function(e) { document.getElementById('editDirFotoPreview').src = e.target.result; document.getElementById('editDirFotoPreview').style.display = 'block'; document.getElementById('editDirFotoBase64').value = e.target.result; }
-                reader.readAsDataURL(file); 
-            }
+            if (!file) return;
+            comprimirImagen(file, 220, 0.7).then(dataUrlComprimido => {
+                document.getElementById('editDirFotoPreview').src = dataUrlComprimido;
+                document.getElementById('editDirFotoPreview').style.display = 'block';
+                const nombre = document.getElementById('editDirNombre').value;
+                document.getElementById('editDirFotoBase64').value = dataUrlComprimido; // respaldo inmediato por si falla la subida
+                subidaFotoPromise = subirFotoAStorage(nombre, dataUrlComprimido).then(url => {
+                    document.getElementById('editDirFotoBase64').value = url;
+                    subidaFotoPromise = null;
+                }).catch(err => {
+                    console.error('subirFotoAStorage', err);
+                    subidaFotoPromise = null; // se queda con el dataUrl local como respaldo
+                });
+            }).catch(err => console.error('comprimirImagen', err));
         }
-        function guardarEdicionDirectorio() {
+        async function guardarEdicionDirectorio() {
+            if(subidaFotoPromise) { await subidaFotoPromise; }
             const nombre = document.getElementById('editDirNombre').value, tel = document.getElementById('editDirTel').value, foto = document.getElementById('editDirFotoBase64').value;
             const apodo = document.getElementById('editDirApodo').value.trim();
             const prev = pacientes[nombre] || {};
