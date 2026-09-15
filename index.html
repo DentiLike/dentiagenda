@@ -420,6 +420,7 @@
                 <div class="chip" onclick="enviarMensajeChat('¿Cuales son mis citas de hoy?')">Pacientes de hoy</div>
                 <div class="chip" onclick="enviarMensajeChat('Confirmar pacientes de pasado mañana')">Confirmar pasado mañana</div>
                 <div class="chip" onclick="enviarMensajeChat('Pacientes con mas de 2 meses sin cita')">Sin cita +2 meses</div>
+                <div class="chip" onclick="enviarMensajeChat('Muestrame pacientes potenciales')">Px Potenciales</div>
             </div>
 
             <div style="display:flex; gap:10px;">
@@ -739,11 +740,11 @@
             if(!cont) return;
             if(potenciales.length === 0) { cont.innerHTML = '<p style="text-align:center; color:var(--text-muted);">Sin pacientes potenciales por ahora.</p>'; return; }
             cont.innerHTML = potenciales.map(p => `
-                <div class="inset-3d" style="padding:10px; margin-bottom:10px; border-radius:12px;">
-                    <div style="font-weight:bold;">${p.nombre}</div>
-                    <div style="font-size:0.85rem; color:var(--text-muted);">${p.telefono} · ${p.motivo || 'Sin motivo especificado'}</div>
-                    <div style="font-size:0.8rem; color:var(--text-muted);">Contactado: ${formatearFechaLegible(p.fechaContacto)}</div>
-                    ${p.notas ? `<div style="font-size:0.8rem; margin-top:4px;">${p.notas}</div>` : ''}
+                <div class="inset-3d" style="padding:10px; margin-bottom:10px; border-radius:12px; color: var(--primary);">
+                    <div style="font-weight:bold; color: var(--primary);">${p.nombre}</div>
+                    <div style="font-size:0.85rem; color:var(--primary);">${p.telefono} · ${p.motivo || 'Sin motivo especificado'}</div>
+                    <div style="font-size:0.8rem; color:var(--primary);">Contactado: ${formatearFechaLegible(p.fechaContacto)}</div>
+                    ${p.notas ? `<div style="font-size:0.8rem; margin-top:4px; color:var(--primary);">${p.notas}</div>` : ''}
                     <div style="display:flex; align-items:center; gap:8px; margin-top:8px;">
                         <input type="checkbox" id="chkCautivo-${p.id}" style="width:20px; height:20px; accent-color: var(--primary);" onchange="migrarPotencial(${p.id})">
                         <label for="chkCautivo-${p.id}" style="margin:0; font-size:0.85rem;">Ya es paciente cautivo</label>
@@ -1152,8 +1153,11 @@
                     const tel = pac.telefono || 'sin teléfono';
                     let fotoIcon = (config.mostrarFotos && pac.foto) ? `<img src="${pac.foto}" style="width:30px; height:30px; border-radius:50%; object-fit:cover;">` : '<div style="width:30px;height:30px;border-radius:50%;background:#ccc;"></div>';
                     const nombreEsc = nombre.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-                    return `<div class="contact-item" onclick="abrirEditorDirectorio('${nombreEsc}')">
-                        <div style="display:flex; align-items:center; gap:10px;">${fotoIcon} <strong>${nombre}</strong></div>
+                    const esPotencial = pac.esPotencial;
+                    const estiloPotencial = esPotencial ? 'border-left: 4px solid var(--accent); background: rgba(0,180,180,0.08);' : '';
+                    const etiquetaPotencial = esPotencial ? ' <span style="color:var(--accent); font-size:0.75rem; font-weight:bold;">🎯 Potencial</span>' : '';
+                    return `<div class="contact-item" style="${estiloPotencial}" onclick="abrirEditorDirectorio('${nombreEsc}')">
+                        <div style="display:flex; align-items:center; gap:10px;">${fotoIcon} <strong>${nombre}</strong>${etiquetaPotencial}</div>
                         <span style="color:var(--text-muted); font-size:0.8rem;">+52 ${tel}</span>
                     </div>`;
                 }).join('');
@@ -1452,6 +1456,33 @@
             }
         }
 
+        function mostrarPotencialesEnChatHTML() {
+            if(potenciales.length === 0) return '<p style="margin:0;">No tienes pacientes potenciales registrados.</p>';
+            let html = potenciales.map(p => `
+                <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid rgba(0,0,0,0.1); gap:8px;">
+                    <span>${p.nombre} — ${p.telefono}</span>
+                    <span class="chip" style="background:var(--status-red); color:white; flex-shrink:0;" onclick="eliminarPotencialDesdeChat(${p.id})">🗑️</span>
+                </div>
+            `).join('');
+            html += `<div class="chip-container" style="margin-top:10px;"><div class="chip" style="background:var(--status-red); color:white;" onclick="borrarTodosPotencialesDesdeChat()">🗑️ Borrar todos</div></div>`;
+            return html;
+        }
+        function eliminarPotencialDesdeChat(id) {
+            if(!confirm('¿Eliminar este paciente potencial?')) return;
+            potenciales = potenciales.filter(p => p.id !== id);
+            guardarPotenciales();
+            renderPotenciales();
+            const box = document.getElementById('chatPotencialesBox');
+            if(box) box.innerHTML = mostrarPotencialesEnChatHTML();
+        }
+        function borrarTodosPotencialesDesdeChat() {
+            if(!confirm('¿Borrar TODOS los pacientes potenciales? Esta acción no se puede deshacer.')) return;
+            potenciales = [];
+            guardarPotenciales();
+            renderPotenciales();
+            const box = document.getElementById('chatPotencialesBox');
+            if(box) box.innerHTML = mostrarPotencialesEnChatHTML();
+        }
         function pacientesSinCitaReciente(diasLimite) {
             const hoy = new Date(); const hoyStr = fechaAISO(hoy);
             const limite = new Date(hoy); limite.setDate(hoy.getDate() - diasLimite);
@@ -1526,6 +1557,9 @@
                 let res = `${rezagados.length} paciente(s) llevan mas de 2 meses sin cita:<br><br>`;
                 rezagados.forEach(p => res += `- ${p.nombre} (ultima cita: ${formatearFechaLegible(p.ultimaFecha)})<br>`);
                 return res;
+            }
+            if(texto.includes('potencial')) {
+                return `Estos son tus pacientes potenciales:<br><br><div id="chatPotencialesBox">${mostrarPotencialesEnChatHTML()}</div>`;
             }
             if(texto.includes('espacio') || (texto.includes('libre') && texto.includes('15:00'))) {
                 for(let i=1; i<=7; i++) {
