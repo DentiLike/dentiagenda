@@ -210,7 +210,7 @@
     <div class="sync-badge" id="syncBadge"><span class="sync-dot" id="syncDot"></span><span id="syncText">Conectando…</span></div>
 
     <div class="floating-assistant" onclick="abrirChatBot()">
-        <img src="avatar.png.png" alt="IA" onerror="this.style.display='none'; this.parentNode.innerText='IA';">
+        <img id="avatarFlotante" src="avatar.png.png" alt="IA" onerror="this.style.display='none'; this.parentNode.innerText='IA';">
     </div>
 
     <div class="container">
@@ -856,7 +856,7 @@
                 <div class="inset-3d" style="padding:10px; margin-bottom:10px; border-radius:12px;">
                     <div style="font-weight:bold;">${s.nombre}</div>
                     <div style="font-size:0.85rem; color:var(--text-muted);">${s.telefono} · ${s.motivo}</div>
-                    <div style="font-size:0.85rem; margin-top:4px;">${formatearFechaLegible(s.fecha)} · ${s.horaInicio} - ${s.horaFin}</div>
+                    <div style="font-size:0.85rem; margin-top:4px;">${formatearFechaLegible(s.fecha)} · ${formatearHoraAmPm(s.horaInicio)} - ${formatearHoraAmPm(s.horaFin)}</div>
                     <div style="display:flex; gap:8px; margin-top:8px;">
                         <button class="btn-3d" style="flex:1; color:var(--status-green);" onclick="aceptarSolicitud('${s.id}')">✅ Aceptar</button>
                         <button class="btn-3d" style="flex:1; color:var(--status-red);" onclick="rechazarSolicitud('${s.id}')">❌ Rechazar</button>
@@ -869,7 +869,7 @@
             if(!s) return;
             const conflictos = citasSobrepuestas(s.fecha, s.horaInicio, s.horaFin, null);
             if(conflictos.length > 0){
-                const detalle = conflictos.map(c => `${c.paciente} (${c.horaInicio}-${c.horaFin})`).join(', ');
+                const detalle = conflictos.map(c => `${c.paciente} (${formatearHoraAmPm(c.horaInicio)}-${formatearHoraAmPm(c.horaFin)})`).join(', ');
                 if(!confirm(`⚠️ Esta solicitud se sobrepone con: ${detalle}.\n\n¿Aceptarla de todas formas?`)) return;
             }
             citas.push({ id: Date.now(), fecha: s.fecha, paciente: s.nombre, telefono: s.telefono, horaInicio: s.horaInicio, horaFin: s.horaFin, motivo: s.motivo, notas: 'Agendada por el paciente desde Mi Sonrisa', estado: 'status-yellow' });
@@ -891,7 +891,7 @@
             if(!confirm(`¿Rechazar la solicitud de ${s.nombre}?`)) return;
             try{ await db.collection('solicitudes').doc(id).delete(); }catch(e){ console.error('rechazar solicitud', e); }
             if(confirm('¿Avisarle por WhatsApp que ese horario ya no está disponible?')){
-                const msg = `Hola ${nombrePreferido(s.nombre)},\n\nGracias por tu solicitud de cita para el ${formatearFechaLegible(s.fecha)} a las ${s.horaInicio}. Ese horario ya no está disponible — contáctanos para buscar otro horario juntos.`;
+                const msg = `Hola ${nombrePreferido(s.nombre)},\n\nGracias por tu solicitud de cita para el ${formatearFechaLegible(s.fecha)} a las ${formatearHoraAmPm(s.horaInicio)}. Ese horario ya no está disponible — contáctanos para buscar otro horario juntos.`;
                 abrirWa(s.telefono, msg);
             }
         }
@@ -988,6 +988,14 @@
             const meses = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
             return `${dia} de ${meses[mesNum - 1]} de ${partes[0]}`;
         }
+        // Convierte "16:00" a "4:00 PM"
+        function formatearHoraAmPm(hora){
+            if(!hora || !hora.includes(':')) return hora || '';
+            let [h,m] = hora.split(':').map(Number);
+            const ampm = h >= 12 ? 'PM' : 'AM';
+            h = h % 12; if(h === 0) h = 12;
+            return `${h}:${String(m).padStart(2,'0')} ${ampm}`;
+        }
         function fechaAISO(date) {
             return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
         }
@@ -1047,7 +1055,7 @@
             Object.keys(porFecha).sort().forEach(fecha => {
                 html += `<h3>${formatearFechaLegible(fecha)}</h3><table>`;
                 porFecha[fecha].sort((a,b) => a.horaInicio.localeCompare(b.horaInicio)).forEach(c => {
-                    html += `<tr><td>${c.horaInicio}-${c.horaFin}</td><td>${c.paciente}</td><td>${c.motivo}</td></tr>`;
+                    html += `<tr><td>${formatearHoraAmPm(c.horaInicio)}-${formatearHoraAmPm(c.horaFin)}</td><td>${c.paciente}</td><td>${c.motivo}</td></tr>`;
                 });
                 html += `</table>`;
             });
@@ -1169,7 +1177,7 @@
                     const estiloPotencial = esPotencial ? 'border-left: 4px solid var(--accent); background: rgba(0,180,180,0.08);' : '';
                     const etiquetaPotencial = esPotencial ? ' <span style="color:var(--accent); font-size:0.75rem; font-weight:bold;">🎯 Potencial</span>' : '';
                     return `<div class="appointment-item ${esPotencial ? 'potencial-item' : ''}" style="${estiloPotencial}" onclick="abrirOpcionesCita(${c.id})">
-                        <div class="appointment-header"><span class="status-dot ${c.estado}"></span><strong style="font-size:1.1rem;">${c.horaInicio} - ${c.horaFin}</strong>${etiquetaPotencial}</div>
+                        <div class="appointment-header"><span class="status-dot ${c.estado}"></span><strong style="font-size:1.1rem;">${formatearHoraAmPm(c.horaInicio)} - ${formatearHoraAmPm(c.horaFin)}</strong>${etiquetaPotencial}</div>
                         <div style="margin-left: 22px;">- ${c.motivo}</div>
                         <div style="margin-left: 22px;">- ${c.paciente} ${textoNotas}</div>
                     </div>`
@@ -1193,7 +1201,7 @@
                             <strong>Paciente:</strong> ${cita.paciente}<br>
                             <strong>Telefono:</strong> +52 ${cita.telefono}<br>
                             <strong>Tratamiento:</strong> ${cita.motivo}<br>
-                            <strong>Horario:</strong> ${cita.horaInicio} - ${cita.horaFin}
+                            <strong>Horario:</strong> ${formatearHoraAmPm(cita.horaInicio)} - ${formatearHoraAmPm(cita.horaFin)}
                         </p>
                     </div>
                     ${config.mostrarFotos ? `<div>${htmlFoto}</div>` : ''}
@@ -1547,7 +1555,7 @@
             const hoyStr = new Date().toISOString().split('T')[0];
             const encontradas = citas.filter(c => c.paciente.toLowerCase().includes(texto) && c.fecha >= hoyStr).sort((a,b) => a.fecha.localeCompare(b.fecha));
             if(encontradas.length > 0) {
-                resultadosBox.innerHTML = encontradas.map(c => `<div style="padding:5px 0; border-bottom:1px solid rgba(255,255,255,0.3); font-size:0.9rem;"><strong>${c.paciente}</strong> - ${formatearFechaLegible(c.fecha)} a las ${c.horaInicio}</div>`).join('');
+                resultadosBox.innerHTML = encontradas.map(c => `<div style="padding:5px 0; border-bottom:1px solid rgba(255,255,255,0.3); font-size:0.9rem;"><strong>${c.paciente}</strong> - ${formatearFechaLegible(c.fecha)} a las ${formatearHoraAmPm(c.horaInicio)}</div>`).join('');
                 resultadosBox.style.display = 'block';
             } else {
                 resultadosBox.innerHTML = '<div style="font-size:0.9rem;">No hay citas futuras para ese nombre.</div>';
@@ -1600,7 +1608,7 @@
         function confirmarCitaDesdeChat(id) {
             const cita = citas.find(c => c.id === id);
             if(!cita) return;
-            const msg = `Hola ${nombrePreferido(cita.paciente)},\n\nTe contactamos de DENTILIKE para confirmar tu cita programada.\n\nEspecialista: ${config.doctor}\nTratamiento: ${cita.motivo}\nFecha: ${formatearFechaLegible(cita.fecha)}\nHorario: ${cita.horaInicio} a ${cita.horaFin}\n\nPor favor confirmanos de recibido.`;
+            const msg = `Hola ${nombrePreferido(cita.paciente)},\n\nTe contactamos de DENTILIKE para confirmar tu cita programada.\n\nEspecialista: ${config.doctor}\nTratamiento: ${cita.motivo}\nFecha: ${formatearFechaLegible(cita.fecha)}\nHorario: ${formatearHoraAmPm(cita.horaInicio)} a ${formatearHoraAmPm(cita.horaFin)}\n\nPor favor confirmanos de recibido.`;
             abrirWa(cita.telefono, msg);
         }
         function abrirChatBot() {
@@ -1630,14 +1638,14 @@
                 const citasPac = citas.filter(c => c.paciente === nombreBuscado && c.fecha >= hoyStr).sort((a,b) => a.fecha.localeCompare(b.fecha));
                 if(citasPac.length === 0) return `El paciente **${nombreBuscado}** esta en tu directorio, pero no tiene citas futuras agendadas.`;
                 let res = `Proximas citas de **${nombreBuscado}**: <br>`;
-                citasPac.forEach(c => res += `- ${formatearFechaLegible(c.fecha)} a las ${c.horaInicio} (${c.motivo})<br>`);
+                citasPac.forEach(c => res += `- ${formatearFechaLegible(c.fecha)} a las ${formatearHoraAmPm(c.horaInicio)} (${c.motivo})<br>`);
                 return res;
             }
             if(texto.includes('hoy')) {
                 const citasHoy = citas.filter(c => c.fecha === hoyStr).sort((a,b) => a.horaInicio.localeCompare(b.horaInicio));
                 if(citasHoy.length === 0) return "Hoy no tienes pacientes agendados. Dia libre para ti.";
                 let resumen = `Tienes ${citasHoy.length} citas hoy:<br>`;
-                citasHoy.forEach(c => resumen += `- ${c.horaInicio}: ${c.paciente} (${c.motivo})<br>`);
+                citasHoy.forEach(c => resumen += `- ${formatearHoraAmPm(c.horaInicio)}: ${c.paciente} (${c.motivo})<br>`);
                 return resumen;
             }
             if(texto.includes('pasado')) {
@@ -1646,7 +1654,7 @@
                 const citasDestino = citas.filter(c => c.fecha === destinoStr).sort((a,b) => a.horaInicio.localeCompare(b.horaInicio));
                 if(citasDestino.length === 0) return `No tienes pacientes agendados para pasado mañana (${formatearFechaLegible(destinoStr)}).`;
                 let res = `Pacientes de pasado mañana, ${formatearFechaLegible(destinoStr)}:<br><br><div class="chip-container">`;
-                citasDestino.forEach(c => { res += `<div class="chip" onclick="confirmarCitaDesdeChat(${c.id})">✓ ${c.horaInicio} ${c.paciente}</div>`; });
+                citasDestino.forEach(c => { res += `<div class="chip" onclick="confirmarCitaDesdeChat(${c.id})">✓ ${formatearHoraAmPm(c.horaInicio)} ${c.paciente}</div>`; });
                 res += `</div><br>Toca un nombre para enviarle su confirmacion por WhatsApp.`;
                 return res;
             }
@@ -1684,7 +1692,7 @@
                     const citasPac = citas.filter(c => c.paciente === nombreExacto && c.fecha >= hoyStr).sort((a,b) => a.fecha.localeCompare(b.fecha));
                     if(citasPac.length === 0) return `El paciente **${nombreExacto}** no tiene citas futuras agendadas.`;
                     let res = `Citas agendadas para **${nombreExacto}**: <br>`;
-                    citasPac.forEach(c => res += `- ${formatearFechaLegible(c.fecha)} a las ${c.horaInicio} (${c.motivo})<br>`);
+                    citasPac.forEach(c => res += `- ${formatearFechaLegible(c.fecha)} a las ${formatearHoraAmPm(c.horaInicio)} (${c.motivo})<br>`);
                     return res;
                 } else if (listaPacientes.length > 1) {
                     let res = `Encontre varios pacientes que coinciden con tu busqueda. ¿A cual te refieres?<br><br><div class="chip-container">`;
@@ -1720,7 +1728,7 @@
         function enviarWhatsAppConfirmacion() {
             const cita = citas.find(c => c.id === citaSeleccionadaId);
             if(cita) {
-                const msg = `Hola ${nombrePreferido(cita.paciente)},\n\nTe contactamos de DENTILIKE para confirmar tu cita programada.\n\nEspecialista: ${config.doctor}\nTratamiento: ${cita.motivo}\nFecha: ${formatearFechaLegible(cita.fecha)}\nHorario: ${cita.horaInicio} a ${cita.horaFin}\n\nPor favor confirmanos de recibido.`;
+                const msg = `Hola ${nombrePreferido(cita.paciente)},\n\nTe contactamos de DENTILIKE para confirmar tu cita programada.\n\nEspecialista: ${config.doctor}\nTratamiento: ${cita.motivo}\nFecha: ${formatearFechaLegible(cita.fecha)}\nHorario: ${formatearHoraAmPm(cita.horaInicio)} a ${formatearHoraAmPm(cita.horaFin)}\n\nPor favor confirmanos de recibido.`;
                 abrirWa(cita.telefono, msg);
             }
             closeModal('opcionesCitaModal');
@@ -1783,7 +1791,7 @@
             const fechaCita = citaPrevia ? citaPrevia.fecha : selectedDate;
             const conflictos = citasSobrepuestas(fechaCita, hIni, hFin, editandoCitaId);
             if(conflictos.length > 0) {
-                const detalle = conflictos.map(c => `${c.paciente} (${c.horaInicio}-${c.horaFin})`).join(', ');
+                const detalle = conflictos.map(c => `${c.paciente} (${formatearHoraAmPm(c.horaInicio)}-${formatearHoraAmPm(c.horaFin)})`).join(', ');
                 if(!confirm(`⚠️ Esta cita se sobrepone con: ${detalle}.\n\n¿Deseas continuar y guardarla de todas formas?`)) return;
             }
             let fueEdicion = false;
@@ -1825,7 +1833,43 @@
         }
         if('serviceWorker' in navigator){ navigator.serviceWorker.register('sw.js').catch(()=>{}); }
 
+        // ===== AVATARES FESTIVOS (cambian según la fecha) =====
+        // Usa los mismos archivos que Mi Sonrisa. Si no existe la imagen, deja el avatar normal.
+        const DA_FESTIVIDADES = [
+          { imagen:'avatar-patrias.png',   desde:{m:9,  d:10}, hasta:{m:9,  d:17} },
+          { imagen:'avatar-halloween.png', desde:{m:10, d:26}, hasta:{m:10, d:31} },
+          { imagen:'avatar-muertos.png',   desde:{m:10, d:30}, hasta:{m:11, d:2}  },
+          { imagen:'avatar-navidad.png',   desde:{m:12, d:18}, hasta:{m:12, d:25} },
+          { imagen:'avatar-anonuevo.png',  desde:{m:12, d:29}, hasta:{m:1,  d:2}  },
+          { imagen:'avatar-reyes.png',     desde:{m:1,  d:3},  hasta:{m:1,  d:6}  },
+          { imagen:'avatar-valentin.png',  desde:{m:2,  d:10}, hasta:{m:2,  d:14} }
+        ];
+        function daFestividadesHoy(){
+          const hoy = new Date(); const m = hoy.getMonth()+1, d = hoy.getDate();
+          return DA_FESTIVIDADES.filter(f=>{
+            const de=f.desde, ha=f.hasta;
+            if(de.m > ha.m){ return (m>de.m||(m===de.m&&d>=de.d))||(m<ha.m||(m===ha.m&&d<=ha.d)); }
+            if(m<de.m||m>ha.m) return false;
+            if(m===de.m&&d<de.d) return false;
+            if(m===ha.m&&d>ha.d) return false;
+            return true;
+          });
+        }
+        function daAplicarFestividad(){
+          const activas = daFestividadesHoy();
+          if(!activas.length) return;
+          const elegida = activas[Math.floor(Math.random()*activas.length)];
+          const imgs = [document.getElementById('avatarFlotante'), document.querySelector('#chatBotModal img')];
+          imgs.forEach(img=>{
+            if(img){
+              img.onerror = function(){ this.onerror=null; this.src='avatar.png.png'; };
+              img.src = elegida.imagen;
+            }
+          });
+        }
+
         init();
+        daAplicarFestividad();
     </script>
 </body>
 </html>
