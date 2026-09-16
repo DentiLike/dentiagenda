@@ -466,6 +466,7 @@
             <div class="form-group"><textarea id="confPromoTexto" class="inset-3d" rows="4" placeholder="Ej. ¡Feliz cumpleaños de parte de todo el equipo DENTILIKE! Como regalo, tienes 20% de descuento en tu próxima limpieza durante este mes."></textarea></div>
 
             <button class="btn-3d btn-submit" onclick="guardarConfig()">Guardar Ajustes</button>
+            <button class="btn-3d btn-submit" id="btnPushDoctor" style="margin-top:10px;" onclick="activarNotificacionesDoctor()">🔔 Activar avisos de citas</button>
             <button class="btn-3d btn-submit" style="color:var(--accent); margin-top:10px;" onclick="instalarDentiAgenda()">📲 Instalar DentiAgenda en este dispositivo</button>
             <button class="btn-3d btn-submit" style="margin-top:10px;" onclick="sincronizarConfirmaciones(false)">🔄 Revisar confirmaciones de pacientes ahora</button>
             <button class="btn-3d btn-submit" style="margin-top:10px; color:var(--primary);" onclick="abrirDashboard()">📊 Ver Dashboard</button>
@@ -525,6 +526,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js"></script>
 
     <script>
         // ===== Firebase init =====
@@ -537,15 +539,19 @@
             appId: "1:601464011103:web:e03150d9b86eb40a451eea"
         };
         let db = null, auth = null, storage = null, fbOK = false, authListo = false, intervaloConfirmaciones = null, subidaFotoPromise = null;
+        let messaging = null;
         try {
             firebase.initializeApp(firebaseConfig);
             db = firebase.firestore();
             auth = firebase.auth();
             storage = firebase.storage();
-            // Recordar sesión en este dispositivo (no pedir login cada vez)
             auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+            try { messaging = firebase.messaging(); } catch(e){ console.log('messaging no disponible', e); }
             fbOK = true;
         } catch(e) { console.error('Firebase init error', e); }
+
+        // VAPID key (misma del proyecto misonrisa-citas)
+        const DA_VAPID_KEY = "BJbyEqKprY2XnKuxc7RH6Bje2lGH3YbU1mCYtQ5yXmL5vRLAqFRT91nLouRtATu6OJ9LK0LcuIxwMMRzJALbxqA";
 
         function setSync(state, text){
             const dot = document.getElementById('syncDot'); const t = document.getElementById('syncText');
@@ -571,6 +577,45 @@
             navigator.clipboard.writeText(uid).then(()=>{ alert('UID copiado. Pégalo en tu chat.'); });
         }
 
+        // ===== NOTIFICACIONES PUSH DEL DOCTOR =====
+        function daPushSoportado(){
+            return messaging && 'Notification' in window && 'serviceWorker' in navigator;
+        }
+        async function activarNotificacionesDoctor(){
+            if(!daPushSoportado()){
+                alert('Tu navegador no permite notificaciones. Usa Chrome en Android/PC, o instala la app.');
+                return;
+            }
+            try{
+                const permiso = await Notification.requestPermission();
+                if(permiso !== 'granted'){ alert('No activaste las notificaciones.'); return; }
+                const reg = await navigator.serviceWorker.register('firebase-messaging-sw.js');
+                const token = await messaging.getToken({ vapidKey: DA_VAPID_KEY, serviceWorkerRegistration: reg });
+                if(!token){ alert('No se pudo generar el token.'); return; }
+                // guardar el token del doctor en config_publica/doctor_push (solo el doctor escribe ahí)
+                let tokens = [];
+                try {
+                    const doc = await db.collection('config_publica').doc('doctor_push').get();
+                    if(doc.exists && doc.data().tokens) tokens = doc.data().tokens;
+                }catch(e){}
+                if(!tokens.includes(token)) tokens.push(token);
+                await db.collection('config_publica').doc('doctor_push').set({ tokens: tokens, actualizado: Date.now() }, { merge:true });
+                localStorage.setItem('da_push_activo','1');
+                scActualizarBotonPushDoctor();
+                alert('✅ ¡Listo! Recibirás avisos cuando un paciente pida cita.');
+            }catch(e){
+                console.error('activar push doctor error', e);
+                alert('No se pudieron activar las notificaciones. Revisa tu conexión.');
+            }
+        }
+        function scActualizarBotonPushDoctor(){
+            const b = document.getElementById('btnPushDoctor');
+            if(!b) return;
+            const activo = localStorage.getItem('da_push_activo')==='1' && Notification.permission==='granted';
+            b.innerHTML = activo ? '🔔 Avisos activados' : '🔔 Activar avisos de citas';
+            b.style.color = activo ? '#48bb78' : 'var(--primary)';
+        }
+
         // Detecta si ya hay sesión iniciada (persistente por dispositivo)
         function iniciarAuth(){
             if(!fbOK){ setSync('err','Sin conexión'); return; }
@@ -590,6 +635,7 @@
                     publicarConfigPublica();
                     sincronizarConfirmaciones(true);
                     if(!intervaloConfirmaciones) intervaloConfirmaciones = setInterval(()=>sincronizarConfirmaciones(true), 3*60*1000);
+                    scActualizarBotonPushDoctor();
                 } else {
                     // No hay sesión: mostrar login
                     authListo = false;
