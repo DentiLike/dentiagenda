@@ -254,14 +254,21 @@
                     </div>
                 </div>
                 <div class="time-row">
-                    <div class="form-group" style="flex: 1;"><label>Inicio</label><input type="time" id="horaInicio" class="inset-3d" onchange="calcularHoraFin()"></div>
+                    <div class="form-group" style="flex: 1;"><label>Inicio</label>
+                        <div style="display:flex; gap:4px;">
+                            <select id="horaInicioH" class="inset-3d" style="padding:0.7rem 0.3rem;" onchange="calcularHoraFin()"></select>
+                            <select id="horaInicioM" class="inset-3d" style="padding:0.7rem 0.3rem;" onchange="calcularHoraFin()"></select>
+                            <select id="horaInicioAP" class="inset-3d" style="padding:0.7rem 0.3rem;" onchange="calcularHoraFin()"><option value="AM">AM</option><option value="PM">PM</option></select>
+                        </div>
+                        <input type="hidden" id="horaInicio">
+                    </div>
                     <div class="form-group" style="flex: 1;"><label>Duracion</label>
                         <select id="duracion" class="inset-3d" onchange="calcularHoraFin()">
                             <option value="30">30 min</option><option value="60">1 hr</option>
                             <option value="90">1.5 hrs</option><option value="120">2 hrs</option>
                         </select>
                     </div>
-                    <div class="form-group" style="flex: 1;"><label>Fin</label><input type="time" id="horaFin" class="inset-3d"></div>
+                    <div class="form-group" style="flex: 1;"><label>Fin</label><input type="text" id="horaFinDisplay" class="inset-3d" readonly style="background:rgba(0,0,0,0.03);"><input type="hidden" id="horaFin"></div>
                 </div>
                 <div class="form-group"><label>Motivo</label><input type="text" id="motivo" class="inset-3d" list="motivosGuardados"><datalist id="motivosGuardados"></datalist></div>
                 <div class="form-group"><label>Notas Adicionales (Opcional)</label><textarea id="notas" class="inset-3d" rows="2"></textarea></div>
@@ -1190,9 +1197,11 @@
         function toggleFormulario(mostrar) {
             document.getElementById('formularioContainer').style.display = mostrar ? 'block' : 'none';
             document.getElementById('btnAbrirFormulario').style.display = mostrar ? 'none' : 'block';
+            if(mostrar) poblarSelectoresHora();
             if(!mostrar) {
                 editandoCitaId = null; document.getElementById('formTitle').innerText = 'Nueva Cita';
                 ['paciente','telefono','horaInicio','horaFin','motivo','notas'].forEach(id => document.getElementById(id).value = '');
+                const fd = document.getElementById('horaFinDisplay'); if(fd) fd.value='';
             } else if(potencialParaAgendar) {
                 document.getElementById('paciente').value = potencialParaAgendar.nombre;
                 document.getElementById('telefono').value = potencialParaAgendar.telefono;
@@ -1766,9 +1775,13 @@
             document.getElementById('notas').value = cita.notas || '';
             document.getElementById('formTitle').innerText = 'Editando Cita';
             closeModal('opcionesCitaModal'); toggleFormulario(true);
+            // poner la hora en los selectores AM/PM
+            poblarSelectoresHora();
+            ponerHoraInicioEnSelectores(cita.horaInicio);
+            document.getElementById('horaFinDisplay').value = formatearHoraAmPm(cita.horaFin);
         }
         function enviarWhatsAppNueva(pac, tel, hIni, hFin, mot, fecha) {
-            const msg = `Hola ${nombrePreferido(pac)},\n\nTu cita ha sido registrada con exito en DENTILIKE.\n\nEspecialista: ${config.doctor}\nTratamiento: ${mot}\nFecha: ${formatearFechaLegible(fecha)}\nHorario: ${hIni} a ${hFin}\n\nTe esperamos.`;
+            const msg = `Hola ${nombrePreferido(pac)},\n\nTu cita ha sido registrada con exito en DENTILIKE.\n\nEspecialista: ${config.doctor}\nTratamiento: ${mot}\nFecha: ${formatearFechaLegible(fecha)}\nHorario: ${formatearHoraAmPm(hIni)} a ${formatearHoraAmPm(hFin)}\n\nTe esperamos.`;
             abrirWa(tel, msg);
         }
         function enviarWhatsAppConfirmacion() {
@@ -1821,16 +1834,58 @@
         }
         function updateDatalists() { document.getElementById('pacientesGuardados').innerHTML = Object.keys(pacientes).map(p => `<option value="${p}">`).join(''); document.getElementById('motivosGuardados').innerHTML = motivos.map(m => `<option value="${m}">`).join(''); }
         function autoFillPhone() { const name = document.getElementById('paciente').value; if(pacientes[name]) document.getElementById('telefono').value = pacientes[name].telefono; }
+        // ===== Selectores de hora AM/PM =====
+        function poblarSelectoresHora(){
+            const selH = document.getElementById('horaInicioH');
+            const selM = document.getElementById('horaInicioM');
+            if(selH && !selH.innerHTML){
+                let hs = '';
+                for(let h=1; h<=12; h++) hs += `<option value="${h}">${h}</option>`;
+                selH.innerHTML = hs;
+            }
+            if(selM && !selM.innerHTML){
+                let ms = '';
+                for(let m=0; m<60; m+=5) ms += `<option value="${m}">${String(m).padStart(2,'0')}</option>`;
+                selM.innerHTML = ms;
+            }
+        }
+        // lee los 3 selectores y devuelve "HH:MM" en 24h
+        function leerHoraInicio24(){
+            const h12 = parseInt(document.getElementById('horaInicioH').value);
+            const m = parseInt(document.getElementById('horaInicioM').value);
+            const ap = document.getElementById('horaInicioAP').value;
+            if(isNaN(h12)||isNaN(m)) return '';
+            let h = h12 % 12;
+            if(ap === 'PM') h += 12;
+            return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+        }
+        // pone los selectores a partir de "HH:MM" en 24h
+        function ponerHoraInicioEnSelectores(hhmm){
+            if(!hhmm || !hhmm.includes(':')) return;
+            let [h,m] = hhmm.split(':').map(Number);
+            const ap = h >= 12 ? 'PM' : 'AM';
+            let h12 = h % 12; if(h12===0) h12 = 12;
+            // redondear minutos al múltiplo de 5 más cercano por si acaso
+            m = Math.round(m/5)*5; if(m===60){ m=0; }
+            document.getElementById('horaInicioH').value = h12;
+            document.getElementById('horaInicioM').value = m;
+            document.getElementById('horaInicioAP').value = ap;
+        }
         function calcularHoraFin() {
-            const inicio = document.getElementById('horaInicio').value, duracion = parseInt(document.getElementById('duracion').value);
-            if(!inicio) return;
+            const inicio = leerHoraInicio24();
+            document.getElementById('horaInicio').value = inicio;
+            const duracion = parseInt(document.getElementById('duracion').value);
+            if(!inicio){ document.getElementById('horaFinDisplay').value=''; document.getElementById('horaFin').value=''; return; }
             const [h, m] = inicio.split(':').map(Number); const date = new Date(); date.setHours(h, m + duracion);
-            document.getElementById('horaFin').value = `${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}`;
+            const fin24 = `${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}`;
+            document.getElementById('horaFin').value = fin24;
+            document.getElementById('horaFinDisplay').value = formatearHoraAmPm(fin24);
         }
         function citasSobrepuestas(fecha, hIni, hFin, excluirId) {
             return citas.filter(c => c.fecha === fecha && c.id !== excluirId && hIni < c.horaFin && hFin > c.horaInicio);
         }
         function guardarCita() {
+            calcularHoraFin(); // asegura que horaInicio y horaFin (hidden) estén al día
             const pac = document.getElementById('paciente').value, tel = document.getElementById('telefono').value, hIni = document.getElementById('horaInicio').value, hFin = document.getElementById('horaFin').value, mot = document.getElementById('motivo').value, notasAdicionales = document.getElementById('notas').value;
             if(!pac || !tel || !hIni || !hFin || !mot) return alert('Por favor completa los campos principales.');
             const citaPrevia = editandoCitaId ? citas.find(c => c.id === editandoCitaId) : null;
