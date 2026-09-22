@@ -472,6 +472,8 @@
             <button class="btn-3d btn-submit" style="margin-top:10px; color:var(--primary);" onclick="abrirDashboard()">📊 Ver Dashboard</button>
             <button class="btn-3d btn-submit" style="margin-top:10px; color:var(--primary);" onclick="exportarDiaPDF()">📄 Exportar el día de hoy a PDF</button>
             <button class="btn-3d btn-submit" style="margin-top:10px; color:var(--primary);" onclick="exportarMesPDF()">📄 Exportar mes visible a PDF</button>
+            <button class="btn-3d btn-submit" style="margin-top:10px; color:var(--accent);" onclick="exportarDiaCalendar()">📅 Citas de hoy a Google Calendar</button>
+            <button class="btn-3d btn-submit" style="margin-top:10px; color:var(--accent);" onclick="exportarMesCalendar()">📅 Mes visible a Google Calendar</button>
         </div>
     </div>
 
@@ -1091,6 +1093,54 @@
             return Math.min(100, Math.round(ocupado / totalTurno * 100));
         }
         function claseCarga(pct) { return pct >= 75 ? 'carga-alta' : pct >= 40 ? 'carga-media' : 'carga-baja'; }
+
+        // ===== Exportar a Google Calendar (archivo .ics con varias citas juntas) =====
+        function escapadoICS(texto) {
+            return String(texto || '').replace(/\\/g,'\\\\').replace(/;/g,'\\;').replace(/,/g,'\\,').replace(/\n/g,'\\n');
+        }
+        function generarICS(citasLista) {
+            const ahora = new Date().toISOString().replace(/[-:]/g,'').split('.')[0] + 'Z';
+            let ics = 'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Dentilike//DentiAgenda//ES\r\nCALSCALE:GREGORIAN\r\nMETHOD:PUBLISH\r\n';
+            citasLista.forEach(c => {
+                const fechaCompacta = c.fecha.replace(/-/g,'');
+                const horaIni = c.horaInicio.replace(':','') + '00';
+                const horaFin = c.horaFin.replace(':','') + '00';
+                ics += 'BEGIN:VEVENT\r\n';
+                ics += `UID:cita-${c.id}@dentilike\r\n`;
+                ics += `DTSTAMP:${ahora}\r\n`;
+                ics += `DTSTART:${fechaCompacta}T${horaIni}\r\n`;
+                ics += `DTEND:${fechaCompacta}T${horaFin}\r\n`;
+                ics += `SUMMARY:${escapadoICS(c.paciente + ' - ' + c.motivo)}\r\n`;
+                ics += `DESCRIPTION:${escapadoICS('Motivo: ' + c.motivo + (c.notas ? ('. Notas: ' + c.notas) : ''))}\r\n`;
+                ics += `LOCATION:${escapadoICS(config.clinica)}\r\n`;
+                ics += 'END:VEVENT\r\n';
+            });
+            ics += 'END:VCALENDAR\r\n';
+            return ics;
+        }
+        function descargarArchivo(contenido, nombreArchivo, tipo) {
+            const blob = new Blob([contenido], { type: tipo });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = nombreArchivo;
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+        function exportarDiaCalendar() {
+            const hoyStr = fechaAISO(new Date());
+            const citasDelDia = citas.filter(c => c.fecha === hoyStr);
+            if(citasDelDia.length === 0) return alert('No hay citas hoy para exportar.');
+            descargarArchivo(generarICS(citasDelDia), `citas-hoy-${hoyStr}.ics`, 'text/calendar');
+            alert('Listo. Ahora en Google Calendar: Configuración (⚙️) → Importar y exportar → Importar, y selecciona este archivo. Todas las citas de hoy entran juntas.');
+        }
+        function exportarMesCalendar() {
+            const dt = new Date(); if(nav !== 0) dt.setMonth(new Date().getMonth() + nav);
+            const prefijo = `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}`;
+            const citasDelMes = citas.filter(c => c.fecha.startsWith(prefijo));
+            if(citasDelMes.length === 0) return alert('No hay citas este mes para exportar.');
+            descargarArchivo(generarICS(citasDelMes), `citas-mes-${prefijo}.ics`, 'text/calendar');
+            alert('Listo. Ahora en Google Calendar: Configuración (⚙️) → Importar y exportar → Importar, y selecciona este archivo. Todas las citas del mes entran juntas.');
+        }
 
         // ===== Exportar a PDF (usa el diálogo de impresión del navegador) =====
         function generarAgendaImprimible(citasLista, titulo) {
