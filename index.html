@@ -1269,13 +1269,28 @@
             else {
                 list.innerHTML = resumenCarga + citasDelDia.map(c => {
                     const textoNotas = c.notas && c.notas.trim() !== '' ? '(Nota)' : '';
-                    const esPotencial = pacientes[c.paciente] && pacientes[c.paciente].esPotencial;
+                    const pacDatos = pacientes[c.paciente] || {};
+                    const esPotencial = pacDatos.esPotencial;
                     const estiloPotencial = esPotencial ? 'border-left: 4px solid var(--accent); background: rgba(0,180,180,0.08);' : '';
                     const etiquetaPotencial = esPotencial ? ' <span style="color:var(--accent); font-size:0.75rem; font-weight:bold;">🎯 Potencial</span>' : '';
+                    let barraOrto = '';
+                    if(pacDatos.ortodoncia){
+                        const tipoCaso = pacDatos.ortoTipoCaso || 'sin_extracciones';
+                        const arcos = pacDatos.ortoArcos || {};
+                        const rOrto = calcularProgresoOrto(tipoCaso, arcos);
+                        const arcoActual = arcoActualOrto(tipoCaso, arcos);
+                        barraOrto = `<div style="margin-left:22px; margin-top:6px;">
+                            <div style="font-size:0.75rem; opacity:0.9; margin-bottom:2px;">🦷 ${rOrto.porcentaje}% · Arco: ${arcoActual}</div>
+                            <div style="background:rgba(0,0,0,0.15); border-radius:6px; height:6px; overflow:hidden;">
+                                <div style="width:${rOrto.porcentaje}%; height:100%; background:var(--accent);"></div>
+                            </div>
+                        </div>`;
+                    }
                     return `<div class="appointment-item ${esPotencial ? 'potencial-item' : ''}" style="${estiloPotencial}" onclick="abrirOpcionesCita(${c.id})">
                         <div class="appointment-header"><span class="status-dot ${c.estado}"></span><strong style="font-size:1.1rem;">${formatearHoraAmPm(c.horaInicio)} - ${formatearHoraAmPm(c.horaFin)}</strong>${etiquetaPotencial}</div>
                         <div style="margin-left: 22px;">- ${c.motivo}</div>
                         <div style="margin-left: 22px;">- ${c.paciente} ${textoNotas}</div>
+                        ${barraOrto}
                     </div>`
                 }).join('');
             }
@@ -1450,6 +1465,15 @@
             else if(porcentaje<=l2) fase='Fase 2: Trabajo y Cierre';
             else fase='Fase 3: Asentamiento y finalización';
             return { porcentaje, fase };
+        }
+        function arcoActualOrto(tipoCaso, arcos){
+            const sec = ORTO_SECUENCIAS[tipoCaso] || ORTO_SECUENCIAS.sin_extracciones;
+            let actual = null;
+            for(const paso of sec){
+                const a = arcos[paso.id] || {};
+                if(a.sup || a.inf) actual = paso.name;
+            }
+            return actual || 'Sin iniciar';
         }
         function renderOrtodoncia(nombre){
             const pac = pacientes[nombre] || {};
