@@ -285,7 +285,7 @@
             <button class="btn-3d status-btn" style="color: var(--accent);" onclick="verExpedienteDesdeCita()">📋 Ver expediente completo</button>
             <button class="btn-3d status-btn" style="color: var(--primary);" onclick="prepararEdicion()">Editar Cita</button>
             <button class="btn-3d status-btn" style="color: #25D366;" onclick="enviarWhatsAppConfirmacion()">Confirmar por WhatsApp</button>
-            <button class="btn-3d status-btn" style="color: var(--text-main);" onclick="generarIcsManualmente()">Descargar archivo .ICS</button>
+            <button class="btn-3d status-btn" style="color: var(--accent);" onclick="agregarACalendarDirecto()">📅 Agregar a Google Calendar</button>
             
             <h4 style="color: var(--primary); margin: 20px 0 10px 0;">Estado</h4>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
@@ -1833,19 +1833,16 @@
             let cleanTel = tel.replace(/\D/g,''); if(cleanTel.length === 10) cleanTel = '52' + cleanTel;
             window.open(`https://wa.me/${cleanTel}?text=${encodeURIComponent(msg)}`, '_blank');
         }
-        function generarIcsManualmente() {
+        function agregarACalendarDirecto() {
             const cita = citas.find(c => c.id === citaSeleccionadaId); if(!cita) return;
             const fFormat = cita.fecha.replace(/-/g, '');
             const iniFormat = fFormat + 'T' + cita.horaInicio.replace(':', '') + '00';
             const finFormat = fFormat + 'T' + cita.horaFin.replace(':', '') + '00';
-            const icsData = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//DentiAgenda//MX', 'BEGIN:VEVENT',
-                `UID:${new Date().getTime()}@dentiagenda`, `DTSTAMP:${iniFormat}Z`, `DTSTART:${iniFormat}`, `DTEND:${finFormat}`,
-                `SUMMARY:Cita: ${cita.motivo} - ${config.clinica}`, `DESCRIPTION:Paciente: ${cita.paciente}\\nDoctor: ${config.doctor}`,
-                `LOCATION:Himno Nacional 1902-C\\, Fraccionamiento Tangamanga\\, San Luis Potosi`, 'END:VEVENT', 'END:VCALENDAR'].join('\n');
-            const blob = new Blob([icsData], { type: 'text/calendar;charset=utf-8' });
-            const link = document.createElement('a'); link.href = window.URL.createObjectURL(blob);
-            link.download = `Cita_${cita.paciente.replace(/\s/g, '_')}.ics`;
-            document.body.appendChild(link); link.click(); document.body.removeChild(link);
+            const texto = encodeURIComponent(`Cita: ${cita.motivo} - ${config.clinica}`);
+            const detalles = encodeURIComponent(`Paciente: ${cita.paciente}\nDoctor: ${config.doctor}`);
+            const ubicacion = encodeURIComponent('Himno Nacional 1902-C, Fraccionamiento Tangamanga, San Luis Potosi');
+            const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${texto}&dates=${iniFormat}/${finFormat}&details=${detalles}&location=${ubicacion}&ctz=America/Mexico_City`;
+            window.open(url, '_blank');
         }
         function cambiarEstadoCita(nuevoEstado) { 
             const index = citas.findIndex(c => c.id === citaSeleccionadaId); 
