@@ -321,6 +321,10 @@
 
             <div id="editorContacto" style="display:none; padding-top:1rem; border-top:1px solid var(--shadow-dark);">
                 <h4 style="color: var(--accent); margin-top:0;">Editar Expediente</h4>
+                <div id="bannerPotencialFicha" style="display:none; background:rgba(0,180,180,0.08); border:1px solid var(--accent); border-radius:10px; padding:10px; margin-bottom:1rem;">
+                    <div style="font-size:0.85rem; color:var(--primary); margin-bottom:6px;">🎯 Este paciente sigue marcado como <strong>potencial</strong>.</div>
+                    <button class="btn-3d" style="width:100%; background:var(--accent); color:white;" onclick="marcarComoCautivoDesdeFicha()">✅ Ya es paciente cautivo</button>
+                </div>
                 <div class="form-group"><label>Nombre</label><input type="text" id="editDirNombre" class="inset-3d" readonly></div>
                 <div class="form-group"><label>¿Cómo le gusta que le digan?</label><input type="text" id="editDirApodo" class="inset-3d" placeholder="Ej. Male (si lo dejas vacío, se usa su primer nombre)"></div>
                 <div class="form-group"><label>Telefono</label><input type="tel" id="editDirTel" class="inset-3d"></div>
@@ -466,6 +470,7 @@
             <div class="form-group"><textarea id="confPromoTexto" class="inset-3d" rows="4" placeholder="Ej. ¡Feliz cumpleaños de parte de todo el equipo DENTILIKE! Como regalo, tienes 20% de descuento en tu próxima limpieza durante este mes."></textarea></div>
 
             <button class="btn-3d btn-submit" onclick="guardarConfig()">Guardar Ajustes</button>
+            <button class="btn-3d btn-submit" style="margin-top:10px; color:#d97706;" onclick="closeModal('configModalOverlay'); abrirBloqueos();">🚫 Bloquear horarios (vacaciones, comida...)</button>
             <button class="btn-3d btn-submit" id="btnPushDoctor" style="margin-top:10px;" onclick="activarNotificacionesDoctor()">🔔 Activar avisos de citas</button>
             <button class="btn-3d btn-submit" style="color:var(--accent); margin-top:10px;" onclick="instalarDentiAgenda()">📲 Instalar DentiAgenda en este dispositivo</button>
             <button class="btn-3d btn-submit" style="margin-top:10px;" onclick="sincronizarConfirmaciones(false)">🔄 Revisar confirmaciones de pacientes ahora</button>
@@ -474,6 +479,27 @@
             <button class="btn-3d btn-submit" style="margin-top:10px; color:var(--primary);" onclick="exportarMesPDF()">📄 Exportar mes visible a PDF</button>
             <button class="btn-3d btn-submit" style="margin-top:10px; color:var(--accent);" onclick="exportarDiaCalendar()">📅 Citas de hoy a Google Calendar</button>
             <button class="btn-3d btn-submit" style="margin-top:10px; color:var(--accent);" onclick="exportarMesCalendar()">📅 Mes visible a Google Calendar</button>
+        </div>
+    </div>
+
+    <!-- Modal Bloquear horarios -->
+    <div class="modal-overlay" id="bloqueosModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 style="margin: 0; color: var(--primary);">🚫 Bloquear horarios</h2>
+                <button class="close-btn" onclick="closeModal('bloqueosModal')">X</button>
+            </div>
+            <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:14px;">Los horarios bloqueados no aparecerán disponibles para pacientes nuevos en la página de citas.</p>
+            <div class="form-group"><label>Fecha</label><input type="date" id="bloqFecha" class="inset-3d"></div>
+            <button class="btn-3d btn-submit" style="background:var(--primary); color:white;" onclick="agregarBloqueoDia()">Bloquear TODO ese día</button>
+            <div style="text-align:center; color:var(--text-muted); font-size:0.8rem; margin:14px 0;">— o solo un rango de horas —</div>
+            <div class="time-row">
+                <div class="form-group" style="flex:1;"><label>Desde</label><input type="time" id="bloqDesde" class="inset-3d"></div>
+                <div class="form-group" style="flex:1;"><label>Hasta</label><input type="time" id="bloqHasta" class="inset-3d"></div>
+            </div>
+            <button class="btn-3d btn-submit" style="color:var(--primary);" onclick="agregarBloqueoHoras()">Bloquear ese rango de horas</button>
+            <h4 style="color:var(--primary); margin:20px 0 10px 0;">Bloqueos activos</h4>
+            <div id="listaBloqueos"></div>
         </div>
     </div>
 
@@ -676,6 +702,7 @@
             mInicio: '08:00', mFin: '14:00', vInicio: '15:00', vFin: '21:00', mostrarFotos: true, promoTexto: '' 
         };
         let pacientes = JSON.parse(localStorage.getItem('denti_pacientes_v16')) || {};
+        let bloqueos = JSON.parse(localStorage.getItem('denti_bloqueos_v16')) || []; // [{tipo:'dia'|'horas', fecha:'ISO', desde:'HH:MM', hasta:'HH:MM'}]
         if(Object.keys(pacientes).length > 0 && !localStorage.getItem('denti_pacientes_backup_v16')){
             localStorage.setItem('denti_pacientes_backup_v16', JSON.stringify(pacientes));
         }
@@ -744,6 +771,7 @@
                     escritoPor: sello   // sello para reconocer mi propio eco
                 });
                 setSync('on','Sincronizado');
+                publicarDisponibilidad(); // actualizar huecos libres tras cambios de citas
             }catch(e){ console.error('guardar agenda error', e); setSync('err','Error al sincronizar'); }
         }
 
@@ -902,7 +930,7 @@
             if(solicitudes.length === 0){ cont.innerHTML = '<p style="text-align:center; color:var(--text-muted);">No hay solicitudes pendientes.</p>'; return; }
             cont.innerHTML = solicitudes.map(s => `
                 <div class="inset-3d" style="padding:10px; margin-bottom:10px; border-radius:12px;">
-                    <div style="font-weight:bold;">${s.nombre}</div>
+                    <div style="font-weight:bold;">${s.nombre} ${s.esNuevoPaciente ? '<span style="color:var(--accent); font-size:0.75rem;">🆕 Paciente nuevo</span>' : ''}</div>
                     <div style="font-size:0.85rem; color:var(--text-muted);">${s.telefono} · ${s.motivo}</div>
                     <div style="font-size:0.85rem; margin-top:4px;">${formatearFechaLegible(s.fecha)} · ${formatearHoraAmPm(s.horaInicio)} - ${formatearHoraAmPm(s.horaFin)}</div>
                     <div style="display:flex; gap:8px; margin-top:8px;">
@@ -920,9 +948,9 @@
                 const detalle = conflictos.map(c => `${c.paciente} (${formatearHoraAmPm(c.horaInicio)}-${formatearHoraAmPm(c.horaFin)})`).join(', ');
                 if(!confirm(`⚠️ Esta solicitud se sobrepone con: ${detalle}.\n\n¿Aceptarla de todas formas?`)) return;
             }
-            citas.push({ id: Date.now(), fecha: s.fecha, paciente: s.nombre, telefono: s.telefono, horaInicio: s.horaInicio, horaFin: s.horaFin, motivo: s.motivo, notas: 'Agendada por el paciente desde Mi Sonrisa', estado: 'status-yellow' });
+            citas.push({ id: Date.now(), fecha: s.fecha, paciente: s.nombre, telefono: s.telefono, horaInicio: s.horaInicio, horaFin: s.horaFin, motivo: s.motivo, notas: s.esNuevoPaciente ? 'Paciente nuevo, agendado desde citas.dentilike.com.mx' : 'Agendada por el paciente desde Mi Sonrisa', estado: 'status-yellow' });
             localStorage.setItem('denti_citas_v16', JSON.stringify(citas));
-            if(!pacientes[s.nombre]) pacientes[s.nombre] = { telefono: s.telefono, foto: null, codigo: s.codigoPaciente || generarCodigo() };
+            if(!pacientes[s.nombre]) pacientes[s.nombre] = { telefono: s.telefono, foto: null, codigo: s.codigoPaciente || generarCodigo(), esPotencial: !!s.esNuevoPaciente };
             else if(!pacientes[s.nombre].codigo) pacientes[s.nombre].codigo = s.codigoPaciente || generarCodigo();
             localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes));
             if(s.motivo && !motivos.includes(s.motivo)) { motivos.push(s.motivo); localStorage.setItem('denti_motivos_v16', JSON.stringify(motivos)); }
@@ -952,7 +980,93 @@
                     mInicio: config.mInicio, mFin: config.mFin,
                     vInicio: config.vInicio, vFin: config.vFin
                 });
+                publicarDisponibilidad();
             }catch(e){ console.error('publicarConfigPublica', e); }
+        }
+
+        // genera horas "HH:MM" cada 30 min entre dos límites
+        function horasEntreDA(ini, fin){
+            const out=[]; if(!ini||!fin) return out;
+            let [h,m]=ini.split(':').map(Number); const [hf,mf]=fin.split(':').map(Number);
+            while(h<hf || (h===hf && m<mf)){ out.push(`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`); m+=30; if(m>=60){m-=60;h++;} }
+            return out;
+        }
+        // ¿está esta hora bloqueada por un bloqueo manual?
+        function horaBloqueada(fechaISO, hhmm){
+            for(const b of bloqueos){
+                if(b.fecha !== fechaISO) continue;
+                if(b.tipo === 'dia') return true;
+                if(b.tipo === 'horas' && hhmm >= b.desde && hhmm < b.hasta) return true;
+            }
+            return false;
+        }
+        // Publica en config_publica/disponibilidad los huecos libres de los próximos 45 días
+        async function publicarDisponibilidad(){
+            if(!fbOK || !authListo) return;
+            try{
+                const hoy = new Date();
+                const disp = {}; // { 'YYYY-MM-DD': ['09:00','09:30',...] }
+                for(let i=1; i<=45; i++){
+                    const d = new Date(hoy); d.setDate(hoy.getDate()+i);
+                    if(d.getDay()===0) continue; // sin domingos
+                    const iso = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+                    // todas las horas de la clínica (mañana + tarde)
+                    let libres = [...horasEntreDA(config.mInicio, config.mFin), ...horasEntreDA(config.vInicio, config.vFin)];
+                    // quitar horas ocupadas por citas de ese día
+                    const citasDia = citas.filter(c => c.fecha === iso);
+                    libres = libres.filter(h=>{
+                        // ocupada si cae dentro de alguna cita
+                        const choca = citasDia.some(c => h >= c.horaInicio && h < c.horaFin);
+                        return !choca;
+                    });
+                    // quitar horas bloqueadas manualmente
+                    libres = libres.filter(h => !horaBloqueada(iso, h));
+                    if(libres.length) disp[iso] = libres;
+                }
+                await db.collection('config_publica').doc('disponibilidad').set({ dias: disp, actualizado: Date.now() });
+            }catch(e){ console.error('publicarDisponibilidad', e); }
+        }
+
+        // ===== Bloqueo de horarios =====
+        function guardarBloqueos(){
+            localStorage.setItem('denti_bloqueos_v16', JSON.stringify(bloqueos));
+            publicarDisponibilidad();
+        }
+        function agregarBloqueoDia(){
+            const f = document.getElementById('bloqFecha').value;
+            if(!f){ alert('Elige una fecha.'); return; }
+            bloqueos.push({ tipo:'dia', fecha:f });
+            guardarBloqueos(); renderBloqueos();
+        }
+        function agregarBloqueoHoras(){
+            const f = document.getElementById('bloqFecha').value;
+            const de = document.getElementById('bloqDesde').value;
+            const a = document.getElementById('bloqHasta').value;
+            if(!f || !de || !a){ alert('Completa fecha, desde y hasta.'); return; }
+            if(de >= a){ alert('La hora "desde" debe ser menor que "hasta".'); return; }
+            bloqueos.push({ tipo:'horas', fecha:f, desde:de, hasta:a });
+            guardarBloqueos(); renderBloqueos();
+        }
+        function eliminarBloqueo(i){
+            bloqueos.splice(i,1);
+            guardarBloqueos(); renderBloqueos();
+        }
+        function renderBloqueos(){
+            const cont = document.getElementById('listaBloqueos');
+            if(!cont) return;
+            if(!bloqueos.length){ cont.innerHTML = '<p style="text-align:center; color:var(--text-muted); font-size:0.85rem;">Sin bloqueos. Todos los horarios están disponibles.</p>'; return; }
+            const ordenados = bloqueos.map((b,i)=>({b,i})).sort((a,b)=>a.b.fecha.localeCompare(b.b.fecha));
+            cont.innerHTML = ordenados.map(({b,i})=>{
+                const desc = b.tipo==='dia' ? `📅 Todo el ${formatearFechaLegible(b.fecha)}` : `🕐 ${formatearFechaLegible(b.fecha)} de ${formatearHoraAmPm(b.desde)} a ${formatearHoraAmPm(b.hasta)}`;
+                return `<div style="display:flex; justify-content:space-between; align-items:center; padding:10px 12px; background:var(--bg-color); border-radius:10px; margin-bottom:8px; box-shadow:3px 3px 6px var(--shadow-dark), -3px -3px 6px var(--shadow-light);">
+                    <span style="font-size:0.85rem; color:var(--text-main);">${desc}</span>
+                    <span style="color:#e53e3e; cursor:pointer; font-weight:bold; padding:0 6px;" onclick="eliminarBloqueo(${i})">✕</span>
+                </div>`;
+            }).join('');
+        }
+        function abrirBloqueos(){
+            renderBloqueos();
+            document.getElementById('bloqueosModal').style.display = 'flex';
         }
         // ===== Sincronización a Firebase para PACIENTES (Mi Sonrisa) =====
         // Estructura: colección "citas_pacientes" / doc = HASH(teléfono+código)
@@ -1398,8 +1512,19 @@
             const preview = document.getElementById('editDirFotoPreview');
             if(pac.foto) { preview.src = pac.foto; preview.style.display = 'block'; } else { preview.src = ''; preview.style.display = 'none'; }
             document.getElementById('editDirFile').value = ''; document.getElementById('listaContactos').style.display = 'none'; document.getElementById('btnNuevoPaciente').style.display = 'none'; document.getElementById('editorContacto').style.display = 'block';
+            document.getElementById('bannerPotencialFicha').style.display = pac.esPotencial ? 'block' : 'none';
             renderPlanTratamiento(nombre);
             renderOrtodoncia(nombre);
+        }
+        function marcarComoCautivoDesdeFicha(){
+            const nombre = document.getElementById('editDirNombre').value;
+            if(!pacientes[nombre]) return;
+            delete pacientes[nombre].esPotencial;
+            localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes));
+            guardarAgendaEnNube();
+            document.getElementById('bannerPotencialFicha').style.display = 'none';
+            loadCalendar();
+            alert(`${nombre} ya quedó marcado como paciente cautivo.`);
         }
 
         // ===== Ortodoncia (secuencias de arcos) =====
