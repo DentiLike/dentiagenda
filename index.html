@@ -176,7 +176,7 @@
 <body>
 
     <!-- ===== PANTALLA DE LOGIN (doctor · Google) ===== -->
-    <div id="lockScreen" style="position:fixed; inset:0; z-index:5000; background:var(--bg-color); display:flex; flex-direction:column; align-items:center; justify-content:center; padding:2rem;">
+    <div id="lockScreen" style="position:fixed; inset:0; z-index:5000; background:var(--bg-color); display:none; flex-direction:column; align-items:center; justify-content:center; padding:2rem;">
         <div style="font-size:3rem; margin-bottom:1rem;">🔐</div>
         <h2 style="color:var(--primary); margin:0 0 0.5rem 0;">DentiAgenda</h2>
         <p style="color:var(--text-muted); margin:0 0 1.5rem 0; text-align:center; font-size:0.9rem;">Acceso exclusivo del Dr. Miguel Alvarado</p>
@@ -651,11 +651,10 @@
                 if(user && !user.isAnonymous){
                     // Doctor autenticado con Google
                     authListo = true;
-                    // Mostrar UID en el aviso (útil la primera vez para configurar reglas)
+                    localStorage.setItem('da_sesion_previa','1'); // recordar que ya entró antes
                     document.getElementById('uidValor').innerText = user.uid;
                     document.getElementById('uidBox').style.display = 'block';
                     console.log('TU UID:', user.uid);
-                    // Ocultar login tras un momento (para que alcances a copiar el UID si quieres)
                     document.getElementById('lockScreen').style.display = 'none';
                     setSync('on','Sincronizado');
                     escucharAgendaEnTiempoReal();
@@ -674,6 +673,7 @@
         }
 
         function cerrarSesion(){
+            localStorage.removeItem('da_sesion_previa');
             if(auth) auth.signOut();
         }
 
@@ -689,6 +689,10 @@
 
         window.addEventListener('DOMContentLoaded', ()=>{
             setSync('','Conectando…');
+            // si nunca ha entrado en este dispositivo, mostrar login de inmediato
+            if(localStorage.getItem('da_sesion_previa') !== '1'){
+                document.getElementById('lockScreen').style.display = 'flex';
+            }
             iniciarAuth();
         });
 
