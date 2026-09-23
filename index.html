@@ -41,6 +41,26 @@
         .sync-dot.err { background: var(--status-red); }
 
         .container { max-width: 600px; margin: 0 auto; padding: 0 1rem; }
+        /* Panel lateral: oculto en celular, visible en desktop */
+        .desktop-layout { display: block; }
+        .panel-col { display: none; }
+        .panel-vacio { text-align:center; color:var(--text-muted); padding:2rem 1rem; font-size:0.9rem; }
+        /* ===== DESKTOP: dos columnas ===== */
+        @media (min-width: 900px) {
+            .container { max-width: 1150px; }
+            .search-bar-container { max-width: 1150px; }
+            .desktop-layout { display: flex; gap: 28px; align-items: flex-start; }
+            .cal-col { flex: 1.4; min-width: 0; }
+            .panel-col { display: block; flex: 1; position: sticky; top: 20px; background: var(--bg-color); border-radius: 18px; box-shadow: 7px 7px 14px var(--shadow-dark), -7px -7px 14px var(--shadow-light); padding: 1.5rem; min-height: 400px; }
+            .calendar-grid { gap: 10px; }
+            .day { font-size: 1.1rem; }
+            .panel-col h3 { color: var(--primary); margin: 0 0 4px 0; font-size: 1.15rem; }
+            .panel-col .panel-fecha { color: var(--text-muted); font-size: 0.85rem; margin-bottom: 14px; }
+            .panel-cita { background: var(--primary); color: white; border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; cursor: pointer; box-shadow: 4px 4px 8px var(--shadow-dark), -4px -4px 8px var(--shadow-light); }
+            .panel-cita .pc-hora { font-weight: bold; font-size: 1rem; display:flex; align-items:center; gap:8px; }
+            .panel-cita .pc-info { font-size: 0.85rem; opacity: 0.92; margin-top: 3px; }
+            .panel-btn-add { width:100%; background:var(--accent); color:white; border:none; border-radius:12px; padding:12px; font-weight:bold; cursor:pointer; margin-top:8px; box-shadow: 4px 4px 8px var(--shadow-dark), -4px -4px 8px var(--shadow-light); }
+        }
         
         .calendar-header { display: flex; justify-content: space-between; align-items: center; padding: 1rem; margin-bottom: 1.5rem; }
         .calendar-header button { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; padding:0; }
@@ -217,14 +237,20 @@
         <div id="bannerSolicitudes" style="display:none; background:var(--accent); color:white; padding:0.9rem; border-radius:12px; margin-bottom:1rem; text-align:center; font-weight:bold; cursor:pointer;" onclick="abrirSolicitudes()">
             📥 Tienes <span id="bannerSolicitudesCount">0</span> solicitud(es) de cita nueva(s) — toca para revisar
         </div>
-        <div class="calendar-header">
-            <button class="btn-3d" onclick="changeMonth(-1)">&lt;</button>
-            <div id="monthDisplay" style="font-weight: bold; font-size: 1.2rem; color: var(--primary);"></div>
-            <button class="btn-3d" onclick="changeMonth(1)">&gt;</button>
+        <div class="desktop-layout">
+          <div class="cal-col">
+            <div class="calendar-header">
+                <button class="btn-3d" onclick="changeMonth(-1)">&lt;</button>
+                <div id="monthDisplay" style="font-weight: bold; font-size: 1.2rem; color: var(--primary);"></div>
+                <button class="btn-3d" onclick="changeMonth(1)">&gt;</button>
+            </div>
+            <div class="weekdays"><div>DOM</div><div>LUN</div><div>MAR</div><div>MIÉ</div><div>JUE</div><div>VIE</div><div>SÁB</div></div>
+            <div id="calendarGrid" class="calendar-grid"></div>
+          </div>
+          <div class="panel-col" id="panelDia">
+            <div class="panel-vacio">👈 Toca un día para ver sus citas aquí</div>
+          </div>
         </div>
-        
-        <div class="weekdays"><div>DOM</div><div>LUN</div><div>MAR</div><div>MIÉ</div><div>JUE</div><div>VIE</div><div>SÁB</div></div>
-        <div id="calendarGrid" class="calendar-grid"></div>
     </div>
 
     <!-- Modal Día y Formulario -->
@@ -1369,8 +1395,32 @@
             }
         }
 
+        // Llena el panel lateral (solo visible en desktop) con las citas del día
+        function actualizarPanelDia(dateStr){
+            const panel = document.getElementById('panelDia');
+            if(!panel) return;
+            const citasDia = citas.filter(c => c.fecha === dateStr).sort((a,b)=>a.horaInicio.localeCompare(b.horaInicio));
+            let html = `<h3>${formatearFechaLegible(dateStr)}</h3>`;
+            html += `<div class="panel-fecha">${citasDia.length ? citasDia.length + ' cita(s)' : 'Día libre'}</div>`;
+            if(citasDia.length){
+                html += citasDia.map(c=>{
+                    const pac = pacientes[c.paciente] || {};
+                    const foto = (config.mostrarFotos && pac.foto) ? `<img src="${pac.foto}" style="width:26px;height:26px;border-radius:50%;object-fit:cover;">` : '';
+                    return `<div class="panel-cita" onclick="abrirOpcionesCita(${c.id})">
+                        <div class="pc-hora"><span class="status-dot ${c.estado}"></span>${formatearHoraAmPm(c.horaInicio)} - ${formatearHoraAmPm(c.horaFin)}</div>
+                        <div class="pc-info">${foto} ${nombrePreferido(c.paciente)} · ${c.motivo}</div>
+                    </div>`;
+                }).join('');
+            } else {
+                html += `<p style="color:var(--text-muted); font-size:0.88rem; text-align:center; padding:1rem 0;">No hay citas este día.</p>`;
+            }
+            html += `<button class="panel-btn-add" onclick="openDay('${dateStr}'); toggleFormulario(true);">+ Agendar cita este día</button>`;
+            panel.innerHTML = html;
+        }
+
         function openDay(dateStr) {
             selectedDate = dateStr; 
+            actualizarPanelDia(dateStr); // panel lateral en desktop
             document.getElementById('modalDateTitle').innerText = formatearFechaLegible(dateStr);
             toggleFormulario(false);
             const list = document.getElementById('appointmentList');
