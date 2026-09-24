@@ -104,6 +104,10 @@
         .appointment-header { display: flex; align-items: center; gap: 10px; margin-bottom: 5px; }
         .appointment-item strong { color: white !important; }
         .potencial-item, .potencial-item strong { color: var(--primary) !important; }
+        .appointment-item.cita-color strong { color: var(--txt) !important; }
+        .color-row { display:flex; gap:8px; align-items:center; margin-bottom:8px; }
+        .color-row .inset-3d { flex:1; min-width:0; padding:0.6rem 0.8rem; font-size:0.9rem; }
+        .color-row input[type=color] { flex:none; width:46px; height:40px; border:none; border-radius:8px; padding:0; background:none; cursor:pointer; }
 
         .status-dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
         .status-gray { background-color: var(--status-gray); border: 1px solid white;}
@@ -513,6 +517,11 @@
                 <input type="checkbox" id="confMostrarFotos" style="width:20px; height:20px; accent-color: var(--primary);">
                 <label style="margin:0; font-size:1rem;">Mostrar fotos de pacientes</label>
             </div>
+
+            <label style="display: block; font-size: 0.85rem; font-weight: bold; margin: 1.5rem 0 0.3rem 0; color: var(--primary);">🎨 Colores por tratamiento</label>
+            <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:8px;">Si el motivo de la cita contiene la palabra, la cita se pinta de ese color (ej. "Ajuste" → azul marino). Se usa la primera coincidencia de la lista.</div>
+            <div id="coloresTratList"></div>
+            <button class="btn-3d" style="width:100%; margin-bottom:6px; font-size:0.85rem;" onclick="agregarColorTrat()">+ Agregar tratamiento</button>
 
             <label style="display: block; font-size: 0.85rem; font-weight: bold; margin: 1.5rem 0 0.5rem 0; color: var(--primary);">🎁 Promos de cumpleaños</label>
             <div class="form-group"><textarea id="confPromoTexto" class="inset-3d" rows="4" placeholder="Ej. ¡Feliz cumpleaños de parte de todo el equipo DENTILIKE! Como regalo, tienes 20% de descuento en tu próxima limpieza durante este mes."></textarea></div>
@@ -1231,6 +1240,7 @@
             document.getElementById('confVFin').value = config.vFin;
             document.getElementById('confMostrarFotos').checked = config.mostrarFotos;
             document.getElementById('confPromoTexto').value = config.promoTexto || '';
+            renderColoresConfig();
         }
         function guardarConfig() {
             config.clinica = document.getElementById('confClinica').value;
@@ -1242,11 +1252,49 @@
             config.vFin = document.getElementById('confVFin').value || '21:00';
             config.mostrarFotos = document.getElementById('confMostrarFotos').checked;
             config.promoTexto = document.getElementById('confPromoTexto').value;
+            config.coloresTrat = coloresTmp.filter(x => x.nombre && x.nombre.trim()).map(x => ({ nombre: x.nombre.trim(), color: x.color }));
             localStorage.setItem('denti_config_v16', JSON.stringify(config));
             guardarAgendaEnNube();
             publicarConfigPublica();
             closeModal('configModalOverlay'); loadCalendar(); 
+            if(selectedDate) actualizarPanelDia(selectedDate);
         }
+
+        // ===== Colores por tratamiento (configurables en Ajustes) =====
+        const COLORES_TRAT_DEFAULT = [
+            { nombre: 'Ajuste',     color: '#1b2f6b' },  // azul marino
+            { nombre: 'Colocación', color: '#2f9e6b' },  // verde
+            { nombre: 'Valoración', color: '#6b7280' }   // gris
+        ];
+        let coloresTmp = [];
+        function normTxt(t){ return (t || '').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
+        function escAttr(t){ return (t || '').toString().replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+        function listaColoresTrat(){ return Array.isArray(config.coloresTrat) ? config.coloresTrat : COLORES_TRAT_DEFAULT; }
+        function colorDeCita(motivo){
+            const m = normTxt(motivo);
+            const r = listaColoresTrat().find(x => x.nombre && m.includes(normTxt(x.nombre)));
+            return r ? r.color : null;
+        }
+        function textoSobre(hex){
+            const h = (hex || '#000000').replace('#','');
+            const r = parseInt(h.substr(0,2),16), g = parseInt(h.substr(2,2),16), b = parseInt(h.substr(4,2),16);
+            return ((0.299*r + 0.587*g + 0.114*b) / 255) > 0.62 ? '#1a202c' : '#ffffff';
+        }
+        function renderColoresConfig(){
+            coloresTmp = JSON.parse(JSON.stringify(listaColoresTrat()));
+            pintarFilasColores();
+        }
+        function pintarFilasColores(){
+            const cont = document.getElementById('coloresTratList');
+            if(!cont) return;
+            cont.innerHTML = coloresTmp.map((x,i) => `<div class="color-row">
+                <input type="text" class="inset-3d" placeholder="Ej. Blanqueamiento" value="${escAttr(x.nombre)}" oninput="coloresTmp[${i}].nombre=this.value">
+                <input type="color" value="${x.color}" oninput="coloresTmp[${i}].color=this.value">
+                <button class="close-btn" onclick="quitarColorTrat(${i})">✕</button>
+            </div>`).join('');
+        }
+        function agregarColorTrat(){ coloresTmp.push({ nombre: '', color: '#124578' }); pintarFilasColores(); }
+        function quitarColorTrat(i){ coloresTmp.splice(i,1); pintarFilasColores(); }
 
         function minutosEntre(hIni, hFin) {
             const [h1,m1] = hIni.split(':').map(Number), [h2,m2] = hFin.split(':').map(Number);
@@ -1428,7 +1476,9 @@
                 html += citasDia.map(c=>{
                     const pac = pacientes[c.paciente] || {};
                     const foto = (config.mostrarFotos && pac.foto) ? `<img src="${pac.foto}" style="width:26px;height:26px;border-radius:50%;object-fit:cover;">` : '';
-                    return `<div class="panel-cita" onclick="abrirOpcionesCita(${c.id})">
+                    const colT = colorDeCita(c.motivo);
+                    const estCol = colT ? ` style="background:${colT}; color:${textoSobre(colT)};"` : '';
+                    return `<div class="panel-cita"${estCol} onclick="abrirOpcionesCita(${c.id})">
                         <div class="pc-hora"><span class="status-dot ${c.estado}"></span>${formatearHoraAmPm(c.horaInicio)} - ${formatearHoraAmPm(c.horaFin)}</div>
                         <div class="pc-info">${foto} ${nombrePreferido(c.paciente)} · ${c.motivo}</div>
                     </div>`;
@@ -1476,7 +1526,14 @@
                             </div>
                         </div>`;
                     }
-                    return `<div class="appointment-item ${esPotencial ? 'potencial-item' : ''}" style="${estiloPotencial}" onclick="abrirOpcionesCita(${c.id})">
+                    const colT = colorDeCita(c.motivo);
+                    let claseItem = esPotencial ? 'potencial-item' : '', estiloItem = estiloPotencial;
+                    if(colT){
+                        const tx = textoSobre(colT);
+                        claseItem = 'cita-color';
+                        estiloItem = `background-color:${colT}; color:${tx}; --txt:${tx};` + (esPotencial ? ' border-left:4px solid var(--accent);' : '');
+                    }
+                    return `<div class="appointment-item ${claseItem}" style="${estiloItem}" onclick="abrirOpcionesCita(${c.id})">
                         <div class="appointment-header"><span class="status-dot ${c.estado}"></span><strong style="font-size:1.1rem;">${formatearHoraAmPm(c.horaInicio)} - ${formatearHoraAmPm(c.horaFin)}</strong>${etiquetaPotencial}</div>
                         <div style="margin-left: 22px;">- ${c.motivo}</div>
                         <div style="margin-left: 22px;">- ${c.paciente} ${textoNotas}</div>
@@ -1508,7 +1565,13 @@
                     ${config.mostrarFotos ? `<div>${htmlFoto}</div>` : ''}
                 </div>`;
             if(cita.notas) htmlDetalle += `<p style="margin-top:10px; padding-top:10px; border-top:1px solid rgba(255,255,255,0.3);"><strong>Nota Adicional:</strong><br>${cita.notas}</p>`;
-            document.getElementById('detalleCitaData').innerHTML = htmlDetalle;
+            const detEl = document.getElementById('detalleCitaData');
+            detEl.innerHTML = htmlDetalle;
+            const colDet = colorDeCita(cita.motivo);
+            detEl.style.backgroundColor = colDet || '';
+            detEl.style.color = colDet ? textoSobre(colDet) : '';
+            detEl.classList.toggle('cita-color', !!colDet);
+            if(colDet) detEl.style.setProperty('--txt', textoSobre(colDet));
             document.getElementById('opcionesCitaModal').style.display = 'flex';
         }
 
@@ -2086,7 +2149,7 @@
                 closeModal('opcionesCitaModal'); openDay(selectedDate); loadCalendar(); 
             } 
         }
-        function openConfig() { document.getElementById('configModalOverlay').style.display = 'flex'; }
+        function openConfig() { loadConfig(); document.getElementById('configModalOverlay').style.display = 'flex'; }
         function closeModal(id) { 
             if(id === 'directorioModal'){ editandoAhora = false; dirNombreActual = null; }
             document.getElementById(id).style.display = 'none'; 
@@ -2185,6 +2248,38 @@
             }
           });
         }
+
+        // ===== Tecla Esc y botón Atrás: cierran lo que esté abierto (en vez de salir de la app) =====
+        let ultimoEsc = 0;
+        function modalesAbiertos(){
+            return Array.from(document.querySelectorAll('.modal-overlay')).filter(m => m.style.display && m.style.display !== 'none');
+        }
+        function visible(id){ const el = document.getElementById(id); return !!el && getComputedStyle(el).display !== 'none'; }
+        function retrocederUnNivel(){
+            const abiertos = modalesAbiertos();
+            if(!abiertos.length) return false;
+            const id = abiertos[abiertos.length - 1].id;   // el último en el DOM es el que se ve encima
+            if(id === 'dayModalOverlay' && visible('formularioContainer')){ toggleFormulario(false); return true; }
+            if(id === 'directorioModal'){
+                if(visible('formNuevoPaciente')){ cancelarNuevoPaciente(); return true; }
+                if(visible('editorContacto')){ cerrarEditorDirectorio(); return true; }
+            }
+            closeModal(id);
+            return true;
+        }
+        document.addEventListener('keydown', (e) => {
+            if(e.key === 'Escape'){
+                e.preventDefault();
+                ultimoEsc = Date.now();
+                retrocederUnNivel();
+            }
+        });
+        // Botón/gesto Atrás (y Esc si el sistema lo convierte en Atrás): cierra modales y no saca de la app
+        try{ history.pushState({ da: 1 }, '', location.href); }catch(e){}
+        window.addEventListener('popstate', () => {
+            if(Date.now() - ultimoEsc > 500) retrocederUnNivel();
+            try{ history.pushState({ da: 1 }, '', location.href); }catch(e){}
+        });
 
         init();
         daAplicarFestividad();
