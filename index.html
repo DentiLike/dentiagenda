@@ -1046,6 +1046,25 @@
             const s = solicitudes.find(x => x.id === id);
             if(!s) return;
             if(!confirm(`¿Rechazar la solicitud de ${s.nombre}?`)) return;
+            // Si es paciente REGISTRADO (tiene código), guardar aviso en su documento para que lo vea en su app
+            if(s.telefono && s.codigoPaciente){
+                try{
+                    const llave = await hashLlave(s.telefono, s.codigoPaciente);
+                    const ref = db.collection('citas_pacientes').doc(llave);
+                    const doc = await ref.get();
+                    if(doc.exists){
+                        const avisos = doc.data().avisosRechazo || [];
+                        avisos.push({
+                            id: 'r' + Date.now(),
+                            fecha: s.fecha,
+                            hora: s.horaInicio,
+                            motivo: s.motivo || '',
+                            creado: Date.now()
+                        });
+                        await ref.set({ avisosRechazo: avisos }, { merge:true });
+                    }
+                }catch(e){ console.error('guardar aviso rechazo', e); }
+            }
             try{ await db.collection('solicitudes').doc(id).delete(); }catch(e){ console.error('rechazar solicitud', e); }
             if(confirm('¿Avisarle por WhatsApp que ese horario ya no está disponible?')){
                 const msg = `Hola ${nombrePreferido(s.nombre)},\n\nGracias por tu solicitud de cita para el ${formatearFechaLegible(s.fecha)} a las ${formatearHoraAmPm(s.horaInicio)}. Ese horario ya no está disponible — contáctanos para buscar otro horario juntos.`;
