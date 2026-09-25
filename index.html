@@ -615,12 +615,11 @@
     <!-- Área usada solo para generar el PDF (oculta en pantalla, visible al imprimir) -->
     <div id="areaImprimible"></div>
 
-    <!-- ===== FIREBASE SDK (compat) ===== -->
+    <!-- ===== FIREBASE SDK (compat) — esenciales primero ===== -->
+    <link rel="preconnect" href="https://www.gstatic.com">
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js"></script>
 
     <script>
         // ===== Firebase init =====
@@ -638,11 +637,23 @@
             firebase.initializeApp(firebaseConfig);
             db = firebase.firestore();
             auth = firebase.auth();
-            storage = firebase.storage();
             auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
-            try { messaging = firebase.messaging(); } catch(e){ console.log('messaging no disponible', e); }
             fbOK = true;
         } catch(e) { console.error('Firebase init error', e); }
+
+        // Cargar Storage y Messaging DESPUÉS (no bloquean el arranque)
+        function cargarLibreriaFirebase(url){
+            return new Promise((res)=>{ const s=document.createElement('script'); s.src=url; s.onload=res; s.onerror=res; document.head.appendChild(s); });
+        }
+        async function cargarExtrasFirebase(){
+            try{
+                await cargarLibreriaFirebase("https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js");
+                if(fbOK && firebase.storage) storage = firebase.storage();
+                await cargarLibreriaFirebase("https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js");
+                if(fbOK){ try { messaging = firebase.messaging(); } catch(e){ console.log('messaging no disp', e); } }
+            }catch(e){ console.log('extras firebase', e); }
+        }
+        // se dispara tras cargar la app (ver más abajo)
 
         // VAPID key (misma del proyecto misonrisa-citas)
         const DA_VAPID_KEY = "BJbyEqKprY2XnKuxc7RH6Bje2lGH3YbU1mCYtQ5yXmL5vRLAqFRT91nLouRtATu6OJ9LK0LcuIxwMMRzJALbxqA";
@@ -1898,7 +1909,12 @@
             });
         }
         async function subirFotoAStorage(nombre, dataUrlComprimido) {
-            if(!fbOK || !storage) throw new Error('Storage no disponible');
+            if(!fbOK) throw new Error('Sin conexión');
+            // si storage aún no terminó de cargar, cargarlo ahora
+            if(!storage){
+                await cargarExtrasFirebase();
+                if(!storage) throw new Error('Storage no disponible');
+            }
             const ref = storage.ref().child(`fotos_pacientes/${encodeURIComponent(nombre)}.jpg`);
             await ref.putString(dataUrlComprimido, 'data_url');
             return await ref.getDownloadURL();
@@ -2322,6 +2338,8 @@
         daAplicarFestividad();
         // red de seguridad: nunca dejar el cascarón pegado más de 4 segundos
         setTimeout(ocultarSplash, 4000);
+        // cargar storage y messaging en segundo plano (no bloquean el arranque)
+        setTimeout(cargarExtrasFirebase, 100);
     </script>
 </body>
 </html>
