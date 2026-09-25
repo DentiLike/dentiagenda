@@ -220,6 +220,15 @@
     </style>
 </head>
 <body>
+    <div id="splashCarga" style="position:fixed; inset:0; z-index:9999; background:#e0e5ec; display:flex; flex-direction:column; align-items:center; justify-content:center; transition:opacity .4s ease;">
+        <div style="text-align:center;">
+            <img src="logo-dentiagenda.png" alt="DentiAgenda" style="max-width:200px; margin-bottom:24px;" onerror="this.style.display='none'">
+            <div style="width:44px; height:44px; margin:0 auto 16px; border:4px solid #cdd5e0; border-top-color:#124578; border-radius:50%; animation:splashSpin .8s linear infinite;"></div>
+            <div style="color:#124578; font-weight:bold; font-size:0.95rem; font-family:system-ui,sans-serif;">Cargando tu agenda…</div>
+        </div>
+    </div>
+    <style>@keyframes splashSpin{to{transform:rotate(360deg)}}</style>
+
 
     <!-- ===== PANTALLA DE LOGIN (doctor · Google) ===== -->
     <div id="lockScreen" style="position:fixed; inset:0; z-index:5000; background:var(--bg-color); display:none; flex-direction:column; align-items:center; justify-content:center; padding:2rem;">
@@ -1228,7 +1237,17 @@
             return (nombreCompleto || '').trim().split(' ')[0] || nombreCompleto;
         }
 
-        function init() { loadConfig(); loadCalendar(); updateDatalists(); }
+        function init() {
+            loadConfig(); loadCalendar(); updateDatalists();
+            // ocultar el cascarón: la app ya es usable con datos locales
+            ocultarSplash();
+        }
+        function ocultarSplash(){
+            const s = document.getElementById('splashCarga');
+            if(!s) return;
+            s.style.opacity = '0';
+            setTimeout(()=>{ s.style.display = 'none'; }, 450);
+        }
 
         function loadConfig() {
             document.getElementById('confClinica').value = config.clinica;
@@ -2301,6 +2320,8 @@
 
         init();
         daAplicarFestividad();
+        // red de seguridad: nunca dejar el cascarón pegado más de 4 segundos
+        setTimeout(ocultarSplash, 4000);
     </script>
 </body>
 </html>
