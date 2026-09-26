@@ -462,6 +462,20 @@
                     </div>
                 </div>
 
+                <div class="plan-box">
+                    <h5>🩻 Estudios / Radiografías (los verá el paciente en Mi Sonrisa)</h5>
+                    <div id="estudiosLista"></div>
+                    <div style="margin-top:10px; display:grid; gap:8px;">
+                        <button class="plan-add-btn" onclick="subirEstudio('Radiografía panorámica')">📷 Subir Panorámica</button>
+                        <button class="plan-add-btn" onclick="subirEstudio('Radiografía lateral')">📷 Subir Lateral</button>
+                        <div style="display:flex; gap:6px;">
+                            <input type="text" id="estudioNombrePersonal" placeholder="Nombre del estudio (ej. Periapical 16)" style="flex:1; padding:0.6rem; border-radius:8px; border:1.5px solid #b8cce4; background:#eef4fb; color:var(--primary); font-size:0.82rem;">
+                            <button class="plan-add-btn" style="width:auto; white-space:nowrap;" onclick="subirEstudioPersonal()">+ Subir</button>
+                        </div>
+                    </div>
+                    <input type="file" id="estudioFileInput" accept="image/*" style="display:none;">
+                </div>
+
                 <button class="btn-3d btn-submit" style="color:#25D366;" onclick="enviarCodigoWhatsApp()">Enviar código al paciente por WhatsApp</button>
                 <button class="btn-3d btn-submit" style="color:var(--accent);" onclick="enviarMensajePromocion()">🎁 Enviar mensaje de promociones</button>
                 <button class="btn-3d btn-submit" style="background:var(--primary); color:white;" onclick="guardarEdicionDirectorio()">Guardar Cambios</button>
@@ -538,6 +552,7 @@
             <button class="btn-3d btn-submit" onclick="guardarConfig()">Guardar Ajustes</button>
             <button class="btn-3d btn-submit" style="margin-top:10px; color:#d97706;" onclick="closeModal('configModalOverlay'); abrirBloqueos();">🚫 Bloquear horarios (vacaciones, comida...)</button>
             <button class="btn-3d btn-submit" id="btnPushDoctor" style="margin-top:10px;" onclick="activarNotificacionesDoctor()">🔔 Activar avisos de citas</button>
+            <button class="btn-3d btn-submit" id="btnProbarPush" style="margin-top:8px; display:none; color:var(--accent);" onclick="probarNotificacion()">🧪 Probar notificación</button>
             <button class="btn-3d btn-submit" style="color:var(--accent); margin-top:10px;" onclick="instalarDentiAgenda()">📲 Instalar DentiAgenda en este dispositivo</button>
             <button class="btn-3d btn-submit" style="margin-top:10px;" onclick="sincronizarConfirmaciones(false)">🔄 Revisar confirmaciones de pacientes ahora</button>
             <button class="btn-3d btn-submit" style="margin-top:10px; color:var(--primary);" onclick="abrirDashboard()">📊 Ver Dashboard</button>
@@ -716,9 +731,46 @@
         function scActualizarBotonPushDoctor(){
             const b = document.getElementById('btnPushDoctor');
             if(!b) return;
-            const activo = localStorage.getItem('da_push_activo')==='1' && Notification.permission==='granted';
-            b.innerHTML = activo ? '🔔 Avisos activados' : '🔔 Activar avisos de citas';
-            b.style.color = activo ? '#48bb78' : 'var(--primary)';
+            // estado REAL: permiso del navegador concedido
+            const permiso = ('Notification' in window) ? Notification.permission : 'denied';
+            if(permiso === 'granted'){
+                b.innerHTML = '🔔 Avisos activados ✓';
+                b.style.color = '#48bb78';
+            } else if(permiso === 'denied'){
+                b.innerHTML = '🔕 Notificaciones bloqueadas (actívalas en ajustes del navegador)';
+                b.style.color = '#e53e3e';
+            } else {
+                b.innerHTML = '🔔 Activar avisos de citas';
+                b.style.color = 'var(--primary)';
+            }
+            // mostrar/ocultar botón de prueba según el permiso
+            const bp = document.getElementById('btnProbarPush');
+            if(bp) bp.style.display = (permiso === 'granted') ? 'block' : 'none';
+        }
+
+        // Prueba LOCAL: muestra una notificación de prueba en ESTE dispositivo (sin Firebase)
+        async function probarNotificacion(){
+            if(!('Notification' in window)){ alert('Tu navegador no soporta notificaciones.'); return; }
+            if(Notification.permission !== 'granted'){
+                alert('Primero activa los avisos (el permiso no está concedido).');
+                return;
+            }
+            try{
+                // usar el service worker para mostrarla (funciona mejor en móvil)
+                const reg = await navigator.serviceWorker.getRegistration();
+                if(reg){
+                    await reg.showNotification('🦷 Prueba DentiAgenda', {
+                        body: 'Si ves esto, tus notificaciones funcionan correctamente. ✓',
+                        icon: 'favicon.png'
+                    });
+                } else {
+                    new Notification('🦷 Prueba DentiAgenda', { body: 'Tus notificaciones funcionan. ✓', icon:'favicon.png' });
+                }
+                setTimeout(()=>{ alert('Se envió la notificación de prueba. Si NO apareció en tu barra de notificaciones, revisa que estén permitidas en los ajustes de tu celular para DentiAgenda.'); }, 800);
+            }catch(e){
+                console.error('probar notif', e);
+                alert('No se pudo mostrar la notificación de prueba. Revisa los permisos en ajustes del celular.');
+            }
         }
 
         // Detecta si ya hay sesión iniciada (persistente por dispositivo)
@@ -1231,6 +1283,7 @@
                     ortoArcos: pac.ortoArcos || {},
                     ortoPorcentaje: pac.ortoPorcentaje || 0,
                     ortoFaseTexto: pac.ortoFaseTexto || 'Fase 1: Alineación y nivelación',
+                    estudios: pac.estudios || [],
                     actualizado: Date.now()
                 }, { merge:true });
             }catch(e){ console.error('sync paciente error', e); }
@@ -1703,6 +1756,7 @@
             document.getElementById('bannerPotencialFicha').style.display = pac.esPotencial ? 'block' : 'none';
             renderPlanTratamiento(nombre);
             renderOrtodoncia(nombre);
+            renderEstudios(nombre);
         }
         function marcarComoCautivoDesdeFicha(){
             const nombre = document.getElementById('editDirNombre').value;
@@ -1841,6 +1895,74 @@
             pacientes[nombre].ortoFaseTexto = r.fase;
             document.getElementById('ortoResumen').innerText = `${r.porcentaje}% · ${r.fase}`;
             guardarPlan(nombre);
+        }
+
+        // ===== Estudios / Radiografías =====
+        let estudioNombreActual = '';
+        function subirEstudio(nombreEstudio){
+            estudioNombreActual = nombreEstudio;
+            const input = document.getElementById('estudioFileInput');
+            input.value = '';
+            input.onchange = procesarEstudio;
+            input.click();
+        }
+        function subirEstudioPersonal(){
+            const nombre = document.getElementById('estudioNombrePersonal').value.trim();
+            if(!nombre){ alert('Escribe el nombre del estudio.'); return; }
+            subirEstudio(nombre);
+        }
+        async function procesarEstudio(e){
+            const file = e.target.files[0];
+            if(!file) return;
+            const nombrePac = dirNombreActual;
+            if(!nombrePac) return;
+            try{
+                // comprimir a 1200px, calidad 75%
+                const dataUrl = await comprimirImagen(file, 1200, 0.75);
+                // subir a Storage (carpeta estudios)
+                if(!storage){ await cargarExtrasFirebase(); if(!storage) throw new Error('Storage no disponible'); }
+                const idEstudio = 'e' + Date.now();
+                const ref = storage.ref().child(`estudios_pacientes/${encodeURIComponent(nombrePac)}/${idEstudio}.jpg`);
+                await ref.putString(dataUrl, 'data_url');
+                const url = await ref.getDownloadURL();
+                // guardar en el paciente
+                if(!pacientes[nombrePac].estudios) pacientes[nombrePac].estudios = [];
+                pacientes[nombrePac].estudios.push({ id:idEstudio, nombre:estudioNombreActual, url:url, fecha:Date.now() });
+                localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes));
+                guardarAgendaEnNube();
+                syncPacienteAFirebase(nombrePac);
+                document.getElementById('estudioNombrePersonal').value = '';
+                renderEstudios(nombrePac);
+                alert('✅ Estudio subido.');
+            }catch(err){
+                console.error('subir estudio', err);
+                alert('No se pudo subir el estudio. Revisa tu conexión.');
+            }
+        }
+        function renderEstudios(nombre){
+            const pac = pacientes[nombre] || {};
+            const estudios = pac.estudios || [];
+            const cont = document.getElementById('estudiosLista');
+            if(!cont) return;
+            if(!estudios.length){ cont.innerHTML = '<p style="font-size:0.8rem; color:var(--text-muted); text-align:center; margin:6px 0;">Sin estudios subidos aún.</p>'; return; }
+            cont.innerHTML = estudios.map((es,i)=>`
+                <div style="display:flex; align-items:center; gap:10px; background:var(--bg-color); border-radius:10px; padding:8px 10px; margin-bottom:8px; box-shadow:3px 3px 6px var(--shadow-dark), -3px -3px 6px var(--shadow-light);">
+                    <img src="${es.url}" style="width:44px; height:44px; border-radius:8px; object-fit:cover; cursor:pointer;" onclick="window.open('${es.url}','_blank')">
+                    <span style="flex:1; font-size:0.85rem; color:var(--text-main);">${es.nombre}</span>
+                    <span style="color:#e53e3e; cursor:pointer; font-weight:bold; padding:0 6px;" onclick="eliminarEstudio('${nombre.replace(/'/g,"\\'")}','${es.id}')">✕</span>
+                </div>`).join('');
+        }
+        async function eliminarEstudio(nombre, idEstudio){
+            if(!confirm('¿Eliminar este estudio?')) return;
+            const pac = pacientes[nombre]; if(!pac || !pac.estudios) return;
+            const es = pac.estudios.find(x => x.id === idEstudio);
+            pac.estudios = pac.estudios.filter(x => x.id !== idEstudio);
+            localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes));
+            // borrar de Storage
+            if(es && es.url && storage){ try{ storage.refFromURL(es.url).delete().catch(()=>{}); }catch(e){} }
+            guardarAgendaEnNube();
+            syncPacienteAFirebase(nombre);
+            renderEstudios(nombre);
         }
 
         // ===== Plan de tratamiento =====
