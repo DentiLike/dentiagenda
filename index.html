@@ -551,7 +551,17 @@
 
             <button class="btn-3d btn-submit" onclick="guardarConfig()">Guardar Ajustes</button>
             <button class="btn-3d btn-submit" style="margin-top:10px; color:#d97706;" onclick="closeModal('configModalOverlay'); abrirBloqueos();">🚫 Bloquear horarios (vacaciones, comida...)</button>
-            <button class="btn-3d btn-submit" id="btnPushDoctor" style="margin-top:10px;" onclick="activarNotificacionesDoctor()">🔔 Activar avisos de citas</button>
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-top:14px; padding:12px 14px; background:var(--bg-color); border-radius:12px; box-shadow:inset 3px 3px 6px var(--shadow-dark), inset -3px -3px 6px var(--shadow-light);">
+                <div style="text-align:left;">
+                    <div style="font-weight:bold; color:var(--primary); font-size:0.9rem;">🔔 Avisos de citas</div>
+                    <div id="pushEstadoTxt" style="font-size:0.72rem; color:var(--text-muted);">Recibe avisos cuando un paciente pida cita</div>
+                </div>
+                <label style="position:relative; display:inline-block; width:52px; height:29px; flex-shrink:0;">
+                    <input type="checkbox" id="pushSwitch" onchange="togglePushDoctor()" style="position:absolute; inset:0; width:100%; height:100%; margin:0; opacity:0; cursor:pointer; z-index:2;">
+                    <span id="pushSlider" style="position:absolute; inset:0; background:var(--status-gray); border-radius:999px; transition:.2s; z-index:1;"></span>
+                    <span id="pushKnob" style="position:absolute; top:3px; left:3px; width:23px; height:23px; background:white; border-radius:50%; transition:.2s; z-index:3; box-shadow:1px 1px 3px rgba(0,0,0,0.3);"></span>
+                </label>
+            </div>
             <button class="btn-3d btn-submit" id="btnProbarPush" style="margin-top:8px; display:none; color:var(--accent);" onclick="probarNotificacion()">🧪 Probar notificación</button>
             <button class="btn-3d btn-submit" style="color:var(--accent); margin-top:10px;" onclick="instalarDentiAgenda()">📲 Instalar DentiAgenda en este dispositivo</button>
             <button class="btn-3d btn-submit" style="margin-top:10px;" onclick="sincronizarConfirmaciones(false)">🔄 Revisar confirmaciones de pacientes ahora</button>
@@ -701,18 +711,26 @@
         function daPushSoportado(){
             return messaging && 'Notification' in window && 'serviceWorker' in navigator;
         }
+        async function togglePushDoctor(){
+            const sw = document.getElementById('pushSwitch');
+            if(sw.checked){
+                await activarNotificacionesDoctor();
+            } else {
+                await desactivarNotificacionesDoctor();
+            }
+        }
         async function activarNotificacionesDoctor(){
             if(!daPushSoportado()){
                 alert('Tu navegador no permite notificaciones. Usa Chrome en Android/PC, o instala la app.');
+                scActualizarBotonPushDoctor();
                 return;
             }
             try{
                 const permiso = await Notification.requestPermission();
-                if(permiso !== 'granted'){ alert('No activaste las notificaciones.'); return; }
+                if(permiso !== 'granted'){ alert('No activaste las notificaciones.'); scActualizarBotonPushDoctor(); return; }
                 const reg = await navigator.serviceWorker.register('firebase-messaging-sw.js');
                 const token = await messaging.getToken({ vapidKey: DA_VAPID_KEY, serviceWorkerRegistration: reg });
-                if(!token){ alert('No se pudo generar el token.'); return; }
-                // guardar el token del doctor en config_publica/doctor_push (solo el doctor escribe ahí)
+                if(!token){ alert('No se pudo generar el token.'); scActualizarBotonPushDoctor(); return; }
                 let tokens = [];
                 try {
                     const doc = await db.collection('config_publica').doc('doctor_push').get();
@@ -720,32 +738,56 @@
                 }catch(e){}
                 if(!tokens.includes(token)) tokens.push(token);
                 await db.collection('config_publica').doc('doctor_push').set({ tokens: tokens, actualizado: Date.now() }, { merge:true });
+                localStorage.setItem('da_push_token', token);
                 localStorage.setItem('da_push_activo','1');
                 scActualizarBotonPushDoctor();
                 alert('✅ ¡Listo! Recibirás avisos cuando un paciente pida cita.');
             }catch(e){
                 console.error('activar push doctor error', e);
                 alert('No se pudieron activar las notificaciones. Revisa tu conexión.');
+                scActualizarBotonPushDoctor();
+            }
+        }
+        async function desactivarNotificacionesDoctor(){
+            try{
+                const miToken = localStorage.getItem('da_push_token');
+                if(miToken){
+                    // quitar este token de la lista en Firebase
+                    const doc = await db.collection('config_publica').doc('doctor_push').get();
+                    let tokens = (doc.exists && doc.data().tokens) ? doc.data().tokens : [];
+                    tokens = tokens.filter(t => t !== miToken);
+                    await db.collection('config_publica').doc('doctor_push').set({ tokens: tokens, actualizado: Date.now() }, { merge:true });
+                }
+                localStorage.removeItem('da_push_token');
+                localStorage.setItem('da_push_activo','0');
+                scActualizarBotonPushDoctor();
+                alert('🔕 Avisos desactivados. Ya no recibirás notificaciones en este dispositivo.');
+            }catch(e){
+                console.error('desactivar push', e);
+                alert('No se pudo desactivar. Revisa tu conexión.');
+                scActualizarBotonPushDoctor();
             }
         }
         function scActualizarBotonPushDoctor(){
-            const b = document.getElementById('btnPushDoctor');
-            if(!b) return;
-            // estado REAL: permiso del navegador concedido
-            const permiso = ('Notification' in window) ? Notification.permission : 'denied';
-            if(permiso === 'granted'){
-                b.innerHTML = '🔔 Avisos activados ✓';
-                b.style.color = '#48bb78';
-            } else if(permiso === 'denied'){
-                b.innerHTML = '🔕 Notificaciones bloqueadas (actívalas en ajustes del navegador)';
-                b.style.color = '#e53e3e';
-            } else {
-                b.innerHTML = '🔔 Activar avisos de citas';
-                b.style.color = 'var(--primary)';
-            }
-            // mostrar/ocultar botón de prueba según el permiso
+            const sw = document.getElementById('pushSwitch');
+            const slider = document.getElementById('pushSlider');
+            const knob = document.getElementById('pushKnob');
+            const txt = document.getElementById('pushEstadoTxt');
             const bp = document.getElementById('btnProbarPush');
-            if(bp) bp.style.display = (permiso === 'granted') ? 'block' : 'none';
+            if(!sw) return;
+            const permiso = ('Notification' in window) ? Notification.permission : 'denied';
+            const activo = (permiso === 'granted') && (localStorage.getItem('da_push_activo') === '1');
+            sw.checked = activo;
+            if(slider) slider.style.background = activo ? '#48bb78' : 'var(--status-gray)';
+            if(knob) knob.style.left = activo ? '26px' : '3px';
+            if(txt){
+                if(permiso === 'denied') txt.innerHTML = 'Bloqueadas en el navegador — actívalas en ajustes';
+                else if(activo) txt.innerHTML = 'Activadas ✓ · recibes avisos de citas';
+                else txt.innerHTML = 'Recibe avisos cuando un paciente pida cita';
+            }
+            if(bp) bp.style.display = activo ? 'block' : 'none';
+        }
+        function scActualizarBotonPushDoctor_OLD_ELIMINADA(){
         }
 
         // Prueba LOCAL: muestra una notificación de prueba en ESTE dispositivo (sin Firebase)
