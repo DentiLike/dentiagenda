@@ -1685,7 +1685,30 @@
                     </div>`
                 }).join('');
             }
+            // ===== Espacios libres (cuadros grises, click para agendar) =====
+            const libres = calcularEspaciosLibres(dateStr, citasDelDia);
+            if(libres.length){
+                let htmlLibres = `<div style="margin-top:14px; font-size:0.8rem; color:var(--text-muted); font-weight:bold;">🕐 Espacios libres (toca para agendar)</div>
+                    <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:8px;">`;
+                htmlLibres += libres.map(h => `<div onclick="agendarEnHueco('${dateStr}','${h}')" style="background:var(--bg-color); border:1.5px dashed var(--status-gray); border-radius:10px; padding:10px 6px; text-align:center; font-size:0.82rem; color:var(--text-main); cursor:pointer; box-shadow:2px 2px 5px var(--shadow-dark), -2px -2px 5px var(--shadow-light);">${formatearHoraAmPm(h)}</div>`).join('');
+                htmlLibres += `</div>`;
+                list.innerHTML += htmlLibres;
+            }
             document.getElementById('dayModalOverlay').style.display = 'flex';
+        }
+        // calcula los huecos libres de un día (cada 30 min), quitando ocupados
+        function calcularEspaciosLibres(dateStr, citasDelDia){
+            function horas(ini,fin){ const o=[]; if(!ini||!fin)return o; let[h,m]=ini.split(':').map(Number); const[hf,mf]=fin.split(':').map(Number); while(h<hf||(h===hf&&m<mf)){o.push(`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`); m+=30; if(m>=60){m-=60;h++;}} return o; }
+            let todos = [...horas(config.mInicio,config.mFin), ...horas(config.vInicio,config.vFin)];
+            // quitar los ocupados por citas
+            return todos.filter(h => !citasDelDia.some(c => h >= c.horaInicio && h < c.horaFin));
+        }
+        function agendarEnHueco(dateStr, hora){
+            selectedDate = dateStr;
+            toggleFormulario(true);
+            // poner la hora en el input
+            const inputHora = document.getElementById('horaInicio');
+            if(inputHora){ inputHora.value = hora; calcularHoraFin(); }
         }
 
         function abrirOpcionesCita(id) {
@@ -2151,18 +2174,60 @@
         function cerrarEditorDirectorio() { editandoAhora = false; dirNombreActual = null; document.getElementById('editorContacto').style.display = 'none'; document.getElementById('listaContactos').style.display = 'block'; var b=document.getElementById('btnNuevoPaciente'); if(b) b.style.display='block'; }
 
         function ejecutarBusquedaRapida() {
-            const texto = document.getElementById('globalSearch').value.toLowerCase();
+            const texto = document.getElementById('globalSearch').value.toLowerCase().trim();
             const resultadosBox = document.getElementById('searchResults');
             if(texto.length < 2) { resultadosBox.style.display = 'none'; return; }
-            const hoyStr = new Date().toISOString().split('T')[0];
-            const encontradas = citas.filter(c => c.paciente.toLowerCase().includes(texto) && c.fecha >= hoyStr).sort((a,b) => a.fecha.localeCompare(b.fecha));
-            if(encontradas.length > 0) {
-                resultadosBox.innerHTML = encontradas.map(c => `<div style="padding:5px 0; border-bottom:1px solid rgba(255,255,255,0.3); font-size:0.9rem;"><strong>${c.paciente}</strong> - ${formatearFechaLegible(c.fecha)} a las ${formatearHoraAmPm(c.horaInicio)}</div>`).join('');
-                resultadosBox.style.display = 'block';
-            } else {
-                resultadosBox.innerHTML = '<div style="font-size:0.9rem;">No hay citas futuras para ese nombre.</div>';
-                resultadosBox.style.display = 'block';
+            let html = '';
+
+            // 1) PACIENTES que coincidan (del directorio)
+            const nombresPac = Object.keys(pacientes || {}).filter(n => n && n.toLowerCase().includes(texto)).sort((a,b)=>a.localeCompare(b)).slice(0,8);
+            if(nombresPac.length){
+                html += `<div style="font-size:0.72rem; text-transform:uppercase; letter-spacing:0.05em; opacity:0.7; margin:2px 0 4px;">Pacientes</div>`;
+                html += nombresPac.map(n=>{
+                    const nEsc = n.replace(/'/g,"\\'");
+                    const tel = (pacientes[n] && pacientes[n].telefono) ? pacientes[n].telefono : '';
+                    return `<div style="display:flex; justify-content:space-between; align-items:center; gap:8px; padding:7px 0; border-bottom:1px solid rgba(255,255,255,0.25);">
+                        <div style="flex:1; min-width:0;"><strong>${n}</strong>${tel?`<span style="opacity:0.7; font-size:0.8rem;"> · ${tel}</span>`:''}</div>
+                        <span class="chip" style="background:var(--accent); color:white; flex-shrink:0; cursor:pointer;" onclick="verExpedienteDesdeBusqueda('${nEsc}')">📋 Ver</span>
+                        <span class="chip" style="background:var(--primary); color:white; flex-shrink:0; cursor:pointer;" onclick="agendarDesdeBusqueda('${nEsc}')">📅 Agendar</span>
+                    </div>`;
+                }).join('');
             }
+
+            // 2) CITAS futuras que coincidan
+            const hoyStr = new Date().toISOString().split('T')[0];
+            const encontradas = citas.filter(c => c.paciente.toLowerCase().includes(texto) && c.fecha >= hoyStr).sort((a,b) => a.fecha.localeCompare(b.fecha)).slice(0,8);
+            if(encontradas.length){
+                html += `<div style="font-size:0.72rem; text-transform:uppercase; letter-spacing:0.05em; opacity:0.7; margin:8px 0 4px;">Próximas citas</div>`;
+                html += encontradas.map(c => `<div style="padding:6px 0; border-bottom:1px solid rgba(255,255,255,0.25); font-size:0.88rem; cursor:pointer;" onclick="irACitaDesdeBusqueda('${c.fecha}', ${c.id})"><strong>${c.paciente}</strong> · ${formatearFechaLegible(c.fecha)} ${formatearHoraAmPm(c.horaInicio)}</div>`).join('');
+            }
+
+            if(!html){ html = '<div style="font-size:0.9rem;">Sin resultados para "'+texto+'".</div>'; }
+            resultadosBox.innerHTML = html;
+            resultadosBox.style.display = 'block';
+        }
+        function cerrarBusqueda(){
+            document.getElementById('globalSearch').value = '';
+            document.getElementById('searchResults').style.display = 'none';
+        }
+        function verExpedienteDesdeBusqueda(nombre){
+            cerrarBusqueda();
+            renderListaContactos();
+            document.getElementById('directorioModal').style.display = 'flex';
+            abrirEditorDirectorio(nombre);
+        }
+        function agendarDesdeBusqueda(nombre){
+            cerrarBusqueda();
+            const pac = pacientes[nombre] || {};
+            potencialParaAgendar = { nombre: nombre, telefono: pac.telefono || '', motivo: '' };
+            // abrir el día de hoy y el formulario
+            const hoyStr = fechaAISO(new Date());
+            openDay(hoyStr);
+            toggleFormulario(true);
+        }
+        function irACitaDesdeBusqueda(fecha, idCita){
+            cerrarBusqueda();
+            openDay(fecha);
         }
 
         function mostrarPotencialesEnChatHTML() {
