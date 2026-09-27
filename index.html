@@ -389,6 +389,7 @@
                 <div class="form-group"><label>Nombre</label><input type="text" id="editDirNombre" class="inset-3d" readonly></div>
                 <div class="form-group"><label>¿Cómo le gusta que le digan?</label><input type="text" id="editDirApodo" class="inset-3d" placeholder="Ej. Male (si lo dejas vacío, se usa su primer nombre)"></div>
                 <div class="form-group"><label>Telefono</label><input type="tel" id="editDirTel" class="inset-3d"></div>
+                <div class="form-group"><label>🎂 Fecha de nacimiento</label><input type="date" id="editDirNacimiento" class="inset-3d"></div>
 
                 <div class="codigo-box">
                     <div class="label">Código de acceso del paciente (para Mi Sonrisa)</div>
@@ -476,6 +477,11 @@
                     <input type="file" id="estudioFileInput" accept="image/*" style="display:none;">
                 </div>
 
+                <div class="plan-box">
+                    <h5>📖 Historial de citas</h5>
+                    <div id="historialCitas"></div>
+                </div>
+
                 <button class="btn-3d btn-submit" style="color:#25D366;" onclick="enviarCodigoWhatsApp()">Enviar código al paciente por WhatsApp</button>
                 <button class="btn-3d btn-submit" style="color:var(--accent);" onclick="enviarMensajePromocion()">🎁 Enviar mensaje de promociones</button>
                 <button class="btn-3d btn-submit" style="background:var(--primary); color:white;" onclick="guardarEdicionDirectorio()">Guardar Cambios</button>
@@ -500,10 +506,13 @@
             </div>
             
             <div class="chip-container">
-                <div class="chip" onclick="enviarMensajeChat('¿Cuales son mis citas de hoy?')">Pacientes de hoy</div>
-                <div class="chip" onclick="enviarMensajeChat('Confirmar pacientes de pasado mañana')">Confirmar pasado mañana</div>
-                <div class="chip" onclick="enviarMensajeChat('Pacientes con mas de 2 meses sin cita')">Sin cita +2 meses</div>
-                <div class="chip" onclick="enviarMensajeChat('Muestrame pacientes potenciales')">Px Potenciales</div>
+                <div class="chip" onclick="enviarMensajeChat('¿Cuales son mis citas de hoy?')">☀️ Hoy</div>
+                <div class="chip" onclick="enviarMensajeChat('resumen de mi dia')">📊 Resumen</div>
+                <div class="chip" onclick="enviarMensajeChat('Confirmar pacientes de pasado mañana')">✓ Confirmar</div>
+                <div class="chip" onclick="enviarMensajeChat('espacios libres de hoy')">🕐 Espacios libres</div>
+                <div class="chip" onclick="enviarMensajeChat('Pacientes con mas de 2 meses sin cita')">⏰ Sin cita +2 meses</div>
+                <div class="chip" onclick="enviarMensajeChat('Muestrame pacientes potenciales')">🎯 Potenciales</div>
+                <div class="chip" onclick="enviarMensajeChat('cumpleaños de hoy')">🎂 Cumpleaños</div>
             </div>
 
             <div style="display:flex; gap:10px;">
@@ -546,30 +555,57 @@
             <div id="coloresTratList"></div>
             <button class="btn-3d" style="width:100%; margin-bottom:6px; font-size:0.85rem;" onclick="agregarColorTrat()">+ Agregar tratamiento</button>
 
-            <label style="display: block; font-size: 0.85rem; font-weight: bold; margin: 1.5rem 0 0.5rem 0; color: var(--primary);">🎁 Promos de cumpleaños</label>
-            <div class="form-group"><textarea id="confPromoTexto" class="inset-3d" rows="4" placeholder="Ej. ¡Feliz cumpleaños de parte de todo el equipo DENTILIKE! Como regalo, tienes 20% de descuento en tu próxima limpieza durante este mes."></textarea></div>
-
-            <button class="btn-3d btn-submit" onclick="guardarConfig()">Guardar Ajustes</button>
-            <button class="btn-3d btn-submit" style="margin-top:10px; color:#d97706;" onclick="closeModal('configModalOverlay'); abrirBloqueos();">🚫 Bloquear horarios (vacaciones, comida...)</button>
-            <div style="display:flex; align-items:center; justify-content:space-between; margin-top:14px; padding:12px 14px; background:var(--bg-color); border-radius:12px; box-shadow:inset 3px 3px 6px var(--shadow-dark), inset -3px -3px 6px var(--shadow-light);">
-                <div style="text-align:left;">
-                    <div style="font-weight:bold; color:var(--primary); font-size:0.9rem;">🔔 Avisos de citas</div>
-                    <div id="pushEstadoTxt" style="font-size:0.72rem; color:var(--text-muted);">Recibe avisos cuando un paciente pida cita</div>
-                </div>
-                <label style="position:relative; display:inline-block; width:52px; height:29px; flex-shrink:0;">
-                    <input type="checkbox" id="pushSwitch" onchange="togglePushDoctor()" style="position:absolute; inset:0; width:100%; height:100%; margin:0; opacity:0; cursor:pointer; z-index:2;">
-                    <span id="pushSlider" style="position:absolute; inset:0; background:var(--status-gray); border-radius:999px; transition:.2s; z-index:1;"></span>
-                    <span id="pushKnob" style="position:absolute; top:3px; left:3px; width:23px; height:23px; background:white; border-radius:50%; transition:.2s; z-index:3; box-shadow:1px 1px 3px rgba(0,0,0,0.3);"></span>
-                </label>
+            <label style="display: block; font-size: 0.85rem; font-weight: bold; margin: 1.5rem 0 0.5rem 0; color: var(--primary);">🎁 Promociones</label>
+            <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:8px;">Crea mensajes de promoción. Al ver el expediente de un paciente, podrás elegir cuál enviarle por WhatsApp.</div>
+            <div id="promosList"></div>
+            <div style="display:grid; gap:6px; margin-top:6px;">
+                <input type="text" id="nuevaPromoNombre" class="inset-3d" placeholder="Nombre (ej. Cumpleaños, Blanqueamiento 2x1)" style="font-size:0.85rem;">
+                <textarea id="nuevaPromoTexto" class="inset-3d" rows="3" placeholder="Mensaje de la promo..." style="font-size:0.85rem;"></textarea>
+                <button class="btn-3d" style="width:100%; font-size:0.85rem;" onclick="agregarPromo()">+ Agregar promoción</button>
             </div>
-            <button class="btn-3d btn-submit" id="btnProbarPush" style="margin-top:8px; display:none; color:var(--accent);" onclick="probarNotificacion()">🧪 Probar notificación</button>
-            <button class="btn-3d btn-submit" style="color:var(--accent); margin-top:10px;" onclick="instalarDentiAgenda()">📲 Instalar DentiAgenda en este dispositivo</button>
-            <button class="btn-3d btn-submit" style="margin-top:10px;" onclick="sincronizarConfirmaciones(false)">🔄 Revisar confirmaciones de pacientes ahora</button>
-            <button class="btn-3d btn-submit" style="margin-top:10px; color:var(--primary);" onclick="abrirDashboard()">📊 Ver Dashboard</button>
-            <button class="btn-3d btn-submit" style="margin-top:10px; color:var(--primary);" onclick="exportarDiaPDF()">📄 Exportar el día de hoy a PDF</button>
-            <button class="btn-3d btn-submit" style="margin-top:10px; color:var(--primary);" onclick="exportarMesPDF()">📄 Exportar mes visible a PDF</button>
-            <button class="btn-3d btn-submit" style="margin-top:10px; color:var(--accent);" onclick="exportarDiaCalendar()">📅 Citas de hoy a Google Calendar</button>
-            <button class="btn-3d btn-submit" style="margin-top:10px; color:var(--accent);" onclick="exportarMesCalendar()">📅 Mes visible a Google Calendar</button>
+
+            <label style="display: block; font-size: 0.85rem; font-weight: bold; margin: 1.5rem 0 0.5rem 0; color: var(--primary);">✏️ Editor de mensajes</label>
+            <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:8px;">Personaliza los mensajes automáticos. Usa {nombre} donde quieras que aparezca el nombre del paciente, {fecha} para la fecha y {hora} para la hora.</div>
+            <div class="form-group"><label style="font-size:0.78rem;">Mensaje de confirmación de cita</label><textarea id="confMsgConfirmacion" class="inset-3d" rows="4" style="font-size:0.82rem;"></textarea></div>
+            <div class="form-group"><label style="font-size:0.78rem;">Mensaje de cita registrada (nueva)</label><textarea id="confMsgRegistrada" class="inset-3d" rows="4" style="font-size:0.82rem;"></textarea></div>
+
+            <button class="btn-3d btn-submit" style="background:var(--primary); color:white;" onclick="guardarConfig()">💾 Guardar Ajustes</button>
+
+            <div style="border-top:2px solid var(--shadow-dark); margin:20px 0 4px; padding-top:14px;">
+                <div style="font-size:0.8rem; font-weight:bold; color:var(--accent); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:10px;">🔔 Notificaciones</div>
+                <div style="display:flex; align-items:center; justify-content:space-between; padding:12px 14px; background:var(--bg-color); border-radius:12px; box-shadow:inset 3px 3px 6px var(--shadow-dark), inset -3px -3px 6px var(--shadow-light);">
+                    <div style="text-align:left;">
+                        <div style="font-weight:bold; color:var(--primary); font-size:0.9rem;">Avisos de citas</div>
+                        <div id="pushEstadoTxt" style="font-size:0.72rem; color:var(--text-muted);">Recibe avisos cuando un paciente pida cita</div>
+                    </div>
+                    <label style="position:relative; display:inline-block; width:52px; height:29px; flex-shrink:0;">
+                        <input type="checkbox" id="pushSwitch" onchange="togglePushDoctor()" style="position:absolute; inset:0; width:100%; height:100%; margin:0; opacity:0; cursor:pointer; z-index:2;">
+                        <span id="pushSlider" style="position:absolute; inset:0; background:var(--status-gray); border-radius:999px; transition:.2s; z-index:1;"></span>
+                        <span id="pushKnob" style="position:absolute; top:3px; left:3px; width:23px; height:23px; background:white; border-radius:50%; transition:.2s; z-index:3; box-shadow:1px 1px 3px rgba(0,0,0,0.3);"></span>
+                    </label>
+                </div>
+                <button class="btn-3d btn-submit" id="btnProbarPush" style="margin-top:8px; display:none; color:var(--accent);" onclick="probarNotificacion()">🧪 Probar notificación</button>
+            </div>
+
+            <div style="margin:16px 0 4px;">
+                <div style="font-size:0.8rem; font-weight:bold; color:var(--accent); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:10px;">📅 Agenda</div>
+                <button class="btn-3d btn-submit" style="color:#d97706;" onclick="closeModal('configModalOverlay'); abrirBloqueos();">🚫 Bloquear horarios (vacaciones, comida...)</button>
+                <button class="btn-3d btn-submit" style="margin-top:8px;" onclick="sincronizarConfirmaciones(false)">🔄 Revisar confirmaciones ahora</button>
+                <button class="btn-3d btn-submit" style="margin-top:8px; color:var(--primary);" onclick="abrirDashboard()">📊 Ver Dashboard</button>
+            </div>
+
+            <div style="margin:16px 0 4px;">
+                <div style="font-size:0.8rem; font-weight:bold; color:var(--accent); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:10px;">📄 Exportar</div>
+                <button class="btn-3d btn-submit" style="color:var(--primary);" onclick="exportarDiaPDF()">📄 Día de hoy a PDF</button>
+                <button class="btn-3d btn-submit" style="margin-top:8px; color:var(--primary);" onclick="exportarMesPDF()">📄 Mes visible a PDF</button>
+                <button class="btn-3d btn-submit" style="margin-top:8px; color:var(--accent);" onclick="exportarDiaCalendar()">📅 Hoy a Google Calendar</button>
+                <button class="btn-3d btn-submit" style="margin-top:8px; color:var(--accent);" onclick="exportarMesCalendar()">📅 Mes a Google Calendar</button>
+            </div>
+
+            <div style="margin:16px 0 4px;">
+                <div style="font-size:0.8rem; font-weight:bold; color:var(--accent); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:10px;">📲 App</div>
+                <button class="btn-3d btn-submit" style="color:var(--accent);" onclick="instalarDentiAgenda()">📲 Instalar en este dispositivo</button>
+            </div>
         </div>
     </div>
 
@@ -874,7 +910,8 @@
         let motivos = JSON.parse(localStorage.getItem('denti_motivos_v16')) || [];
         let config = JSON.parse(localStorage.getItem('denti_config_v16')) || { 
             clinica: 'DENTILIKE', doctor: 'Dr. Miguel Alvarado', especialidad: 'Ortodoncia y Ortopedia Maxilar', 
-            mInicio: '08:00', mFin: '14:00', vInicio: '15:00', vFin: '21:00', mostrarFotos: true, promoTexto: '' 
+            mInicio: '08:00', mFin: '14:00', vInicio: '15:00', vFin: '21:00', mostrarFotos: true, promoTexto: '',
+            promos: [], msgConfirmacion: '', msgRegistrada: ''
         };
         let pacientes = JSON.parse(localStorage.getItem('denti_pacientes_v16')) || {};
         let bloqueos = JSON.parse(localStorage.getItem('denti_bloqueos_v16')) || []; // [{tipo:'dia'|'horas', fecha:'ISO', desde:'HH:MM', hasta:'HH:MM'}]
@@ -1383,8 +1420,44 @@
             document.getElementById('confVInicio').value = config.vInicio;
             document.getElementById('confVFin').value = config.vFin;
             document.getElementById('confMostrarFotos').checked = config.mostrarFotos;
-            document.getElementById('confPromoTexto').value = config.promoTexto || '';
+            document.getElementById('confMsgConfirmacion').value = config.msgConfirmacion || 'Hola {nombre}, te contactamos de DENTILIKE para confirmar tu cita programada.\n\nFecha: {fecha}\nHora: {hora}\n\nPor favor confírmanos de recibido.';
+            document.getElementById('confMsgRegistrada').value = config.msgRegistrada || 'Hola {nombre}, tu cita ha sido registrada con éxito en DENTILIKE.\n\nFecha: {fecha}\nHora: {hora}\n\nTe esperamos.';
+            renderPromos();
             renderColoresConfig();
+        }
+        // ===== Promociones =====
+        function renderPromos(){
+            const cont = document.getElementById('promosList');
+            if(!cont) return;
+            const promos = config.promos || [];
+            if(!promos.length){ cont.innerHTML = '<p style="font-size:0.78rem; color:var(--text-muted); text-align:center; margin:4px 0;">Sin promociones aún.</p>'; return; }
+            cont.innerHTML = promos.map((p,i)=>`
+                <div style="background:var(--bg-color); border-radius:9px; padding:8px 10px; margin-bottom:6px; box-shadow:2px 2px 4px var(--shadow-dark), -2px -2px 4px var(--shadow-light);">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <strong style="font-size:0.82rem; color:var(--primary);">${p.nombre}</strong>
+                        <span style="color:#e53e3e; cursor:pointer; font-weight:bold;" onclick="eliminarPromo(${i})">✕</span>
+                    </div>
+                    <div style="font-size:0.72rem; color:var(--text-muted); margin-top:2px;">${p.texto.slice(0,60)}${p.texto.length>60?'…':''}</div>
+                </div>`).join('');
+        }
+        function agregarPromo(){
+            const nombre = document.getElementById('nuevaPromoNombre').value.trim();
+            const texto = document.getElementById('nuevaPromoTexto').value.trim();
+            if(!nombre || !texto){ alert('Escribe el nombre y el texto de la promoción.'); return; }
+            if(!config.promos) config.promos = [];
+            config.promos.push({ nombre, texto });
+            localStorage.setItem('denti_config_v16', JSON.stringify(config));
+            guardarAgendaEnNube();
+            document.getElementById('nuevaPromoNombre').value = '';
+            document.getElementById('nuevaPromoTexto').value = '';
+            renderPromos();
+        }
+        function eliminarPromo(i){
+            if(!confirm('¿Eliminar esta promoción?')) return;
+            config.promos.splice(i,1);
+            localStorage.setItem('denti_config_v16', JSON.stringify(config));
+            guardarAgendaEnNube();
+            renderPromos();
         }
         function guardarConfig() {
             config.clinica = document.getElementById('confClinica').value;
@@ -1395,7 +1468,8 @@
             config.vInicio = document.getElementById('confVInicio').value || '15:00';
             config.vFin = document.getElementById('confVFin').value || '21:00';
             config.mostrarFotos = document.getElementById('confMostrarFotos').checked;
-            config.promoTexto = document.getElementById('confPromoTexto').value;
+            config.msgConfirmacion = document.getElementById('confMsgConfirmacion').value;
+            config.msgRegistrada = document.getElementById('confMsgRegistrada').value;
             config.coloresTrat = coloresTmp.filter(x => x.nombre && x.nombre.trim()).map(x => ({ nombre: x.nombre.trim(), color: x.color }));
             localStorage.setItem('denti_config_v16', JSON.stringify(config));
             guardarAgendaEnNube();
@@ -1813,6 +1887,7 @@
             document.getElementById('editDirNombre').value = nombre; 
             document.getElementById('editDirApodo').value = pac.apodo || '';
             document.getElementById('editDirTel').value = pac.telefono; 
+            document.getElementById('editDirNacimiento').value = pac.nacimiento || '';
             document.getElementById('editDirFotoBase64').value = pac.foto || '';
             document.getElementById('editDirCodigo').innerText = codigo;
             const preview = document.getElementById('editDirFotoPreview');
@@ -1822,6 +1897,34 @@
             renderPlanTratamiento(nombre);
             renderOrtodoncia(nombre);
             renderEstudios(nombre);
+            renderHistorialCitas(nombre);
+        }
+        function renderHistorialCitas(nombre){
+            const cont = document.getElementById('historialCitas');
+            if(!cont) return;
+            const hoyStr = fechaAISO(new Date());
+            // todas las citas del paciente, pasadas primero (más reciente arriba)
+            const suyas = citas.filter(c => c.paciente === nombre).sort((a,b)=> b.fecha.localeCompare(a.fecha) || b.horaInicio.localeCompare(a.horaInicio));
+            if(!suyas.length){ cont.innerHTML = '<p style="font-size:0.8rem; color:var(--text-muted); text-align:center; margin:6px 0;">Sin citas registradas aún.</p>'; return; }
+            // arco actual del paciente (si tiene ortodoncia) para el registro
+            const pac = pacientes[nombre] || {};
+            let arcoTxt = '';
+            if(pac.ortodoncia){
+                const arco = arcoActualOrto(pac.ortoTipoCaso||'sin_extracciones', pac.ortoArcos||{});
+                arcoTxt = arco;
+            }
+            cont.innerHTML = suyas.slice(0,15).map(c=>{
+                const pasada = c.fecha < hoyStr;
+                const estadoColor = c.estado==='status-green'?'#48bb78':(c.estado==='status-red'?'#e53e3e':'#d69e2e');
+                const estadoTxt = c.estado==='status-green'?'✓ Asistió/Confirmada':(c.estado==='status-red'?'✕ Cancelada':'• Pendiente');
+                return `<div style="padding:8px 10px; background:var(--bg-color); border-radius:9px; margin-bottom:6px; box-shadow:2px 2px 4px var(--shadow-dark), -2px -2px 4px var(--shadow-light); ${pasada?'opacity:0.75;':''}">
+                    <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.82rem;">
+                        <strong style="color:var(--primary);">${formatearFechaLegible(c.fecha)}</strong>
+                        <span style="color:${estadoColor}; font-size:0.72rem; font-weight:bold;">${estadoTxt}</span>
+                    </div>
+                    <div style="font-size:0.78rem; color:var(--text-muted); margin-top:2px;">${formatearHoraAmPm(c.horaInicio)} · ${c.motivo}${arcoTxt && pasada ? ' · 🦷 '+arcoTxt : ''}</div>
+                </div>`;
+            }).join('');
         }
         function marcarComoCautivoDesdeFicha(){
             const nombre = document.getElementById('editDirNombre').value;
@@ -1854,42 +1957,46 @@
                 { id:'acero_016_asent', name:'Acero .016 (Asentamiento)', pct:100 }
             ],
             con_extracciones: [
-                { id:'niti_012', name:'NiTi .012', pct:3 },
-                { id:'niti_014', name:'NiTi .014', pct:6 },
-                { id:'niti_016', name:'NiTi .016', pct:9 },
-                { id:'niti_018', name:'NiTi .018', pct:13 },
-                { id:'niti_16x22', name:'NiTi 16x22', pct:17 },
-                { id:'niti_17x25', name:'NiTi 17x25', pct:21 },
-                { id:'niti_19x25', name:'NiTi 19x25', pct:25 },
-                { id:'acero_16x22_trabajo', name:'Acero 16x22 (Preparación)', pct:29 },
-                { id:'acero_17x25_cierre', name:'Acero 17x25 (Arco de cierre)', pct:33 },
-                { id:'cadena_act1', name:'Activación Cadena #1', pct:37 },
-                { id:'cadena_act2', name:'Activación Cadena #2', pct:41 },
-                { id:'cadena_act3', name:'Activación Cadena #3', pct:45 },
-                { id:'cadena_act4', name:'Activación Cadena #4', pct:49 },
-                { id:'cadena_act5', name:'Activación Cadena #5', pct:53 },
-                { id:'cadena_act6', name:'Activación Cadena #6', pct:57 },
-                { id:'cadena_act7', name:'Activación Cadena #7', pct:61 },
-                { id:'cadena_act8', name:'Activación Cadena #8', pct:65 },
-                { id:'cadena_act9', name:'Activación Cadena #9', pct:69 },
-                { id:'cadena_act10', name:'Activación Cadena #10 (Cierre total)', pct:73 },
-                { id:'acero_19x25_consol', name:'Acero 19x25 (Consolidación)', pct:78 },
-                { id:'acero_16x22_asent', name:'Acero 16x22 (Asentamiento)', pct:86 },
-                { id:'acero_018_asent', name:'Acero .018 (Asentamiento)', pct:93 },
+                { id:'niti_012', name:'NiTi .012', pct:4 },
+                { id:'niti_014', name:'NiTi .014', pct:8 },
+                { id:'niti_016', name:'NiTi .016', pct:12 },
+                { id:'niti_018', name:'NiTi .018', pct:16 },
+                { id:'niti_16x22', name:'NiTi 16x22', pct:22 },
+                { id:'niti_17x25', name:'NiTi 17x25', pct:28 },
+                { id:'niti_19x25', name:'NiTi 19x25', pct:34 },
+                { id:'acero_16x22_trabajo', name:'Acero 16x22 (Preparación)', pct:42 },
+                { id:'acero_17x25_cierre', name:'Acero 17x25 (Arco de cierre)', pct:50 },
+                { id:'cadena_act1', name:'Activación Cadena #1', pct:54 },
+                { id:'cadena_act2', name:'Activación Cadena #2', pct:58 },
+                { id:'cadena_act3', name:'Activación Cadena #3', pct:62 },
+                { id:'cadena_act4', name:'Activación Cadena #4', pct:66 },
+                { id:'cadena_act5', name:'Activación Cadena #5', pct:70 },
+                { id:'cadena_act6', name:'Activación Cadena #6', pct:73 },
+                { id:'cadena_act7', name:'Activación Cadena #7', pct:76 },
+                { id:'cadena_act8', name:'Activación Cadena #8', pct:79 },
+                { id:'cadena_act9', name:'Activación Cadena #9', pct:82 },
+                { id:'cadena_act10', name:'Activación Cadena #10 (Cierre total)', pct:85 },
+                { id:'acero_19x25_consol', name:'Acero 19x25 (Consolidación)', pct:90 },
+                { id:'acero_16x22_asent', name:'Acero 16x22 (Asentamiento)', pct:94 },
+                { id:'acero_018_asent', name:'Acero .018 (Asentamiento)', pct:97 },
                 { id:'acero_016_asent', name:'Acero .016 (Asentamiento)', pct:100 }
             ]
         };
         function calcularProgresoOrto(tipoCaso, arcos){
             const sec = ORTO_SECUENCIAS[tipoCaso] || ORTO_SECUENCIAS.sin_extracciones;
-            let exacto = 0, prev = 0;
+            // porcentaje de cada arcada = el del arco más avanzado marcado en esa arcada
+            let pctSup = 0, pctInf = 0;
             for(const paso of sec){
-                const delta = paso.pct - prev;
                 const a = arcos[paso.id] || {};
-                if(a.sup) exacto += delta/2;
-                if(a.inf) exacto += delta/2;
-                prev = paso.pct;
+                if(a.sup && paso.pct > pctSup) pctSup = paso.pct;
+                if(a.inf && paso.pct > pctInf) pctInf = paso.pct;
             }
-            const porcentaje = Math.round(exacto);
+            // el progreso refleja la arcada MÁS AVANZADA (la que va adelante manda),
+            // con un pequeño ajuste si la otra va muy atrás (para no exagerar)
+            const mayor = Math.max(pctSup, pctInf);
+            const menor = Math.min(pctSup, pctInf);
+            // 85% de la más avanzada + 15% de la otra: la de adelante domina, pero refleja algo de desnivel
+            const porcentaje = Math.round(mayor * 0.85 + menor * 0.15);
             const l1 = tipoCaso==='sin_extracciones'?20:13;
             const l2 = tipoCaso==='sin_extracciones'?75:78;
             let fase;
@@ -2146,9 +2253,10 @@
             if(subidaFotoPromise) { await subidaFotoPromise; }
             const nombre = document.getElementById('editDirNombre').value, tel = document.getElementById('editDirTel').value, foto = document.getElementById('editDirFotoBase64').value;
             const apodo = document.getElementById('editDirApodo').value.trim();
+            const nacimiento = document.getElementById('editDirNacimiento').value;
             const prev = pacientes[nombre] || {};
-            // conservar TODO lo previo, solo actualizar tel, foto y apodo
-            pacientes[nombre] = Object.assign({}, prev, { telefono: tel, foto: foto, apodo: apodo, codigo: prev.codigo || generarCodigo() });
+            // conservar TODO lo previo, solo actualizar tel, foto, apodo, nacimiento
+            pacientes[nombre] = Object.assign({}, prev, { telefono: tel, foto: foto, apodo: apodo, nacimiento: nacimiento, codigo: prev.codigo || generarCodigo() });
             citas.forEach(c => { if(c.paciente === nombre) c.telefono = tel; });
             localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes));
             localStorage.setItem('denti_citas_v16', JSON.stringify(citas));
@@ -2163,13 +2271,60 @@
             const msg = `Hola ${nombrePreferido(nombre)}, este es tu acceso a *Mi Sonrisa* (tus citas):\n\n📱 Teléfono: ${limpiarTel(tel)}\n🔑 Código: ${codigo}\n\nEntra a misonrisa.dentilike.com.mx, ve a "Mis citas" y escribe estos datos para ver y confirmar tus próximas citas.`;
             abrirWa(tel, msg);
         }
+        // Arma el mensaje de cita usando la plantilla personalizada (o la default)
+        function armarMensajeCita(tipo, paciente, fecha, hora, motivo){
+            const defaults = {
+                confirmacion: 'Hola {nombre}, te contactamos de DENTILIKE para confirmar tu cita programada.\n\nFecha: {fecha}\nHora: {hora}\n\nPor favor confírmanos de recibido.',
+                registrada: 'Hola {nombre}, tu cita ha sido registrada con éxito en DENTILIKE.\n\nFecha: {fecha}\nHora: {hora}\n\nTe esperamos.'
+            };
+            let plantilla = (tipo==='confirmacion' ? config.msgConfirmacion : config.msgRegistrada) || defaults[tipo];
+            return plantilla
+                .replace(/{nombre}/g, nombrePreferido(paciente))
+                .replace(/{fecha}/g, formatearFechaLegible(fecha))
+                .replace(/{hora}/g, formatearHoraAmPm(hora))
+                .replace(/{motivo}/g, motivo || '');
+        }
+
         function enviarMensajePromocion(){
             const nombre = document.getElementById('editDirNombre').value;
             const tel = document.getElementById('editDirTel').value;
-            const texto = (config.promoTexto || '').trim();
-            if(!texto){ alert('Primero escribe el texto de promociones en Ajustes → Promos de cumpleaños.'); return; }
-            const msg = `Hola ${nombrePreferido(nombre)},\n\n${texto}`;
-            abrirWa(tel, msg);
+            const promos = config.promos || [];
+            if(!promos.length){ alert('Primero crea promociones en Ajustes → Promociones.'); return; }
+            // mostrar selector de promo
+            let html = `<div style="padding:4px 0;"><div style="font-weight:bold; color:var(--primary); margin-bottom:8px;">Elige la promoción para ${nombrePreferido(nombre)}:</div>`;
+            html += promos.map((p,i)=>`<button class="btn-3d btn-submit" style="text-align:left; margin-bottom:6px;" onclick="mandarPromoElegida(${i})">🎁 ${p.nombre}</button>`).join('');
+            html += `<button class="btn-3d btn-submit" style="margin-top:6px;" onclick="closeModal('promoSelectorModal')">Cancelar</button></div>`;
+            // guardar datos para el envío
+            promoDestino = { nombre, tel };
+            let modal = document.getElementById('promoSelectorModal');
+            if(!modal){
+                modal = document.createElement('div');
+                modal.id = 'promoSelectorModal';
+                modal.className = 'modal-overlay';
+                modal.innerHTML = `<div class="modal" style="max-width:340px;"><div class="modal-header"><h2 style="margin:0; color:var(--primary); font-size:1.1rem;">🎁 Promociones</h2><button class="close-btn" onclick="closeModal('promoSelectorModal')">X</button></div><div id="promoSelectorBody"></div></div>`;
+                document.body.appendChild(modal);
+            }
+            document.getElementById('promoSelectorBody').innerHTML = html;
+            modal.style.display = 'flex';
+        }
+        let promoDestino = null;
+        function mandarPromoElegida(i){
+            const p = (config.promos || [])[i];
+            if(!p || !promoDestino) return;
+            const msg = `Hola ${nombrePreferido(promoDestino.nombre)},\n\n${p.texto}`;
+            abrirWa(promoDestino.tel, msg);
+            closeModal('promoSelectorModal');
+        }
+        function enviarPromocionCumple(nombre){
+            const pac = pacientes[nombre];
+            if(!pac){ return; }
+            // buscar una promo llamada "Cumpleaños"; si no hay, usar la primera
+            const promos = config.promos || [];
+            let promo = promos.find(p => p.nombre.toLowerCase().includes('cumple'));
+            if(!promo) promo = promos[0];
+            if(!promo){ alert('Primero crea una promoción (idealmente una llamada "Cumpleaños") en Ajustes → Promociones.'); return; }
+            const msg = `Hola ${nombrePreferido(nombre)},\n\n${promo.texto}`;
+            abrirWa(pac.telefono || '', msg);
         }
         function cerrarEditorDirectorio() { editandoAhora = false; dirNombreActual = null; document.getElementById('editorContacto').style.display = 'none'; document.getElementById('listaContactos').style.display = 'block'; var b=document.getElementById('btnNuevoPaciente'); if(b) b.style.display='block'; }
 
@@ -2275,7 +2430,7 @@
         function confirmarCitaDesdeChat(id) {
             const cita = citas.find(c => c.id === id);
             if(!cita) return;
-            const msg = `Hola ${nombrePreferido(cita.paciente)},\n\nTe contactamos de DENTILIKE para confirmar tu cita programada.\n\nEspecialista: ${config.doctor}\nTratamiento: ${cita.motivo}\nFecha: ${formatearFechaLegible(cita.fecha)}\nHora: ${formatearHoraAmPm(cita.horaInicio)}\n\nPor favor confirmanos de recibido.`;
+            const msg = armarMensajeCita('confirmacion', cita.paciente, cita.fecha, cita.horaInicio, cita.motivo);
             abrirWa(cita.telefono, msg);
         }
         function abrirChatBot() {
@@ -2346,6 +2501,41 @@
                 }
                 return "Revise esta semana y las 15:00 hrs parece estar ocupado todos los dias laborales.";
             }
+            if(texto.includes('resumen')){
+                const citasHoy = citas.filter(c => c.fecha === hoyStr);
+                const conf = citasHoy.filter(c => c.estado==='status-green').length;
+                const pend = citasHoy.filter(c => c.estado!=='status-green' && c.estado!=='status-red').length;
+                const libres = calcularEspaciosLibres(hoyStr, citasHoy.sort((a,b)=>a.horaInicio.localeCompare(b.horaInicio)));
+                let res = `📊 <strong>Resumen de hoy</strong><br><br>`;
+                res += `• ${citasHoy.length} cita(s) en total<br>`;
+                res += `• ${conf} confirmada(s), ${pend} por confirmar<br>`;
+                res += `• ${libres.length} espacio(s) libre(s)<br>`;
+                const rezagados = pacientesSinCitaReciente(60);
+                if(rezagados.length) res += `• ⏰ ${rezagados.length} paciente(s) sin cita hace +2 meses<br>`;
+                return res;
+            }
+            if(texto.includes('espacios libres') || texto.includes('libres de hoy')){
+                const citasHoy = citas.filter(c => c.fecha === hoyStr).sort((a,b)=>a.horaInicio.localeCompare(b.horaInicio));
+                const libres = calcularEspaciosLibres(hoyStr, citasHoy);
+                if(!libres.length) return "Hoy no tienes espacios libres. Agenda llena. 💪";
+                let res = `🕐 Espacios libres de HOY:<br><br><div class="chip-container">`;
+                libres.forEach(h => { res += `<div class="chip" onclick="closeModal('chatBotModal'); agendarEnHueco('${hoyStr}','${h}')">${formatearHoraAmPm(h)}</div>`; });
+                res += `</div><br>Toca una hora para agendar ahí.`;
+                return res;
+            }
+            if(texto.includes('cumple')){
+                // busca pacientes con fecha de nacimiento hoy (si la tienen guardada)
+                const hoyMD = `${String(hoy.getMonth()+1).padStart(2,'0')}-${String(hoy.getDate()).padStart(2,'0')}`;
+                const cumpleaneros = Object.keys(pacientes).filter(n=>{
+                    const f = pacientes[n].nacimiento;
+                    return f && f.slice(5) === hoyMD;
+                });
+                if(!cumpleaneros.length) return "Hoy no cumple años ningún paciente registrado. (Recuerda que necesito su fecha de nacimiento en el expediente para avisarte.)";
+                let res = `🎂 ¡Hoy cumplen años!<br><br><div class="chip-container">`;
+                cumpleaneros.forEach(n=>{ res += `<div class="chip" onclick="enviarPromocionCumple('${n.replace(/'/g,"\\'")}')">🎁 Felicitar a ${n}</div>`; });
+                res += `</div><br>Toca para enviarles tu mensaje de promoción por WhatsApp.`;
+                return res;
+            }
             const palabras = texto.split(' ');
             const ignorar = ['que', 'dia', 'tiene', 'cita', 'cuando', 'viene', 'el', 'la', 'los', 'las', 'de', 'a', 'mis', 'buscame', 'busca'];
             const posiblesNombres = palabras.filter(p => p.length > 2 && !ignorar.includes(p));
@@ -2389,13 +2579,13 @@
             closeModal('opcionesCitaModal'); toggleFormulario(true);
         }
         function enviarWhatsAppNueva(pac, tel, hIni, hFin, mot, fecha) {
-            const msg = `Hola ${nombrePreferido(pac)},\n\nTu cita ha sido registrada con exito en DENTILIKE.\n\nEspecialista: ${config.doctor}\nTratamiento: ${mot}\nFecha: ${formatearFechaLegible(fecha)}\nHora: ${formatearHoraAmPm(hIni)}\n\nTe esperamos.`;
+            const msg = armarMensajeCita('registrada', pac, fecha, hIni, mot);
             abrirWa(tel, msg);
         }
         function enviarWhatsAppConfirmacion() {
             const cita = citas.find(c => c.id === citaSeleccionadaId);
             if(cita) {
-                const msg = `Hola ${nombrePreferido(cita.paciente)},\n\nTe contactamos de DENTILIKE para confirmar tu cita programada.\n\nEspecialista: ${config.doctor}\nTratamiento: ${cita.motivo}\nFecha: ${formatearFechaLegible(cita.fecha)}\nHora: ${formatearHoraAmPm(cita.horaInicio)}\n\nPor favor confirmanos de recibido.`;
+                const msg = armarMensajeCita('confirmacion', cita.paciente, cita.fecha, cita.horaInicio, cita.motivo);
                 abrirWa(cita.telefono, msg);
             }
             closeModal('opcionesCitaModal');
