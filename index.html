@@ -1853,14 +1853,37 @@
             // abrir directamente su expediente para completar datos
             abrirEditorDirectorio(nombre);
         }
+        let ordenDirectorio = localStorage.getItem('denti_orden_dir') || 'nombre';
+        function cambiarOrdenDirectorio(){
+            const opciones = ['nombre','apellido','reciente'];
+            const idx = opciones.indexOf(ordenDirectorio);
+            ordenDirectorio = opciones[(idx+1) % opciones.length];
+            localStorage.setItem('denti_orden_dir', ordenDirectorio);
+            renderListaContactos();
+        }
+        function ultimaPalabra(nombre){
+            const p = nombre.trim().split(/\s+/);
+            return p.length > 1 ? p[p.length-1] : nombre;
+        }
         function renderListaContactos() {
             const list = document.getElementById('listaContactos');
             if(!list) return;
-            // filtrar entradas válidas (evita que un dato corrupto rompa toda la lista)
-            const nombres = Object.keys(pacientes || {}).filter(n => n && pacientes[n]).sort((a,b)=>a.localeCompare(b));
-            if(nombres.length === 0) { list.innerHTML = '<p style="text-align:center; padding:1rem; color:var(--text-muted);">No hay pacientes guardados aún.</p>'; return; }
+            let nombres = Object.keys(pacientes || {}).filter(n => n && pacientes[n]);
+            // ordenar según el modo elegido
+            if(ordenDirectorio === 'apellido'){
+                nombres.sort((a,b)=> ultimaPalabra(a).localeCompare(ultimaPalabra(b)));
+            } else if(ordenDirectorio === 'reciente'){
+                // más reciente primero: por 'creado' o por la última cita
+                nombres.sort((a,b)=> (pacientes[b].creado||0) - (pacientes[a].creado||0));
+            } else {
+                nombres.sort((a,b)=>a.localeCompare(b));
+            }
+            // etiqueta del orden actual
+            const ordenTxt = { nombre:'Nombre (A-Z)', apellido:'Apellido (A-Z)', reciente:'Más recientes' }[ordenDirectorio];
+            const btnOrden = `<button class="btn-3d" style="width:100%; margin-bottom:10px; font-size:0.82rem; color:var(--accent);" onclick="cambiarOrdenDirectorio()">🔀 Orden: ${ordenTxt} (toca para cambiar)</button>`;
+            if(nombres.length === 0) { list.innerHTML = btnOrden + '<p style="text-align:center; padding:1rem; color:var(--text-muted);">No hay pacientes guardados aún.</p>'; return; }
             try {
-                list.innerHTML = nombres.map(nombre => {
+                list.innerHTML = btnOrden + nombres.map(nombre => {
                     const pac = pacientes[nombre] || {};
                     const tel = pac.telefono || 'sin teléfono';
                     let fotoIcon = (config.mostrarFotos && pac.foto) ? `<img src="${pac.foto}" style="width:30px; height:30px; border-radius:50%; object-fit:cover;">` : '<div style="width:30px;height:30px;border-radius:50%;background:#ccc;"></div>';
@@ -2121,8 +2144,20 @@
                 <div style="display:flex; align-items:center; gap:10px; background:var(--bg-color); border-radius:10px; padding:8px 10px; margin-bottom:8px; box-shadow:3px 3px 6px var(--shadow-dark), -3px -3px 6px var(--shadow-light);">
                     <img src="${es.url}" style="width:44px; height:44px; border-radius:8px; object-fit:cover; cursor:pointer;" onclick="window.open('${es.url}','_blank')">
                     <span style="flex:1; font-size:0.85rem; color:var(--text-main);">${es.nombre}</span>
+                    <span style="color:var(--accent); cursor:pointer; font-weight:bold; padding:0 6px;" title="Descargar" onclick="descargarEstudio('${es.url}','${(es.nombre||'estudio').replace(/'/g,"\\'")}')">⬇️</span>
                     <span style="color:#e53e3e; cursor:pointer; font-weight:bold; padding:0 6px;" onclick="eliminarEstudio('${nombre.replace(/'/g,"\\'")}','${es.id}')">✕</span>
                 </div>`).join('');
+        }
+        async function descargarEstudio(url, nombre){
+            try{
+                const resp = await fetch(url);
+                const blob = await resp.blob();
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = (nombre || 'estudio').replace(/[^\w\s-]/g,'') + '.jpg';
+                document.body.appendChild(a); a.click(); document.body.removeChild(a);
+                setTimeout(()=>URL.revokeObjectURL(a.href), 2000);
+            }catch(e){ console.error('descargar', e); window.open(url,'_blank'); }
         }
         async function eliminarEstudio(nombre, idEstudio){
             if(!confirm('¿Eliminar este estudio?')) return;
