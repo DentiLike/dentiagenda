@@ -565,7 +565,7 @@
             </div>
 
             <label style="display: block; font-size: 0.85rem; font-weight: bold; margin: 1.5rem 0 0.5rem 0; color: var(--primary);">✏️ Editor de mensajes</label>
-            <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:8px;">Personaliza los mensajes automáticos. Usa {nombre} donde quieras que aparezca el nombre del paciente, {fecha} para la fecha y {hora} para la hora.</div>
+            <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:8px;">Personaliza los mensajes. Usa {nombre}, {fecha}, {hora} y {motivo} (el tratamiento) donde quieras que aparezcan.</div>
             <div class="form-group"><label style="font-size:0.78rem;">Mensaje de confirmación de cita</label><textarea id="confMsgConfirmacion" class="inset-3d" rows="4" style="font-size:0.82rem;"></textarea></div>
             <div class="form-group"><label style="font-size:0.78rem;">Mensaje de cita registrada (nueva)</label><textarea id="confMsgRegistrada" class="inset-3d" rows="4" style="font-size:0.82rem;"></textarea></div>
 
@@ -2310,15 +2310,24 @@
             abrirWa(tel, msg);
         }
         // Arma el mensaje de cita usando la plantilla personalizada (o la default)
+        // Fecha con día de semana para mensajes: "lun 19/oct/2026"
+        function fechaConDia(fechaISO){
+            if(!fechaISO) return '';
+            const [a,m,d] = fechaISO.split('-').map(Number);
+            const fecha = new Date(a, m-1, d);
+            const dias = ['dom','lun','mar','mié','jue','vie','sáb'];
+            const meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+            return `${dias[fecha.getDay()]} ${d}/${meses[m-1]}/${a}`;
+        }
         function armarMensajeCita(tipo, paciente, fecha, hora, motivo){
             const defaults = {
-                confirmacion: 'Hola {nombre}, te contactamos de DENTILIKE para confirmar tu cita programada.\n\nFecha: {fecha}\nHora: {hora}\n\nPor favor confírmanos de recibido.',
-                registrada: 'Hola {nombre}, tu cita ha sido registrada con éxito en DENTILIKE.\n\nFecha: {fecha}\nHora: {hora}\n\nTe esperamos.'
+                confirmacion: 'Hola {nombre}, te contactamos de DENTILIKE para confirmar tu cita programada.\n\nTratamiento: {motivo}\nFecha: {fecha}\nHora: {hora}\n\nPor favor confírmanos de recibido.',
+                registrada: 'Hola {nombre}, tu cita ha sido registrada con éxito en DENTILIKE.\n\nTratamiento: {motivo}\nFecha: {fecha}\nHora: {hora}\n\nTe esperamos.'
             };
             let plantilla = (tipo==='confirmacion' ? config.msgConfirmacion : config.msgRegistrada) || defaults[tipo];
             return plantilla
                 .replace(/{nombre}/g, nombrePreferido(paciente))
-                .replace(/{fecha}/g, formatearFechaLegible(fecha))
+                .replace(/{fecha}/g, fechaConDia(fecha))
                 .replace(/{hora}/g, formatearHoraAmPm(hora))
                 .replace(/{motivo}/g, motivo || '');
         }
