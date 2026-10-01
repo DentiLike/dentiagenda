@@ -1775,7 +1775,10 @@
             function horas(ini,fin){ const o=[]; if(!ini||!fin)return o; let[h,m]=ini.split(':').map(Number); const[hf,mf]=fin.split(':').map(Number); while(h<hf||(h===hf&&m<mf)){o.push(`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`); m+=30; if(m>=60){m-=60;h++;}} return o; }
             let todos = [...horas(config.mInicio,config.mFin), ...horas(config.vInicio,config.vFin)];
             // quitar los ocupados por citas
-            return todos.filter(h => !citasDelDia.some(c => h >= c.horaInicio && h < c.horaFin));
+            todos = todos.filter(h => !citasDelDia.some(c => h >= c.horaInicio && h < c.horaFin));
+            // quitar los bloqueados manualmente (vacaciones, comida, etc.)
+            todos = todos.filter(h => !horaBloqueada(dateStr, h));
+            return todos;
         }
         function agendarEnHueco(dateStr, hora){
             selectedDate = dateStr;
