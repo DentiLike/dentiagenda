@@ -314,6 +314,7 @@
                         <input type="tel" id="telefono" class="inset-3d" placeholder="Ej. 444 123 4567">
                     </div>
                 </div>
+                <div class="form-group"><label>📅 Día de la cita</label><input type="date" id="fechaCita" class="inset-3d"></div>
                 <div class="time-row">
                     <div class="form-group" style="flex: 1;"><label>Inicio</label><input type="time" id="horaInicio" class="inset-3d" onchange="calcularHoraFin()"></div>
                     <div class="form-group" style="flex: 1;"><label>Duracion</label>
@@ -1674,8 +1675,15 @@
             document.getElementById('btnAbrirFormulario').style.display = mostrar ? 'none' : 'block';
             if(!mostrar) {
                 editandoCitaId = null; document.getElementById('formTitle').innerText = 'Nueva Cita';
-                ['paciente','telefono','horaInicio','horaFin','motivo','notas'].forEach(id => document.getElementById(id).value = '');
-            } else if(potencialParaAgendar) {
+                ['paciente','telefono','horaInicio','horaFin','motivo','notas','fechaCita'].forEach(id => document.getElementById(id).value = '');
+            } else {
+                // al abrir para nueva cita, poner por defecto el día seleccionado
+                if(!editandoCitaId){
+                    const f = document.getElementById('fechaCita');
+                    if(f && !f.value) f.value = selectedDate || fechaAISO(new Date());
+                }
+            }
+            if(mostrar && potencialParaAgendar) {
                 document.getElementById('paciente').value = potencialParaAgendar.nombre;
                 document.getElementById('telefono').value = potencialParaAgendar.telefono;
                 document.getElementById('motivo').value = potencialParaAgendar.motivo || '';
@@ -1783,7 +1791,8 @@
         function agendarEnHueco(dateStr, hora){
             selectedDate = dateStr;
             toggleFormulario(true);
-            // poner la hora en el input
+            const inputFecha = document.getElementById('fechaCita');
+            if(inputFecha) inputFecha.value = dateStr;
             const inputHora = document.getElementById('horaInicio');
             if(inputHora){ inputHora.value = hora; calcularHoraFin(); }
         }
@@ -2622,6 +2631,7 @@
             editandoCitaId = cita.id;
             ['paciente','telefono','horaInicio','horaFin','motivo'].forEach(id => document.getElementById(id).value = cita[id]);
             document.getElementById('notas').value = cita.notas || '';
+            document.getElementById('fechaCita').value = cita.fecha;
             document.getElementById('formTitle').innerText = 'Editando Cita';
             closeModal('opcionesCitaModal'); toggleFormulario(true);
         }
@@ -2687,9 +2697,9 @@
         }
         function guardarCita() {
             const pac = document.getElementById('paciente').value, tel = document.getElementById('telefono').value, hIni = document.getElementById('horaInicio').value, hFin = document.getElementById('horaFin').value, mot = document.getElementById('motivo').value, notasAdicionales = document.getElementById('notas').value;
+            const fechaCita = document.getElementById('fechaCita').value || selectedDate;
             if(!pac || !tel || !hIni || !hFin || !mot) return alert('Por favor completa los campos principales.');
-            const citaPrevia = editandoCitaId ? citas.find(c => c.id === editandoCitaId) : null;
-            const fechaCita = citaPrevia ? citaPrevia.fecha : selectedDate;
+            if(!fechaCita) return alert('Elige el día de la cita.');
             const conflictos = citasSobrepuestas(fechaCita, hIni, hFin, editandoCitaId);
             if(conflictos.length > 0) {
                 const detalle = conflictos.map(c => `${c.paciente} (${formatearHoraAmPm(c.horaInicio)}-${formatearHoraAmPm(c.horaFin)})`).join(', ');
@@ -2699,10 +2709,10 @@
             if(editandoCitaId) {
                 fueEdicion = true;
                 const index = citas.findIndex(c => c.id === editandoCitaId);
-                if(index !== -1) { citas[index] = { ...citas[index], paciente: pac, telefono: tel, horaInicio: hIni, horaFin: hFin, motivo: mot, notas: notasAdicionales }; }
+                if(index !== -1) { citas[index] = { ...citas[index], fecha: fechaCita, paciente: pac, telefono: tel, horaInicio: hIni, horaFin: hFin, motivo: mot, notas: notasAdicionales }; }
                 editandoCitaId = null;
             } else {
-                citas.push({ id: Date.now(), fecha: selectedDate, paciente: pac, telefono: tel, horaInicio: hIni, horaFin: hFin, motivo: mot, notas: notasAdicionales, estado: 'status-gray' });
+                citas.push({ id: Date.now(), fecha: fechaCita, paciente: pac, telefono: tel, horaInicio: hIni, horaFin: hFin, motivo: mot, notas: notasAdicionales, estado: 'status-gray' });
             }
             localStorage.setItem('denti_citas_v16', JSON.stringify(citas));
             if(!pacientes[pac]) pacientes[pac] = { telefono: tel, foto: null, codigo: generarCodigo() }; 
@@ -2711,9 +2721,10 @@
             if(!motivos.includes(mot)) { motivos.push(mot); localStorage.setItem('denti_motivos_v16', JSON.stringify(motivos)); }
             guardarAgendaEnNube();      // sube citas+pacientes+motivos
             syncPacienteAFirebase(pac); // actualiza doc del paciente para Mi Sonrisa
-            updateDatalists(); openDay(selectedDate); loadCalendar();
+            selectedDate = fechaCita;   // mover la vista al día de la cita
+            updateDatalists(); openDay(fechaCita); loadCalendar();
             if(!fueEdicion) {
-                if(confirm('Cita guardada. ¿Enviar mensaje de registro por WhatsApp?')) enviarWhatsAppNueva(pac, tel, hIni, hFin, mot, selectedDate);
+                if(confirm('Cita guardada. ¿Enviar mensaje de registro por WhatsApp?')) enviarWhatsAppNueva(pac, tel, hIni, hFin, mot, fechaCita);
             } else { alert('Cita actualizada correctamente.'); }
         }
 
