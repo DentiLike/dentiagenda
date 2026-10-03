@@ -587,6 +587,24 @@
                     </label>
                 </div>
                 <button class="btn-3d btn-submit" id="btnProbarPush" style="margin-top:8px; display:none; color:var(--accent);" onclick="probarNotificacion()">🧪 Probar notificación</button>
+                <div style="margin-top:12px; padding:12px 14px; background:var(--bg-color); border-radius:12px; box-shadow:inset 3px 3px 6px var(--shadow-dark), inset -3px -3px 6px var(--shadow-light); text-align:left;">
+                    <div style="font-weight:bold; color:var(--primary); font-size:0.88rem; margin-bottom:8px;">¿Qué avisos quieres recibir?</div>
+                    <label style="display:flex; gap:8px; align-items:center; font-size:0.85rem; margin:6px 0;"><input type="checkbox" id="prefSolicitud"> Paciente pide una cita nueva</label>
+                    <label style="display:flex; gap:8px; align-items:center; font-size:0.85rem; margin:6px 0;"><input type="checkbox" id="prefReagendar"> Paciente quiere reagendar</label>
+                    <label style="display:flex; gap:8px; align-items:center; font-size:0.85rem; margin:6px 0;"><input type="checkbox" id="prefConfirmacion"> Paciente confirma su cita</label>
+                    <label style="display:flex; gap:8px; align-items:center; font-size:0.85rem; margin:6px 0;"><input type="checkbox" id="prefCancelacion"> Paciente cancela su cita</label>
+                    <label style="display:flex; gap:8px; align-items:center; font-size:0.85rem; margin:6px 0;"><input type="checkbox" id="prefConsumo"> Consumo de Firebase cerca del límite</label>
+                    <div style="display:flex; gap:8px; align-items:center; font-size:0.85rem; margin:10px 0 6px;">
+                        <label style="display:flex; gap:8px; align-items:center; flex:1;"><input type="checkbox" id="prefHoyActivo"> Resumen de HOY a las</label>
+                        <select id="prefHoyHora" class="inset-3d" style="width:auto; padding:6px;"></select>
+                    </div>
+                    <div style="display:flex; gap:8px; align-items:center; font-size:0.85rem; margin:6px 0;">
+                        <label style="display:flex; gap:8px; align-items:center; flex:1;"><input type="checkbox" id="prefMananaActivo"> Resumen de MAÑANA a las</label>
+                        <select id="prefMananaHora" class="inset-3d" style="width:auto; padding:6px;"></select>
+                    </div>
+                    <button class="btn-3d btn-submit" style="margin-top:8px;" onclick="guardarPrefsAvisos()">💾 Guardar mis avisos</button>
+                    <div id="prefsAvisosNota" style="font-size:0.74rem; color:var(--text-muted); margin-top:6px;"></div>
+                </div>
             </div>
 
             <div style="margin:16px 0 4px;">
@@ -607,6 +625,12 @@
             <div style="margin:16px 0 4px;">
                 <div style="font-size:0.8rem; font-weight:bold; color:var(--accent); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:10px;">📲 App</div>
                 <button class="btn-3d btn-submit" style="color:var(--accent);" onclick="instalarDentiAgenda()">📲 Instalar en este dispositivo</button>
+            </div>
+
+            <div style="margin:16px 0 4px;">
+                <div style="font-size:0.8rem; font-weight:bold; color:var(--accent); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:10px;">📊 Consumo de Firebase</div>
+                <div id="consumoBox" style="text-align:left; font-size:0.85rem; color:var(--text-main);"><p style="color:var(--text-muted);">Cargando…</p></div>
+                <button class="btn-3d btn-submit" style="margin-top:8px;" onclick="cargarConsumo()">🔄 Actualizar</button>
             </div>
         </div>
     </div>
@@ -953,6 +977,7 @@
                     if(!intervaloConfirmaciones) intervaloConfirmaciones = setInterval(()=>sincronizarConfirmaciones(true), 3*60*1000);
                     scActualizarBotonPushDoctor();
                     setTimeout(() => renovarTokenDoctor(false), 4000);
+                    setTimeout(backfillFechasCitas, 15000);
                 } else {
                     // No hay sesión: mostrar login
                     authListo = false;
@@ -1199,12 +1224,60 @@
 
         // ===== Solicitudes de cita (pacientes agendando desde Mi Sonrisa) =====
         let solicitudes = [];
+        // ===== Seguridad: todo lo que escribe la gente en las páginas públicas se limpia al llegar =====
+        function limpiarTexto(v, max){
+            return String(v == null ? '' : v)
+                .replace(/[<>`\\]/g, '')
+                .replace(/"/g, '”').replace(/'/g, '’')
+                .replace(/[\u0000-\u001f\u007f]/g, ' ')
+                .replace(/\s+/g, ' ').trim().slice(0, max);
+        }
+        function escHtml(v){
+            return String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+        }
+        function sanearSolicitud(s){
+            const reF = /^\d{4}-\d{2}-\d{2}$/, reH = /^\d{2}:\d{2}$/;
+            const fecha = String(s.fecha || ''), hi = String(s.horaInicio || ''), hf = String(s.horaFin || '');
+            if(!reF.test(fecha) || !reH.test(hi) || !reH.test(hf)) return null;   // solicitud mal formada: se ignora
+            return {
+                id: String(s.id),
+                nombre: limpiarTexto(s.nombre, 100) || 'Paciente',
+                telefono: String(s.telefono || '').replace(/\D/g, '').slice(0, 15),
+                codigoPaciente: String(s.codigoPaciente || '').replace(/[^A-Za-z0-9]/g, '').slice(0, 12),
+                fecha: fecha, horaInicio: hi, horaFin: hf,
+                motivo: limpiarTexto(s.motivo, 200),
+                estado: 'pendiente',
+                esNuevoPaciente: s.esNuevoPaciente === true,
+                tipo: s.tipo === 'reagendar' ? 'reagendar' : 'nueva',
+                citaId: String(s.citaId || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40),
+                fechaOriginal: reF.test(String(s.fechaOriginal || '')) ? s.fechaOriginal : '',
+                horaOriginal: reH.test(String(s.horaOriginal || '')) ? s.horaOriginal : '',
+                fechaCreacion: Number(s.fechaCreacion) || 0
+            };
+        }
+        // Si la solicitud viene de un paciente registrado (trae su código), usamos el nombre REAL
+        // de tu directorio: evita duplicados por apóstrofes y que alguien se haga pasar por otro paciente.
+        function nombreRealDeSolicitud(s){
+            if(s.codigoPaciente){
+                const tel = limpiarTel(s.telefono);
+                const k = Object.keys(pacientes).find(n => pacientes[n] && pacientes[n].codigo === s.codigoPaciente && limpiarTel(pacientes[n].telefono) === tel);
+                if(k) return k;
+            }
+            return s.nombre;
+        }
+        // Marca "🔁 Pidió reagendar" en las citas que tienen un cambio esperando respuesta
+        function marcaReagendar(c){
+            return solicitudes.some(s => s.tipo === 'reagendar' && String(s.citaId) === String(c.id))
+                ? ' <span style="background:#d97706; color:#fff; border-radius:8px; padding:1px 7px; font-size:0.7rem; font-weight:bold; white-space:nowrap;">🔁 Pidió reagendar</span>' : '';
+        }
+
         function escucharSolicitudes(){
             if(!fbOK) return;
             db.collection('solicitudes').where('estado','==','pendiente').onSnapshot((snap) => {
-                solicitudes = snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
+                solicitudes = snap.docs.map(d => sanearSolicitud(Object.assign({ id: d.id }, d.data()))).filter(Boolean);
                 actualizarBadgeSolicitudes();
                 renderSolicitudes();
+                try{ if(selectedDate) actualizarPanelDia(selectedDate); }catch(e){}
             }, (err) => console.error('escucharSolicitudes', err));
         }
         function actualizarBadgeSolicitudes(){
@@ -1223,38 +1296,77 @@
             const cont = document.getElementById('listaSolicitudes');
             if(!cont) return;
             if(solicitudes.length === 0){ cont.innerHTML = '<p style="text-align:center; color:var(--text-muted);">No hay solicitudes pendientes.</p>'; return; }
-            cont.innerHTML = solicitudes.map(s => `
+            cont.innerHTML = solicitudes.map(s => {
+                const esReag = s.tipo === 'reagendar';
+                const etiqueta = esReag
+                    ? '<span style="color:#d97706; font-size:0.75rem; font-weight:bold;">🔁 Quiere reagendar</span>'
+                    : (s.esNuevoPaciente ? '<span style="color:var(--accent); font-size:0.75rem;">🆕 Paciente nuevo</span>' : '');
+                const detalle = esReag
+                    ? `<div style="font-size:0.85rem; margin-top:4px;">Cita actual: ${escHtml(formatearFechaLegible(s.fechaOriginal))} · ${escHtml(formatearHoraAmPm(s.horaOriginal))}</div>
+                       <div style="font-size:0.85rem; font-weight:bold;">Pide pasarla a: ${escHtml(formatearFechaLegible(s.fecha))} · ${escHtml(formatearHoraAmPm(s.horaInicio))}</div>`
+                    : `<div style="font-size:0.85rem; margin-top:4px;">${escHtml(formatearFechaLegible(s.fecha))} · ${escHtml(formatearHoraAmPm(s.horaInicio))} - ${escHtml(formatearHoraAmPm(s.horaFin))}</div>`;
+                return `
                 <div class="inset-3d" style="padding:10px; margin-bottom:10px; border-radius:12px;">
-                    <div style="font-weight:bold;">${s.nombre} ${s.esNuevoPaciente ? '<span style="color:var(--accent); font-size:0.75rem;">🆕 Paciente nuevo</span>' : ''}</div>
-                    <div style="font-size:0.85rem; color:var(--text-muted);">${s.telefono} · ${s.motivo}</div>
-                    <div style="font-size:0.85rem; margin-top:4px;">${formatearFechaLegible(s.fecha)} · ${formatearHoraAmPm(s.horaInicio)} - ${formatearHoraAmPm(s.horaFin)}</div>
+                    <div style="font-weight:bold;">${escHtml(s.nombre)} ${etiqueta}</div>
+                    <div style="font-size:0.85rem; color:var(--text-muted);">${escHtml(s.telefono)} · ${escHtml(s.motivo)}</div>
+                    ${detalle}
                     <div style="display:flex; gap:8px; margin-top:8px;">
-                        <button class="btn-3d" style="flex:1; color:var(--status-green);" onclick="aceptarSolicitud('${s.id}')">✅ Aceptar</button>
-                        <button class="btn-3d" style="flex:1; color:var(--status-red);" onclick="rechazarSolicitud('${s.id}')">❌ Rechazar</button>
+                        <button class="btn-3d" style="flex:1; color:var(--status-green);" onclick="aceptarSolicitud('${escHtml(s.id)}')">✅ ${esReag ? 'Mover la cita' : 'Aceptar'}</button>
+                        <button class="btn-3d" style="flex:1; color:var(--status-red);" onclick="rechazarSolicitud('${escHtml(s.id)}')">❌ Rechazar</button>
                     </div>
-                </div>
-            `).join('');
+                </div>`;
+            }).join('');
+        }
+        // Mover una cita existente cuando el paciente pidió reagendar
+        async function aceptarReagendar(s){
+            const cita = citas.find(c => String(c.id) === String(s.citaId));
+            if(!cita){
+                alert('La cita original de ' + s.nombre + ' ya no está en tu agenda, así que no se puede mover. Puedes rechazar esta solicitud (el paciente recibirá un aviso amable) o crear la cita a mano.');
+                return;
+            }
+            const aMin = (h) => { const p = String(h).split(':').map(Number); return p[0] * 60 + p[1]; };
+            const dur = Math.max(30, aMin(cita.horaFin) - aMin(cita.horaInicio));   // conserva la duración original
+            const finMin = Math.min(aMin(s.horaInicio) + dur, 23 * 60 + 59);
+            const nuevoFin = String(Math.floor(finMin / 60)).padStart(2, '0') + ':' + String(finMin % 60).padStart(2, '0');
+            const conflictos = citasSobrepuestas(s.fecha, s.horaInicio, nuevoFin, cita.id);
+            if(conflictos.length > 0){
+                const detalle = conflictos.map(c => `${c.paciente} (${formatearHoraAmPm(c.horaInicio)}-${formatearHoraAmPm(c.horaFin)})`).join(', ');
+                if(!confirm(`⚠️ El nuevo horario se sobrepone con: ${detalle}.\n\n¿Moverla de todas formas?`)) return;
+            }
+            if(!confirm(`¿Mover la cita de ${cita.paciente}?\n\nDe: ${formatearFechaLegible(cita.fecha)} ${formatearHoraAmPm(cita.horaInicio)}\nA: ${formatearFechaLegible(s.fecha)} ${formatearHoraAmPm(s.horaInicio)}`)) return;
+            cita.fecha = s.fecha; cita.horaInicio = s.horaInicio; cita.horaFin = nuevoFin;
+            cita.estado = 'status-yellow';   // vuelve a "por confirmar"
+            cita.notas = ((cita.notas || '') + ' · Reagendada por el paciente desde SmileLike').trim();
+            localStorage.setItem('denti_citas_v16', JSON.stringify(citas));
+            guardarAgendaEnNube();
+            syncPacienteAFirebase(cita.paciente);
+            try{ await db.collection('solicitudes').doc(s.id).delete(); }catch(e){ console.error('borrar solicitud', e); }
+            loadCalendar();
+            try{ actualizarPanelDia(s.fecha); }catch(e){}
+            alert(`Cita movida. ${cita.paciente} recibirá un aviso en su app.`);
         }
         async function aceptarSolicitud(id){
             const s = solicitudes.find(x => x.id === id);
             if(!s) return;
+            if(s.tipo === 'reagendar') return aceptarReagendar(s);
+            const nombrePac = nombreRealDeSolicitud(s);   // nombre real del directorio si es paciente registrado
             const conflictos = citasSobrepuestas(s.fecha, s.horaInicio, s.horaFin, null);
             if(conflictos.length > 0){
                 const detalle = conflictos.map(c => `${c.paciente} (${formatearHoraAmPm(c.horaInicio)}-${formatearHoraAmPm(c.horaFin)})`).join(', ');
                 if(!confirm(`⚠️ Esta solicitud se sobrepone con: ${detalle}.\n\n¿Aceptarla de todas formas?`)) return;
             }
-            citas.push({ id: Date.now(), fecha: s.fecha, paciente: s.nombre, telefono: s.telefono, horaInicio: s.horaInicio, horaFin: s.horaFin, motivo: s.motivo, notas: s.esNuevoPaciente ? 'Paciente nuevo, agendado desde citas.dentilike.com.mx' : 'Agendada por el paciente desde Mi Sonrisa', estado: 'status-yellow' });
+            citas.push({ id: Date.now(), fecha: s.fecha, paciente: nombrePac, telefono: s.telefono, horaInicio: s.horaInicio, horaFin: s.horaFin, motivo: s.motivo, notas: s.esNuevoPaciente ? 'Paciente nuevo, agendado desde citas.dentilike.com.mx' : 'Agendada por el paciente desde Mi Sonrisa', estado: 'status-yellow' });
             localStorage.setItem('denti_citas_v16', JSON.stringify(citas));
-            if(!pacientes[s.nombre]) pacientes[s.nombre] = { telefono: s.telefono, foto: null, codigo: s.codigoPaciente || generarCodigo(), esPotencial: !!s.esNuevoPaciente };
-            else if(!pacientes[s.nombre].codigo) pacientes[s.nombre].codigo = s.codigoPaciente || generarCodigo();
+            if(!pacientes[nombrePac]) pacientes[nombrePac] = { telefono: s.telefono, foto: null, codigo: s.codigoPaciente || generarCodigo(), esPotencial: !!s.esNuevoPaciente };
+            else if(!pacientes[nombrePac].codigo) pacientes[nombrePac].codigo = s.codigoPaciente || generarCodigo();
             localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes));
             if(s.motivo && !motivos.includes(s.motivo)) { motivos.push(s.motivo); localStorage.setItem('denti_motivos_v16', JSON.stringify(motivos)); }
             guardarAgendaEnNube();
-            syncPacienteAFirebase(s.nombre);
+            syncPacienteAFirebase(nombrePac);
             try{ await db.collection('solicitudes').doc(id).delete(); }catch(e){ console.error('borrar solicitud', e); }
             updateDatalists(); loadCalendar();
             if(selectedDate === s.fecha) openDay(selectedDate);
-            alert(`Cita de ${s.nombre} confirmada. Ya se sincronizó con Mi Sonrisa.`);
+            alert(`Cita de ${nombrePac} confirmada. Ya se sincronizó con Mi Sonrisa.`);
         }
         async function rechazarSolicitud(id){
             const s = solicitudes.find(x => x.id === id);
@@ -1273,6 +1385,7 @@
                             fecha: s.fecha,
                             hora: s.horaInicio,
                             motivo: s.motivo || '',
+                            tipo: s.tipo === 'reagendar' ? 'reagendar' : 'nueva',
                             creado: Date.now()
                         });
                         await ref.set({ avisosRechazo: avisos }, { merge:true });
@@ -1418,6 +1531,29 @@
             }
             if(!silencioso) alert(huboCambios ? 'Se actualizaron confirmaciones de pacientes.' : 'Todo está al día, sin cambios nuevos.');
         }
+        // Fechas (de hoy en adelante, sin canceladas) con cita de este paciente: permite que el servidor
+        // revise solo a quien tiene cita próxima en vez de leer toda la base cada hora.
+        function fechasCitasPaciente(nombre){
+            const hoy = fechaAISO(new Date());
+            return [...new Set(citas.filter(c => c.paciente === nombre && c.fecha >= hoy && c.estado !== 'status-red').map(c => c.fecha))].sort();
+        }
+        // Una sola vez: pone fechasCitas a los pacientes que ya existían (sin tocar sus citas ni estados)
+        async function backfillFechasCitas(){
+            if(!fbOK || !authListo) return;
+            if(localStorage.getItem('da_backfill_fechas_v1') === '1') return;
+            let n = 0;
+            for(const nombre of Object.keys(pacientes)){
+                const pac = pacientes[nombre]; if(!pac || !pac.codigo) continue;
+                const tel = limpiarTel(pac.telefono); if(tel.length !== 10) continue;
+                try{
+                    const llave = await hashLlave(tel, pac.codigo);
+                    await db.collection('citas_pacientes').doc(llave).update({ fechasCitas: fechasCitasPaciente(nombre) });
+                    n++;
+                }catch(e){ /* paciente aún sin documento: se llena en su primera sincronización */ }
+            }
+            localStorage.setItem('da_backfill_fechas_v1', '1');
+            console.log('fechasCitas actualizadas en', n, 'pacientes');
+        }
         async function syncPacienteAFirebase(nombre){
             if(!fbOK || !authListo) return;
             const pac = pacientes[nombre]; if(!pac) return;
@@ -1446,6 +1582,7 @@
                     ortoPorcentaje: pac.ortoPorcentaje || 0,
                     ortoFaseTexto: pac.ortoFaseTexto || 'Fase 1: Alineación y nivelación',
                     estudios: pac.estudios || [],
+                    fechasCitas: fechasCitasPaciente(nombre),
                     actualizado: Date.now()
                 }, { merge:true });
             }catch(e){ console.error('sync paciente error', e); }
@@ -1787,7 +1924,7 @@
                     const colT = colorDeCita(c.motivo);
                     const estCol = colT ? ` style="background:${colT}; color:${textoSobre(colT)};"` : '';
                     return `<div class="panel-cita"${estCol} onclick="abrirOpcionesCita(${c.id})">
-                        <div class="pc-hora"><span class="status-dot ${c.estado}"></span>${formatearHoraAmPm(c.horaInicio)} - ${formatearHoraAmPm(c.horaFin)}</div>
+                        <div class="pc-hora"><span class="status-dot ${c.estado}"></span>${formatearHoraAmPm(c.horaInicio)} - ${formatearHoraAmPm(c.horaFin)}${marcaReagendar(c)}</div>
                         <div class="pc-info">${foto} ${nombrePreferido(c.paciente)} · ${c.motivo}</div>
                     </div>`;
                 }).join('');
@@ -1842,7 +1979,7 @@
                         estiloItem = `background-color:${colT}; color:${tx}; --txt:${tx};` + (esPotencial ? ' border-left:4px solid var(--accent);' : '');
                     }
                     return `<div class="appointment-item ${claseItem}" style="${estiloItem}" onclick="abrirOpcionesCita(${c.id})">
-                        <div class="appointment-header"><span class="status-dot ${c.estado}"></span><strong style="font-size:1.1rem;">${formatearHoraAmPm(c.horaInicio)} - ${formatearHoraAmPm(c.horaFin)}</strong>${etiquetaPotencial}</div>
+                        <div class="appointment-header"><span class="status-dot ${c.estado}"></span><strong style="font-size:1.1rem;">${formatearHoraAmPm(c.horaInicio)} - ${formatearHoraAmPm(c.horaFin)}</strong>${etiquetaPotencial}${marcaReagendar(c)}</div>
                         <div style="margin-left: 22px;">- ${c.motivo}</div>
                         <div style="margin-left: 22px;">- ${c.paciente} ${textoNotas}</div>
                         ${barraOrto}
@@ -2788,7 +2925,111 @@
                 closeModal('opcionesCitaModal'); openDay(selectedDate); loadCalendar(); 
             } 
         }
-        function openConfig() { loadConfig(); document.getElementById('configModalOverlay').style.display = 'flex'; }
+        function openConfig() {
+            loadConfig();
+            document.getElementById('configModalOverlay').style.display = 'flex';
+            cargarPrefsAvisos();
+            cargarConsumo();
+        }
+
+        // ===== Mis avisos (qué recibir y a qué hora) =====
+        const PREFS_AVISOS_DEF = { avisoSolicitud:true, avisoReagendar:true, avisoConfirmacion:true, avisoCancelacion:true, avisoConsumo:true, resumenHoyActivo:true, resumenHoyHora:9, resumenMananaActivo:true, resumenMananaHora:20 };
+        function llenarHorasPrefs(){
+            ['prefHoyHora','prefMananaHora'].forEach(id => {
+                const el = document.getElementById(id);
+                if(el && !el.options.length){
+                    for(let h = 0; h < 24; h++) el.add(new Option(formatearHoraAmPm(String(h).padStart(2,'0') + ':00'), String(h)));
+                }
+            });
+        }
+        async function cargarPrefsAvisos(){
+            llenarHorasPrefs();
+            let p = Object.assign({}, PREFS_AVISOS_DEF);
+            try{
+                if(fbOK && authListo){
+                    const d = await db.collection('agenda').doc('prefsAvisos').get();
+                    if(d.exists) p = Object.assign(p, d.data());
+                }
+            }catch(e){ console.log('prefs avisos', e); }
+            const set = (id, v) => { const el = document.getElementById(id); if(el) el.checked = v !== false; };
+            set('prefSolicitud', p.avisoSolicitud); set('prefReagendar', p.avisoReagendar); set('prefConfirmacion', p.avisoConfirmacion);
+            set('prefCancelacion', p.avisoCancelacion); set('prefConsumo', p.avisoConsumo);
+            set('prefHoyActivo', p.resumenHoyActivo); set('prefMananaActivo', p.resumenMananaActivo);
+            const h1 = document.getElementById('prefHoyHora'), h2 = document.getElementById('prefMananaHora');
+            if(h1) h1.value = String(Number.isInteger(p.resumenHoyHora) ? p.resumenHoyHora : 9);
+            if(h2) h2.value = String(Number.isInteger(p.resumenMananaHora) ? p.resumenMananaHora : 20);
+        }
+        async function guardarPrefsAvisos(){
+            const nota = document.getElementById('prefsAvisosNota');
+            const ch = (id) => !!(document.getElementById(id) && document.getElementById(id).checked);
+            const p = {
+                avisoSolicitud: ch('prefSolicitud'), avisoReagendar: ch('prefReagendar'), avisoConfirmacion: ch('prefConfirmacion'),
+                avisoCancelacion: ch('prefCancelacion'), avisoConsumo: ch('prefConsumo'),
+                resumenHoyActivo: ch('prefHoyActivo'), resumenHoyHora: parseInt(document.getElementById('prefHoyHora').value, 10),
+                resumenMananaActivo: ch('prefMananaActivo'), resumenMananaHora: parseInt(document.getElementById('prefMananaHora').value, 10)
+            };
+            try{
+                await db.collection('agenda').doc('prefsAvisos').set(p, { merge: true });
+                if(nota) nota.textContent = '✓ Guardado.';
+            }catch(e){ console.error('guardar prefs avisos', e); if(nota) nota.textContent = 'No se pudo guardar. Revisa tu conexión.'; }
+        }
+
+        // ===== Consumo de Firebase =====
+        async function cargarConsumo(){
+            const cont = document.getElementById('consumoBox'); if(!cont) return;
+            try{
+                if(!fbOK || !authListo){ cont.innerHTML = '<p style="color:var(--text-muted);">Sin conexión.</p>'; return; }
+                const d = await db.collection('agenda').doc('uso').get();
+                renderConsumo(d.exists ? d.data() : null);
+            }catch(e){ console.error('consumo', e); cont.innerHTML = '<p style="color:#e53e3e;">No se pudo leer el consumo.</p>'; }
+        }
+        function guardarTipoCambio(){
+            const v = parseFloat(document.getElementById('consumoTC').value);
+            if(v > 0) localStorage.setItem('da_tipo_cambio', String(v));
+            cargarConsumo();
+        }
+        function renderConsumo(u){
+            const cont = document.getElementById('consumoBox'); if(!cont) return;
+            if(!u || !u.hoy){
+                const err = u && u.error ? `<p style="color:#e53e3e;">No se pudo leer el consumo: ${escHtml(u.error)}</p><p style="color:var(--text-muted); font-size:0.78rem;">Probablemente falta dar el permiso "Lector de Monitoring" a la cuenta de las funciones (está en la guía de instalación).</p>` : '<p style="color:var(--text-muted);">Aún no hay datos. Se generan cada hora, una vez instalada la función nueva.</p>';
+                cont.innerHTML = err; return;
+            }
+            const tc = parseFloat(localStorage.getItem('da_tipo_cambio')) || 18;
+            const lim = u.limites || { lecturas: 50000, escrituras: 20000, borrados: 20000 };
+            const n = (v) => Number(v || 0).toLocaleString('es-MX');
+            const barra = (etq, v, l) => {
+                const pct = Math.min(100, Math.round((v / l) * 100));
+                const color = pct >= 80 ? '#e53e3e' : (pct >= 50 ? '#d69e2e' : '#48bb78');
+                return `<div style="margin:8px 0;">
+                    <div style="display:flex; justify-content:space-between; font-size:0.8rem;"><span>${etq}</span><span>${n(v)} / ${n(l)} (${pct}%)</span></div>
+                    <div style="height:9px; background:rgba(0,0,0,0.12); border-radius:6px; overflow:hidden;"><div style="height:100%; width:${pct}%; background:${color};"></div></div>
+                </div>`;
+            };
+            const mes = u.mes || {};
+            const usd = (v) => '$' + Number(v || 0).toFixed(2);
+            const mxn = (v) => '$' + (Number(v || 0) * tc).toFixed(2);
+            const hace = u.actualizado ? Math.max(0, Math.round((Date.now() - u.actualizado) / 60000)) : null;
+            cont.innerHTML = `
+                ${u.error ? `<p style="color:#d69e2e; font-size:0.78rem;">⚠️ La última actualización falló (${escHtml(u.error)}). Estos son los últimos datos buenos.</p>` : ''}
+                <div style="font-weight:bold; color:var(--primary);">Hoy (límite diario gratis)</div>
+                ${barra('Lecturas', u.hoy.lecturas, lim.lecturas)}
+                ${barra('Escrituras', u.hoy.escrituras, lim.escrituras)}
+                ${barra('Borrados', u.hoy.borrados, lim.borrados)}
+                <div style="font-weight:bold; color:var(--primary); margin-top:12px;">Este mes</div>
+                <div style="font-size:0.82rem; line-height:1.6;">
+                    Lecturas: <b>${n(mes.lecturas)}</b> · Escrituras: <b>${n(mes.escrituras)}</b> · Borrados: <b>${n(mes.borrados)}</b><br>
+                    Día más alto: <b>${n(mes.diaMaxLecturas)}</b> lecturas${mes.diaMaxFecha ? ' (' + escHtml(mes.diaMaxFecha) + ')' : ''}<br>
+                    Días que pasaron el límite gratis: <b>${n(mes.diasConExceso)}</b>
+                </div>
+                <div style="margin-top:10px; padding:10px; border-radius:10px; background:rgba(0,0,0,0.06);">
+                    <div style="font-size:0.82rem;">Cobro del mes hasta hoy: <b>${usd(mes.costoUSD)} USD</b> (~${mxn(mes.costoUSD)} MXN)</div>
+                    <div style="font-size:0.82rem;">Proyección a fin de mes: <b>${usd(mes.proyeccionUSD)} USD</b> (~${mxn(mes.proyeccionUSD)} MXN)</div>
+                </div>
+                <div style="display:flex; gap:8px; align-items:center; margin-top:10px; font-size:0.78rem; color:var(--text-muted);">
+                    Tipo de cambio: <input type="number" id="consumoTC" value="${tc}" step="0.1" class="inset-3d" style="width:80px; padding:6px;" onchange="guardarTipoCambio()">
+                </div>
+                <div style="font-size:0.72rem; color:var(--text-muted); margin-top:6px;">Estimado a partir de las métricas de Google (puede diferir un poco de la factura real). Se actualiza cada hora${hace !== null ? ' · última vez hace ' + hace + ' min' : ''}. Solo cubre Firestore.</div>`;
+        }
         function closeModal(id) { 
             if(id === 'directorioModal'){ editandoAhora = false; dirNombreActual = null; }
             document.getElementById(id).style.display = 'none'; 
