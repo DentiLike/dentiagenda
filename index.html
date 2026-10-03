@@ -87,6 +87,21 @@
             #areaImprimible td { padding: 4px 6px; border-bottom: 1px solid #ccc; font-size: 0.9rem; }
         }
 
+        /* ===== Ajustes en secciones plegables ===== */
+        .aj-sec { margin: 0 0 12px 0; }
+        .aj-sec > summary { list-style: none; cursor: pointer; padding: 13px 16px; border-radius: 14px; background: var(--bg-color); box-shadow: 5px 5px 10px var(--shadow-dark), -5px -5px 10px var(--shadow-light); font-weight: bold; color: var(--primary); font-size: 0.95rem; display: flex; justify-content: space-between; align-items: center; }
+        .aj-sec > summary::-webkit-details-marker { display: none; }
+        .aj-sec > summary::after { content: '▸'; font-size: 1.1rem; color: var(--accent); transition: transform .2s; }
+        .aj-sec[open] > summary::after { transform: rotate(90deg); }
+        .aj-sec[open] > summary { box-shadow: inset 3px 3px 6px var(--shadow-dark), inset -3px -3px 6px var(--shadow-light); }
+        .aj-body { padding: 14px 4px 4px 4px; }
+        .aj-guardar { position: sticky; bottom: 0; padding: 12px 0 2px 0; background: var(--bg-color); z-index: 5; }
+        .aj-check { display: flex; gap: 8px; align-items: center; font-size: 0.8rem; color: var(--text-main); margin: 6px 0 2px; }
+        .aj-preview { white-space: pre-line; font-size: 0.78rem; color: var(--text-muted); background: rgba(0,0,0,0.05); border-radius: 10px; padding: 8px 10px; margin-top: 6px; line-height: 1.4; }
+        .header-actions { flex-wrap: wrap; }
+        .seg-item { background: var(--bg-color); border-radius: 12px; padding: 10px 12px; margin-bottom: 10px; box-shadow: 3px 3px 6px var(--shadow-dark), -3px -3px 6px var(--shadow-light); }
+        .seg-acciones { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+        .seg-acciones .btn-3d { padding: 6px 10px; font-size: 0.78rem; }
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(224, 229, 236, 0.8); align-items: center; justify-content: center; z-index: 1000; backdrop-filter: blur(5px); padding: 1rem;}
         .modal { width: 100%; max-width: 500px; padding: 2rem; max-height: 90vh; overflow-y: auto; background: var(--bg-color); border-radius: 20px; box-shadow: 10px 10px 20px var(--shadow-dark), -10px -10px 20px var(--shadow-light); }
         .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
@@ -253,6 +268,7 @@
         <div class="header-actions">
             <button class="btn-3d btn-text-icon" onclick="abrirDirectorio()">Pacientes</button>
             <button class="btn-3d btn-text-icon" onclick="abrirPotenciales()">🎯 Px Potencial</button>
+            <button class="btn-3d btn-text-icon" id="btnSeguimiento" onclick="abrirSeguimiento()">📋 Seguimiento</button>
             <button class="btn-3d btn-text-icon" onclick="openConfig()">Ajustes</button>
         </div>
     </header>
@@ -355,6 +371,14 @@
                 <button class="btn-3d status-btn" onclick="cambiarEstadoCita('status-yellow')"><span class="status-dot status-yellow"></span> Pendiente</button>
                 <button class="btn-3d status-btn" onclick="cambiarEstadoCita('status-red')"><span class="status-dot status-red"></span> Cancelada</button>
                 <button class="btn-3d status-btn" onclick="cambiarEstadoCita('status-gray')"><span class="status-dot status-gray"></span> N/A</button>
+            </div>
+            <div id="asistenciaBox" style="display:none;">
+                <h4 style="color: var(--primary); margin: 20px 0 10px 0;">¿Acudió a su cita?</h4>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <button class="btn-3d status-btn" id="btnAsistSi" onclick="marcarAsistenciaDesdeOpciones('si')">✅ Sí acudió</button>
+                    <button class="btn-3d status-btn" id="btnAsistNo" onclick="marcarAsistenciaDesdeOpciones('no')">🚫 No acudió</button>
+                </div>
+                <button class="btn-3d status-btn" id="btnAsistQuitar" style="margin-top: 8px; font-size: 0.8rem; display: none;" onclick="marcarAsistenciaDesdeOpciones('')">↩ Quitar la marca</button>
             </div>
             <button class="btn-3d status-btn" style="margin-top: 20px; color: #e53e3e;" onclick="eliminarCita()">Borrar Cita</button>
         </div>
@@ -531,6 +555,8 @@
                 <h2 style="margin: 0; color: var(--primary);">Ajustes</h2>
                 <button class="close-btn" onclick="closeModal('configModalOverlay')">X</button>
             </div>
+            <div style="font-size:0.8rem; color:var(--text-muted); margin:-4px 0 14px 0;">Toca una sección para abrirla.</div>
+            <details class="aj-sec"><summary>🏥 Mi consultorio y horarios</summary><div class="aj-body">
             <div class="form-group"><label>Clinica</label><input type="text" id="confClinica" class="inset-3d"></div>
             <div class="form-group"><label>Doctor</label><input type="text" id="confDoctor" class="inset-3d"></div>
             <div class="form-group"><label>Especialidad</label><input type="text" id="confEspecialidad" class="inset-3d"></div>
@@ -551,13 +577,13 @@
                 <input type="checkbox" id="confMostrarFotos" style="width:20px; height:20px; accent-color: var(--primary);">
                 <label style="margin:0; font-size:1rem;">Mostrar fotos de pacientes</label>
             </div>
-
-            <label style="display: block; font-size: 0.85rem; font-weight: bold; margin: 1.5rem 0 0.3rem 0; color: var(--primary);">🎨 Colores por tratamiento</label>
+            </div></details>
+            <details class="aj-sec"><summary>🎨 Colores por tratamiento</summary><div class="aj-body">
             <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:8px;">Si el motivo de la cita contiene la palabra, la cita se pinta de ese color (ej. "Ajuste" → azul marino). Se usa la primera coincidencia de la lista.</div>
             <div id="coloresTratList"></div>
             <button class="btn-3d" style="width:100%; margin-bottom:6px; font-size:0.85rem;" onclick="agregarColorTrat()">+ Agregar tratamiento</button>
-
-            <label style="display: block; font-size: 0.85rem; font-weight: bold; margin: 1.5rem 0 0.5rem 0; color: var(--primary);">🎁 Promociones</label>
+            </div></details>
+            <details class="aj-sec"><summary>🎁 Promociones</summary><div class="aj-body">
             <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:8px;">Crea mensajes de promoción. Al ver el expediente de un paciente, podrás elegir cuál enviarle por WhatsApp.</div>
             <div id="promosList"></div>
             <div style="display:grid; gap:6px; margin-top:6px;">
@@ -565,16 +591,26 @@
                 <textarea id="nuevaPromoTexto" class="inset-3d" rows="3" placeholder="Mensaje de la promo..." style="font-size:0.85rem;"></textarea>
                 <button class="btn-3d" style="width:100%; font-size:0.85rem;" onclick="agregarPromo()">+ Agregar promoción</button>
             </div>
-
-            <label style="display: block; font-size: 0.85rem; font-weight: bold; margin: 1.5rem 0 0.5rem 0; color: var(--primary);">✏️ Editor de mensajes</label>
-            <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:8px;">Personaliza los mensajes. Usa {nombre}, {fecha}, {hora} y {motivo} (el tratamiento) donde quieras que aparezcan.</div>
-            <div class="form-group"><label style="font-size:0.78rem;">Mensaje de confirmación de cita</label><textarea id="confMsgConfirmacion" class="inset-3d" rows="4" style="font-size:0.82rem;"></textarea></div>
-            <div class="form-group"><label style="font-size:0.78rem;">Mensaje de cita registrada (nueva)</label><textarea id="confMsgRegistrada" class="inset-3d" rows="4" style="font-size:0.82rem;"></textarea></div>
-
-            <button class="btn-3d btn-submit" style="background:var(--primary); color:white;" onclick="guardarConfig()">💾 Guardar Ajustes</button>
-
+            </div></details>
+            <details class="aj-sec"><summary>💬 Mensajes a pacientes</summary><div class="aj-body">
+            <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:8px;">Usa {nombre}, {fecha} y {hora}. El tratamiento se agrega o se quita con el interruptor de cada mensaje (ya no hace falta escribir nada). Abajo ves cómo lo verá el paciente.</div>
+            <div class="form-group"><label style="font-size:0.78rem;">Mensaje de confirmación de cita</label>
+                <textarea id="confMsgConfirmacion" class="inset-3d" rows="4" style="font-size:0.82rem;" oninput="actualizarVistasPreviasMensajes()"></textarea>
+                <label class="aj-check"><input type="checkbox" id="confMsgConfirmacionTrat" onchange="actualizarVistasPreviasMensajes()"> Incluir el tratamiento en este mensaje</label>
+                <div class="aj-preview" id="prevMsgConfirmacion"></div></div>
+            <div class="form-group"><label style="font-size:0.78rem;">Mensaje de cita registrada (nueva)</label>
+                <textarea id="confMsgRegistrada" class="inset-3d" rows="4" style="font-size:0.82rem;" oninput="actualizarVistasPreviasMensajes()"></textarea>
+                <label class="aj-check"><input type="checkbox" id="confMsgRegistradaTrat" onchange="actualizarVistasPreviasMensajes()"> Incluir el tratamiento en este mensaje</label>
+                <div class="aj-preview" id="prevMsgRegistrada"></div></div>
+            <div class="form-group"><label style="font-size:0.78rem;">Seguimiento: paciente que NO acudió a su cita</label>
+                <textarea id="confMsgSegNo" class="inset-3d" rows="4" style="font-size:0.82rem;" oninput="actualizarVistasPreviasMensajes()"></textarea>
+                <div class="aj-preview" id="prevMsgSegNo"></div></div>
+            <div class="form-group"><label style="font-size:0.78rem;">Seguimiento: paciente sin cita en meses</label>
+                <textarea id="confMsgSegSin" class="inset-3d" rows="4" style="font-size:0.82rem;" oninput="actualizarVistasPreviasMensajes()"></textarea>
+                <div class="aj-preview" id="prevMsgSegSin"></div></div>
+            </div></details>
+            <details class="aj-sec"><summary>🔔 Avisos y notificaciones</summary><div class="aj-body">
             <div style="border-top:2px solid var(--shadow-dark); margin:20px 0 4px; padding-top:14px;">
-                <div style="font-size:0.8rem; font-weight:bold; color:var(--accent); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:10px;">🔔 Notificaciones</div>
                 <div style="display:flex; align-items:center; justify-content:space-between; padding:12px 14px; background:var(--bg-color); border-radius:12px; box-shadow:inset 3px 3px 6px var(--shadow-dark), inset -3px -3px 6px var(--shadow-light);">
                     <div style="text-align:left;">
                         <div style="font-weight:bold; color:var(--primary); font-size:0.9rem;">Avisos de citas</div>
@@ -606,32 +642,54 @@
                     <div id="prefsAvisosNota" style="font-size:0.74rem; color:var(--text-muted); margin-top:6px;"></div>
                 </div>
             </div>
-
+            </div></details>
+            <details class="aj-sec"><summary>📅 Agenda</summary><div class="aj-body">
             <div style="margin:16px 0 4px;">
-                <div style="font-size:0.8rem; font-weight:bold; color:var(--accent); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:10px;">📅 Agenda</div>
                 <button class="btn-3d btn-submit" style="color:#d97706;" onclick="closeModal('configModalOverlay'); abrirBloqueos();">🚫 Bloquear horarios (vacaciones, comida...)</button>
                 <button class="btn-3d btn-submit" style="margin-top:8px;" onclick="sincronizarConfirmaciones(false)">🔄 Revisar confirmaciones ahora</button>
                 <button class="btn-3d btn-submit" style="margin-top:8px; color:var(--primary);" onclick="abrirDashboard()">📊 Ver Dashboard</button>
             </div>
-
+            </div></details>
+            <details class="aj-sec"><summary>📄 Exportar</summary><div class="aj-body">
             <div style="margin:16px 0 4px;">
-                <div style="font-size:0.8rem; font-weight:bold; color:var(--accent); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:10px;">📄 Exportar</div>
                 <button class="btn-3d btn-submit" style="color:var(--primary);" onclick="exportarDiaPDF()">📄 Día de hoy a PDF</button>
                 <button class="btn-3d btn-submit" style="margin-top:8px; color:var(--primary);" onclick="exportarMesPDF()">📄 Mes visible a PDF</button>
                 <button class="btn-3d btn-submit" style="margin-top:8px; color:var(--accent);" onclick="exportarDiaCalendar()">📅 Hoy a Google Calendar</button>
                 <button class="btn-3d btn-submit" style="margin-top:8px; color:var(--accent);" onclick="exportarMesCalendar()">📅 Mes a Google Calendar</button>
             </div>
-
+            </div></details>
+            <details class="aj-sec"><summary>📲 App y WhatsApp</summary><div class="aj-body">
             <div style="margin:16px 0 4px;">
-                <div style="font-size:0.8rem; font-weight:bold; color:var(--accent); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:10px;">📲 App</div>
                 <button class="btn-3d btn-submit" style="color:var(--accent);" onclick="instalarDentiAgenda()">📲 Instalar en este dispositivo</button>
+                <div class="form-group" style="margin-top:14px; text-align:left;">
+                    <label style="font-size:0.82rem; font-weight:bold; color:var(--primary);">¿Con qué WhatsApp enviar los mensajes?</label>
+                    <select id="confWaModo" class="inset-3d" onchange="guardarWaModo(this.value)">
+                        <option value="auto">Automático: WhatsApp Business primero</option>
+                        <option value="normal">Siempre WhatsApp normal</option>
+                        <option value="web">Siempre WhatsApp Web</option>
+                    </select>
+                    <div style="font-size:0.72rem; color:var(--text-muted); margin-top:5px; line-height:1.4;">Solo cambia este dispositivo. "Automático" abre WhatsApp Business directo; si ese celular no lo tiene, usa el enlace normal de WhatsApp (la app, o la web si el celular no la abre). En computadora o DeX se usa la web.</div>
+                </div>
             </div>
-
+            </div></details>
+            <details class="aj-sec" ontoggle="if(this.open) cargarConsumo()"><summary>📊 Consumo de Firebase</summary><div class="aj-body">
             <div style="margin:16px 0 4px;">
-                <div style="font-size:0.8rem; font-weight:bold; color:var(--accent); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:10px;">📊 Consumo de Firebase</div>
                 <div id="consumoBox" style="text-align:left; font-size:0.85rem; color:var(--text-main);"><p style="color:var(--text-muted);">Cargando…</p></div>
                 <button class="btn-3d btn-submit" style="margin-top:8px;" onclick="cargarConsumo()">🔄 Actualizar</button>
             </div>
+            </div></details>
+            <div class="aj-guardar"><button class="btn-3d btn-submit" style="background:var(--primary); color:white;" onclick="guardarConfig()">💾 Guardar Ajustes</button><div style="font-size:0.7rem; color:var(--text-muted); text-align:center; margin-top:4px;">Guarda consultorio, horarios, colores y mensajes</div></div>
+        </div>
+    </div>
+
+    <!-- Modal Seguimiento de pacientes -->
+    <div class="modal-overlay" id="seguimientoModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 style="margin: 0; color: var(--primary);">📋 Seguimiento</h2>
+                <button class="close-btn" onclick="closeModal('seguimientoModal')">X</button>
+            </div>
+            <div id="seguimientoBody"></div>
         </div>
     </div>
 
@@ -1568,7 +1626,8 @@
             if(pasadas.length) visibles.push(pasadas[0]);
             const citasParaApp = visibles.map(c => ({
                 id: String(c.id), fechaISO: c.fecha, hora: c.horaInicio, horaFin: c.horaFin,
-                motivo: c.motivo, estado: c.estado
+                motivo: c.motivo, estado: c.estado,
+                ...(c.asistencia === 'si' ? { asistio: true } : {})
             }));
             try{
                 const llave = await hashLlave(tel, codigo);
@@ -1642,6 +1701,11 @@
             document.getElementById('confMostrarFotos').checked = config.mostrarFotos;
             document.getElementById('confMsgConfirmacion').value = config.msgConfirmacion || 'Hola {nombre}, te contactamos de DENTILIKE para confirmar tu cita programada.\n\nFecha: {fecha}\nHora: {hora}\n\nPor favor confírmanos de recibido.';
             document.getElementById('confMsgRegistrada').value = config.msgRegistrada || 'Hola {nombre}, tu cita ha sido registrada con éxito en DENTILIKE.\n\nFecha: {fecha}\nHora: {hora}\n\nTe esperamos.';
+            document.getElementById('confMsgConfirmacionTrat').checked = config.msgConfirmacionTrat !== false;
+            document.getElementById('confMsgRegistradaTrat').checked = config.msgRegistradaTrat !== false;
+            document.getElementById('confMsgSegNo').value = config.msgSegNo || MSG_SEG_NO_DEF;
+            document.getElementById('confMsgSegSin').value = config.msgSegSin || MSG_SEG_SIN_DEF;
+            actualizarVistasPreviasMensajes();
             renderPromos();
             renderColoresConfig();
         }
@@ -1690,6 +1754,10 @@
             config.mostrarFotos = document.getElementById('confMostrarFotos').checked;
             config.msgConfirmacion = document.getElementById('confMsgConfirmacion').value;
             config.msgRegistrada = document.getElementById('confMsgRegistrada').value;
+            config.msgConfirmacionTrat = document.getElementById('confMsgConfirmacionTrat').checked;
+            config.msgRegistradaTrat = document.getElementById('confMsgRegistradaTrat').checked;
+            config.msgSegNo = document.getElementById('confMsgSegNo').value;
+            config.msgSegSin = document.getElementById('confMsgSegSin').value;
             config.coloresTrat = coloresTmp.filter(x => x.nombre && x.nombre.trim()).map(x => ({ nombre: x.nombre.trim(), color: x.color }));
             localStorage.setItem('denti_config_v16', JSON.stringify(config));
             guardarAgendaEnNube();
@@ -1924,7 +1992,7 @@
                     const colT = colorDeCita(c.motivo);
                     const estCol = colT ? ` style="background:${colT}; color:${textoSobre(colT)};"` : '';
                     return `<div class="panel-cita"${estCol} onclick="abrirOpcionesCita(${c.id})">
-                        <div class="pc-hora"><span class="status-dot ${c.estado}"></span>${formatearHoraAmPm(c.horaInicio)} - ${formatearHoraAmPm(c.horaFin)}${marcaReagendar(c)}</div>
+                        <div class="pc-hora"><span class="status-dot ${c.estado}"></span>${formatearHoraAmPm(c.horaInicio)} - ${formatearHoraAmPm(c.horaFin)}${marcaReagendar(c)}${badgeAsistencia(c)}</div>
                         <div class="pc-info">${foto} ${nombrePreferido(c.paciente)} · ${c.motivo}</div>
                     </div>`;
                 }).join('');
@@ -1979,10 +2047,11 @@
                         estiloItem = `background-color:${colT}; color:${tx}; --txt:${tx};` + (esPotencial ? ' border-left:4px solid var(--accent);' : '');
                     }
                     return `<div class="appointment-item ${claseItem}" style="${estiloItem}" onclick="abrirOpcionesCita(${c.id})">
-                        <div class="appointment-header"><span class="status-dot ${c.estado}"></span><strong style="font-size:1.1rem;">${formatearHoraAmPm(c.horaInicio)} - ${formatearHoraAmPm(c.horaFin)}</strong>${etiquetaPotencial}${marcaReagendar(c)}</div>
+                        <div class="appointment-header"><span class="status-dot ${c.estado}"></span><strong style="font-size:1.1rem;">${formatearHoraAmPm(c.horaInicio)} - ${formatearHoraAmPm(c.horaFin)}</strong>${etiquetaPotencial}${marcaReagendar(c)}${badgeAsistencia(c)}</div>
                         <div style="margin-left: 22px;">- ${c.motivo}</div>
                         <div style="margin-left: 22px;">- ${c.paciente} ${textoNotas}</div>
                         ${barraOrto}
+                        ${botonesAsistencia(c)}
                     </div>`
                 }).join('');
             }
@@ -2017,7 +2086,7 @@
         }
 
         function abrirOpcionesCita(id) {
-            citaSeleccionadaId = id; const cita = citas.find(c => c.id === id);
+            citaSeleccionadaId = id; const cita = citas.find(c => c.id === id); actualizarCajaAsistencia(cita);
             const pacData = pacientes[cita.paciente] || { telefono: cita.telefono, foto: null };
             let htmlFoto = '';
             if(config.mostrarFotos) {
@@ -2177,7 +2246,7 @@
                         <strong style="color:var(--primary);">${formatearFechaLegible(c.fecha)}</strong>
                         <span style="color:${estadoColor}; font-size:0.72rem; font-weight:bold;">${estadoTxt}</span>
                     </div>
-                    <div style="font-size:0.78rem; color:var(--text-muted); margin-top:2px;">${formatearHoraAmPm(c.horaInicio)} · ${c.motivo}${arcoTxt && pasada ? ' · 🦷 '+arcoTxt : ''}</div>
+                    <div style="font-size:0.78rem; color:var(--text-muted); margin-top:2px;">${formatearHoraAmPm(c.horaInicio)} · ${c.motivo}${arcoTxt && pasada ? ' · 🦷 '+arcoTxt : ''}${c.asistencia === 'si' ? ' · ✅ Acudió' : (c.asistencia === 'no' ? ' · 🚫 No acudió' : '')}</div>
                 </div>`;
             }).join('');
         }
@@ -2574,17 +2643,192 @@
             const meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
             return `${dias[fecha.getDay()]} ${d}/${meses[m-1]}/${a}`;
         }
-        function armarMensajeCita(tipo, paciente, fecha, hora, motivo){
-            const defaults = {
-                confirmacion: 'Hola {nombre}, te contactamos de DENTILIKE para confirmar tu cita programada.\n\nTratamiento: {motivo}\nFecha: {fecha}\nHora: {hora}\n\nPor favor confírmanos de recibido.',
-                registrada: 'Hola {nombre}, tu cita ha sido registrada con éxito en DENTILIKE.\n\nTratamiento: {motivo}\nFecha: {fecha}\nHora: {hora}\n\nTe esperamos.'
-            };
-            let plantilla = (tipo==='confirmacion' ? config.msgConfirmacion : config.msgRegistrada) || defaults[tipo];
-            return plantilla
-                .replace(/{nombre}/g, nombrePreferido(paciente))
-                .replace(/{fecha}/g, fechaConDia(fecha))
+        // ===== Mensajes: el tratamiento se agrega o se quita con un interruptor =====
+        const MSG_SEG_NO_DEF = 'Hola {nombre}, te escribimos de DENTILIKE. Vimos que no pudiste acudir a tu cita del {fecha} y queremos saber cómo estás. ¿Te ayudamos a reagendarla? 😊';
+        const MSG_SEG_SIN_DEF = 'Hola {nombre}, te escribimos de DENTILIKE. Ya pasó un tiempo desde tu última cita ({fecha}) y queremos saber cómo vas. ¿Quieres que agendemos tu siguiente revisión? 😊';
+        function aplicarTratamiento(plantilla, incluir){
+            let t = String(plantilla == null ? '' : plantilla);
+            if(incluir){
+                if(!t.includes('{motivo}')){
+                    if(/^[ \t]*Fecha:/m.test(t)) t = t.replace(/^([ \t]*)Fecha:/m, '$1Tratamiento: {motivo}\n$1Fecha:');
+                    else t = t.replace(/\s+$/, '') + '\n\nTratamiento: {motivo}';
+                }
+            } else {
+                t = t.replace(/^[ \t]*Tratamiento:[ \t]*\{motivo\}[ \t]*\r?\n?/gm, '').replace(/\{motivo\}/g, '');
+            }
+            return t;
+        }
+        function construirMensaje(plantilla, incluirTrat, nombre, fechaISO, hora, motivo){
+            return aplicarTratamiento(plantilla, incluirTrat)
+                .replace(/{nombre}/g, nombrePreferido(nombre))
+                .replace(/{fecha}/g, fechaConDia(fechaISO))
                 .replace(/{hora}/g, formatearHoraAmPm(hora))
                 .replace(/{motivo}/g, motivo || '');
+        }
+        function construirSeguimiento(plantilla, nombre, fechaISO){
+            return String(plantilla == null ? '' : plantilla)
+                .replace(/{nombre}/g, nombrePreferido(nombre))
+                .replace(/{fecha}/g, fechaConDia(fechaISO));
+        }
+        function armarMensajeCita(tipo, paciente, fecha, hora, motivo){
+            const defaults = {
+                confirmacion: 'Hola {nombre}, te contactamos de DENTILIKE para confirmar tu cita programada.\n\nFecha: {fecha}\nHora: {hora}\n\nPor favor confírmanos de recibido.',
+                registrada: 'Hola {nombre}, tu cita ha sido registrada con éxito en DENTILIKE.\n\nFecha: {fecha}\nHora: {hora}\n\nTe esperamos.'
+            };
+            const conf = tipo === 'confirmacion';
+            const plantilla = (conf ? config.msgConfirmacion : config.msgRegistrada) || defaults[tipo];
+            const incluir = (conf ? config.msgConfirmacionTrat : config.msgRegistradaTrat) !== false;
+            return construirMensaje(plantilla, incluir, paciente, fecha, hora, motivo);
+        }
+        function actualizarVistasPreviasMensajes(){
+            const ej = { nombre: 'María López', fecha: '2026-10-19', hora: '16:00', motivo: 'Ajuste de ortodoncia' };
+            const val = (id) => { const e = document.getElementById(id); return e ? e.value : ''; };
+            const chk = (id) => { const e = document.getElementById(id); return !!(e && e.checked); };
+            const pon = (id, texto) => { const e = document.getElementById(id); if(e) e.textContent = '👁 Así lo verá el paciente:\n' + texto; };
+            pon('prevMsgConfirmacion', construirMensaje(val('confMsgConfirmacion'), chk('confMsgConfirmacionTrat'), ej.nombre, ej.fecha, ej.hora, ej.motivo));
+            pon('prevMsgRegistrada', construirMensaje(val('confMsgRegistrada'), chk('confMsgRegistradaTrat'), ej.nombre, ej.fecha, ej.hora, ej.motivo));
+            pon('prevMsgSegNo', construirSeguimiento(val('confMsgSegNo'), ej.nombre, '2026-08-12'));
+            pon('prevMsgSegSin', construirSeguimiento(val('confMsgSegSin'), ej.nombre, '2026-07-20'));
+        }
+
+        // ===== Asistencia a la cita (la marcas tú desde la agenda) =====
+        function marcarAsistencia(id, valor){
+            const c = citas.find(x => String(x.id) === String(id)); if(!c) return;
+            if(valor === 'si' || valor === 'no'){ c.asistencia = valor; c.asistenciaFecha = Date.now(); }
+            else { delete c.asistencia; delete c.asistenciaFecha; }
+            guardarCambioCita(c.paciente);
+        }
+        function marcarAsistenciaDesdeOpciones(valor){
+            marcarAsistencia(citaSeleccionadaId, valor);
+            closeModal('opcionesCitaModal');
+            if(selectedDate) openDay(selectedDate);
+            loadCalendar();
+        }
+        function marcarAsistenciaRapida(id, valor){
+            marcarAsistencia(id, valor);
+            if(selectedDate) openDay(selectedDate);
+            loadCalendar();
+        }
+        function puedeMarcarAsistencia(c){
+            return !!c && c.fecha <= fechaAISO(new Date()) && c.estado !== 'status-red';
+        }
+        function badgeAsistencia(c){
+            if(c.asistencia === 'si') return ' <span style="background:#2f855a; color:#fff; border-radius:8px; padding:1px 7px; font-size:0.7rem; font-weight:bold; white-space:nowrap;">✓ Acudió</span>';
+            if(c.asistencia === 'no') return ' <span style="background:#c53030; color:#fff; border-radius:8px; padding:1px 7px; font-size:0.7rem; font-weight:bold; white-space:nowrap;">✗ No acudió</span>';
+            return '';
+        }
+        function botonesAsistencia(c){
+            if(c.asistencia || !puedeMarcarAsistencia(c)) return '';
+            return `<div style="margin:8px 0 0 22px; display:flex; gap:6px; align-items:center; font-size:0.78rem;">¿Acudió?
+                <button class="btn-3d" style="padding:4px 10px; font-size:0.78rem; color:#2f855a;" onclick="event.stopPropagation(); marcarAsistenciaRapida(${c.id}, 'si')">✅ Sí</button>
+                <button class="btn-3d" style="padding:4px 10px; font-size:0.78rem; color:#c53030;" onclick="event.stopPropagation(); marcarAsistenciaRapida(${c.id}, 'no')">🚫 No</button></div>`;
+        }
+        function actualizarCajaAsistencia(c){
+            const box = document.getElementById('asistenciaBox'); if(!box) return;
+            box.style.display = puedeMarcarAsistencia(c) ? 'block' : 'none';
+            const quitar = document.getElementById('btnAsistQuitar'); if(quitar) quitar.style.display = c && c.asistencia ? 'block' : 'none';
+            const si = document.getElementById('btnAsistSi'), no = document.getElementById('btnAsistNo');
+            if(si) si.style.outline = c && c.asistencia === 'si' ? '3px solid #2f855a' : 'none';
+            if(no) no.style.outline = c && c.asistencia === 'no' ? '3px solid #c53030' : 'none';
+        }
+
+        // ===== Seguimiento: quién no acudió y quién lleva meses sin cita =====
+        const SEG_DIAS_OCULTO = 30;   // "Ya lo contacté" lo oculta este número de días
+        function diasDesde(isoFecha){
+            const a = String(isoFecha).split('-').map(Number), h = fechaAISO(new Date()).split('-').map(Number);
+            return Math.round((Date.UTC(h[0], h[1] - 1, h[2]) - Date.UTC(a[0], a[1] - 1, a[2])) / 86400000);
+        }
+        function seguimientoMeses(){
+            const v = parseInt(localStorage.getItem('da_seg_meses'), 10);
+            return [1, 2, 3, 6].includes(v) ? v : 2;
+        }
+        function contactadoReciente(nombre){
+            const f = pacientes[nombre] && pacientes[nombre].contactadoSeg;
+            return !!f && diasDesde(f) < SEG_DIAS_OCULTO;
+        }
+        function calcularSeguimiento(){
+            const hoy = fechaAISO(new Date());
+            const limiteDias = seguimientoMeses() * 30;
+            const porPaciente = {};
+            citas.forEach(c => { (porPaciente[c.paciente] = porPaciente[c.paciente] || []).push(c); });
+            const porMarcar = citas
+                .filter(c => c.fecha < hoy && diasDesde(c.fecha) <= 30 && c.estado !== 'status-red' && !c.asistencia)
+                .sort((a, b) => b.fecha.localeCompare(a.fecha) || (b.horaInicio || '').localeCompare(a.horaInicio || ''));
+            const noAcudieron = [], sinCita = [];
+            Object.keys(pacientes).forEach(nombre => {
+                const p = pacientes[nombre]; if(!p) return;
+                const propias = (porPaciente[nombre] || []).filter(c => c.estado !== 'status-red');
+                if(!propias.length) return;
+                if(propias.some(c => c.fecha >= hoy)) return;          // ya tiene una cita próxima
+                if(contactadoReciente(nombre)) return;                  // ya le escribiste hace poco
+                const ultima = propias.slice().sort((a, b) => a.fecha.localeCompare(b.fecha) || (a.horaInicio || '').localeCompare(b.horaInicio || '')).pop();
+                const dias = diasDesde(ultima.fecha);
+                if(ultima.asistencia === 'no') noAcudieron.push({ nombre, fecha: ultima.fecha, dias, telefono: p.telefono });
+                else if(dias >= limiteDias) sinCita.push({ nombre, fecha: ultima.fecha, dias, telefono: p.telefono });
+            });
+            noAcudieron.sort((a, b) => b.dias - a.dias);
+            sinCita.sort((a, b) => b.dias - a.dias);
+            return { porMarcar, noAcudieron, sinCita };
+        }
+        function actualizarBadgeSeguimiento(){
+            const b = document.getElementById('btnSeguimiento'); if(!b) return;
+            const s = calcularSeguimiento();
+            const n = s.noAcudieron.length + s.sinCita.length + s.porMarcar.length;
+            b.textContent = n > 0 ? `📋 Seguimiento (${n})` : '📋 Seguimiento';
+        }
+        let segLista = { noAcudieron: [], sinCita: [] };
+        function abrirSeguimiento(){
+            document.getElementById('seguimientoModal').style.display = 'flex';
+            renderSeguimiento();
+        }
+        function renderSeguimiento(){
+            const cont = document.getElementById('seguimientoBody'); if(!cont) return;
+            const s = calcularSeguimiento();
+            segLista = { noAcudieron: s.noAcudieron, sinCita: s.sinCita };
+            const meses = seguimientoMeses();
+            const opcionesMeses = [1, 2, 3, 6].map(m => '<option value="' + m + '"' + (m === meses ? ' selected' : '') + '>' + m + (m === 1 ? ' mes' : ' meses') + '</option>').join('');
+            const fila = (grupo, p, i) => `<div class="seg-item">
+                <div style="display:flex; justify-content:space-between; gap:8px; align-items:baseline;"><strong>${escHtml(p.nombre)}</strong><span style="font-size:0.75rem; color:var(--text-muted); white-space:nowrap;">hace ${p.dias} días</span></div>
+                <div style="font-size:0.8rem; color:var(--text-muted);">${grupo === 'noAcudieron' ? 'No acudió el' : 'Última cita:'} ${escHtml(formatearFechaLegible(p.fecha))}</div>
+                <div class="seg-acciones">
+                    <button class="btn-3d" style="color:#25D366;" onclick="segWhatsApp('${grupo}', ${i})">💬 WhatsApp</button>
+                    <button class="btn-3d" style="color:var(--primary);" onclick="segAgendar('${grupo}', ${i})">📅 Agendar</button>
+                    <button class="btn-3d" onclick="segContactado('${grupo}', ${i})">✔ Ya lo contacté</button>
+                </div></div>`;
+            const filaMarcar = (c) => `<div class="seg-item">
+                <div style="display:flex; justify-content:space-between; gap:8px;"><strong>${escHtml(c.paciente)}</strong><span style="font-size:0.75rem; color:var(--text-muted);">${escHtml(formatearFechaLegible(c.fecha))} · ${escHtml(formatearHoraAmPm(c.horaInicio))}</span></div>
+                <div style="font-size:0.8rem; color:var(--text-muted);">${escHtml(c.motivo || '')}</div>
+                <div class="seg-acciones"><button class="btn-3d" style="color:#2f855a;" onclick="segMarcar(${c.id}, 'si')">✅ Sí acudió</button><button class="btn-3d" style="color:#c53030;" onclick="segMarcar(${c.id}, 'no')">🚫 No acudió</button></div></div>`;
+            const sec = (titulo, nota, items, vacio) => `<h4 style="color:var(--primary); margin:18px 0 4px;">${titulo}</h4><div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:8px;">${nota}</div>${items.length ? items.join('') : '<p style="font-size:0.82rem; color:var(--text-muted); text-align:center; margin:6px 0;">' + vacio + '</p>'}`;
+            cont.innerHTML =
+                sec('🚫 No acudieron (' + s.noAcudieron.length + ')', 'Su última cita quedó marcada como "No acudió" y no tienen otra cita próxima.', s.noAcudieron.map((p, i) => fila('noAcudieron', p, i)), 'Nadie por ahora 🎉') +
+                sec('⏰ Sin cita hace ' + meses + (meses === 1 ? ' mes' : ' meses') + ' o más (' + s.sinCita.length + ')', '<label style="font-size:0.78rem;">Mostrar desde hace: <select class="inset-3d" style="width:auto; padding:4px;" onchange="segCambiarMeses(this.value)">' + opcionesMeses + '</select></label>', s.sinCita.map((p, i) => fila('sinCita', p, i)), 'Todos tus pacientes tienen cita o visita reciente 👏') +
+                sec('📝 Por marcar (' + s.porMarcar.length + ')', 'Citas de los últimos 30 días que aún no marcas como "acudió" o "no acudió".', s.porMarcar.map(filaMarcar), 'Todo al día ✅');
+        }
+        function segCambiarMeses(v){
+            localStorage.setItem('da_seg_meses', String(parseInt(v, 10)));
+            renderSeguimiento(); actualizarBadgeSeguimiento();
+        }
+        function segWhatsApp(grupo, i){
+            const p = (segLista[grupo] || [])[i]; if(!p) return;
+            const plantilla = grupo === 'noAcudieron' ? (config.msgSegNo || MSG_SEG_NO_DEF) : (config.msgSegSin || MSG_SEG_SIN_DEF);
+            abrirWa(p.telefono, construirSeguimiento(plantilla, p.nombre, p.fecha));
+        }
+        function segAgendar(grupo, i){
+            const p = (segLista[grupo] || [])[i]; if(!p) return;
+            closeModal('seguimientoModal');
+            agendarDesdeBusqueda(p.nombre);
+        }
+        function segContactado(grupo, i){
+            const p = (segLista[grupo] || [])[i]; if(!p || !pacientes[p.nombre]) return;
+            pacientes[p.nombre].contactadoSeg = fechaAISO(new Date());
+            localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes));
+            guardarAgendaEnNube();
+            renderSeguimiento(); actualizarBadgeSeguimiento();
+        }
+        function segMarcar(id, valor){
+            marcarAsistencia(id, valor);
+            renderSeguimiento(); actualizarBadgeSeguimiento(); loadCalendar();
         }
 
         function enviarMensajePromocion(){
@@ -2893,9 +3137,32 @@
             }
             closeModal('opcionesCitaModal');
         }
+        // ===== WhatsApp: abre la APP (Business primero) y, si no se puede, el enlace normal / la web =====
+        function waModo(){
+            const m = localStorage.getItem('da_wa_modo');
+            return ['auto', 'normal', 'web'].includes(m) ? m : 'auto';
+        }
+        function guardarWaModo(v){ if(['auto', 'normal', 'web'].includes(v)) localStorage.setItem('da_wa_modo', v); }
+        function cargarWaModo(){ const e = document.getElementById('confWaModo'); if(e) e.value = waModo(); }
+        function limpiarTelWa(tel){
+            let t = String(tel == null ? '' : tel).replace(/\D/g, '');
+            if(t.length === 10) t = '52' + t;
+            return t;
+        }
+        function urlsWhatsApp(tel, msg, modo, esAndroid){
+            const num = limpiarTelWa(tel), texto = encodeURIComponent(msg == null ? '' : msg);
+            const wa = `https://wa.me/${num}?text=${texto}`;
+            if(modo === 'web') return { principal: `https://web.whatsapp.com/send?phone=${num}&text=${texto}`, respaldo: wa };
+            if(!esAndroid) return { principal: wa, respaldo: wa };
+            // En Android se abre la app indicada. Si ese celular no la tiene, Chrome carga el enlace normal (respaldo).
+            const paquete = modo === 'normal' ? 'com.whatsapp' : 'com.whatsapp.w4b';
+            return { principal: `intent://send/?phone=${num}&text=${texto}#Intent;scheme=whatsapp;package=${paquete};S.browser_fallback_url=${encodeURIComponent(wa)};end`, respaldo: wa };
+        }
         function abrirWa(tel, msg) {
-            let cleanTel = tel.replace(/\D/g,''); if(cleanTel.length === 10) cleanTel = '52' + cleanTel;
-            window.open(`https://wa.me/${cleanTel}?text=${encodeURIComponent(msg)}`, '_blank');
+            const esAndroid = /Android/i.test(navigator.userAgent || '');
+            const u = urlsWhatsApp(tel, msg, waModo(), esAndroid);
+            try { window.open(u.principal, '_blank'); }
+            catch(e) { try { window.open(u.respaldo, '_blank'); } catch(e2) {} }
         }
         function agregarACalendarDirecto() {
             const cita = citas.find(c => c.id === citaSeleccionadaId); if(!cita) return;
@@ -2927,9 +3194,9 @@
         }
         function openConfig() {
             loadConfig();
+            cargarWaModo();
             document.getElementById('configModalOverlay').style.display = 'flex';
             cargarPrefsAvisos();
-            cargarConsumo();
         }
 
         // ===== Mis avisos (qué recibir y a qué hora) =====
@@ -3183,6 +3450,11 @@
             try{ history.pushState({ da: 1 }, '', location.href); }catch(e){}
         });
 
+        // el contador de Seguimiento se actualiza cada vez que se redibuja el calendario
+        (function(){
+            const original = loadCalendar;
+            loadCalendar = function(){ const r = original.apply(this, arguments); try{ actualizarBadgeSeguimiento(); }catch(e){} return r; };
+        })();
         init();
         daAplicarFestividad();
         // red de seguridad: nunca dejar el cascarón pegado más de 4 segundos
