@@ -387,7 +387,8 @@
                     <div style="font-size:0.85rem; color:var(--primary); margin-bottom:6px;">🎯 Este paciente sigue marcado como <strong>potencial</strong>.</div>
                     <button class="btn-3d" style="width:100%; background:var(--accent); color:white;" onclick="marcarComoCautivoDesdeFicha()">✅ Ya es paciente cautivo</button>
                 </div>
-                <div class="form-group"><label>Nombre</label><input type="text" id="editDirNombre" class="inset-3d" readonly></div>
+                <div class="form-group" style="display:none;"><input type="text" id="editDirNombre" readonly></div>
+                <div class="form-group"><label>Nombre del paciente</label><input type="text" id="editDirNombreNuevo" class="inset-3d" placeholder="Nombre completo"></div>
                 <div class="form-group"><label>¿Cómo le gusta que le digan?</label><input type="text" id="editDirApodo" class="inset-3d" placeholder="Ej. Male (si lo dejas vacío, se usa su primer nombre)"></div>
                 <div class="form-group"><label>Telefono</label><input type="tel" id="editDirTel" class="inset-3d"></div>
                 <div class="form-group"><label>🎂 Fecha de nacimiento</label><input type="date" id="editDirNacimiento" class="inset-3d"></div>
@@ -707,12 +708,51 @@
         function cargarLibreriaFirebase(url){
             return new Promise((res)=>{ const s=document.createElement('script'); s.src=url; s.onload=res; s.onerror=res; document.head.appendChild(s); });
         }
+        // ===== Avisos cuando la app está ABIERTA y a la vista =====
+        // Firebase NO muestra la notificación del sistema si la app está en pantalla:
+        // se la entrega a la página. Aquí la mostramos nosotros.
+        let daAvisosPrimerPlanoListo = false;
+        function daRegistrarAvisosEnPrimerPlano(){
+            if(daAvisosPrimerPlanoListo || !messaging) return;
+            daAvisosPrimerPlanoListo = true;
+            try{
+                messaging.onMessage(function(payload){ daMostrarAvisoEnPrimerPlano(payload); });
+            }catch(e){ daAvisosPrimerPlanoListo = false; console.log('onMessage no disponible', e); }
+        }
+        function daMostrarAvisoEnPrimerPlano(payload){
+            const n = (payload && payload.notification) || {};
+            const d = (payload && payload.data) || {};
+            const titulo = n.title || d.title || 'DentiAgenda';
+            const cuerpo = n.body || d.body || '';
+            // 1) aviso del sistema (barra, sonido y vibración), igual que con la app cerrada
+            try{
+                if('Notification' in window && Notification.permission === 'granted' && 'serviceWorker' in navigator){
+                    navigator.serviceWorker.ready
+                        .then(reg => reg.showNotification(titulo, { body: cuerpo, icon: 'favicon.png', badge: 'favicon.png' }))
+                        .catch(()=>{});
+                }
+            }catch(e){}
+            // 2) y un aviso visible dentro de la app, sin bloquear lo que estés haciendo
+            daMostrarToastAviso(titulo, cuerpo);
+        }
+        function daMostrarToastAviso(titulo, cuerpo){
+            const viejo = document.getElementById('daToastAviso'); if(viejo) viejo.remove();
+            const t = document.createElement('div');
+            t.id = 'daToastAviso';
+            t.style.cssText = 'position:fixed; top:calc(14px + env(safe-area-inset-top, 0px)); left:50%; transform:translateX(-50%); width:min(92vw,420px); z-index:6000; background:#124578; color:#fff; border-radius:14px; padding:12px 16px; box-shadow:0 8px 24px rgba(0,0,0,.3); font-size:.88rem; line-height:1.4; cursor:pointer; white-space:pre-line;';
+            const h = document.createElement('div'); h.style.cssText = 'font-weight:bold; margin-bottom:3px;'; h.textContent = titulo;
+            const b = document.createElement('div'); b.style.cssText = 'opacity:.92;'; b.textContent = cuerpo;
+            t.appendChild(h); t.appendChild(b);
+            t.onclick = () => t.remove();
+            document.body.appendChild(t);
+            setTimeout(() => { if(t.parentNode) t.remove(); }, 8000);
+        }
         async function cargarExtrasFirebase(){
             try{
                 await cargarLibreriaFirebase("https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js");
                 if(fbOK && firebase.storage) storage = firebase.storage();
                 await cargarLibreriaFirebase("https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js");
-                if(fbOK){ try { messaging = firebase.messaging(); } catch(e){ console.log('messaging no disp', e); } }
+                if(fbOK){ try { messaging = firebase.messaging(); daRegistrarAvisosEnPrimerPlano(); } catch(e){ console.log('messaging no disp', e); } }
             }catch(e){ console.log('extras firebase', e); }
         }
         // se dispara tras cargar la app (ver más abajo)
@@ -748,6 +788,41 @@
         function daPushSoportado(){
             return messaging && 'Notification' in window && 'serviceWorker' in navigator;
         }
+        // Devuelve el registro del ÚNICO service worker de la app (sw.js).
+        async function daGetSwReg(){
+            const reg = await navigator.serviceWorker.register('sw.js');
+            await navigator.serviceWorker.ready;
+            return reg;
+        }
+        // Renueva/valida el token de ESTE dispositivo (al abrir la app, máx. 1 vez cada 6 h):
+        //  - si Firebase rotó el token → reemplaza el viejo
+        //  - si el servidor lo limpió de la lista → lo vuelve a registrar
+        //  - solo escribe cuando algo cambió
+        async function renovarTokenDoctor(forzar){
+            try{
+                if(!fbOK || !authListo) return;
+                if(!('Notification' in window) || Notification.permission !== 'granted') return;
+                if(localStorage.getItem('da_push_activo') !== '1') return;
+                const ultima = parseInt(localStorage.getItem('da_push_renov_ts') || '0', 10);
+                if(!forzar && (Date.now() - ultima) < 6*3600*1000) return;
+                if(!messaging) await cargarExtrasFirebase();
+                if(!daPushSoportado()) return;
+                const reg = await daGetSwReg();
+                const token = await messaging.getToken({ vapidKey: DA_VAPID_KEY, serviceWorkerRegistration: reg });
+                if(!token) return;
+                const ref = db.collection('config_publica').doc('doctor_push');
+                const doc = await ref.get();
+                let tokens = (doc.exists && Array.isArray(doc.data().tokens)) ? doc.data().tokens.slice() : [];
+                const viejo = localStorage.getItem('da_push_token');
+                let cambio = false;
+                if(viejo && viejo !== token && tokens.includes(viejo)){ tokens = tokens.filter(t => t !== viejo); cambio = true; }
+                if(!tokens.includes(token)){ tokens.push(token); cambio = true; }
+                if(tokens.length > 10){ tokens = tokens.slice(-10); cambio = true; }
+                if(cambio) await ref.set({ tokens: tokens, actualizado: Date.now() }, { merge:true });
+                localStorage.setItem('da_push_token', token);
+                localStorage.setItem('da_push_renov_ts', String(Date.now()));
+            }catch(e){ console.log('renovar token doctor', e); }
+        }
         async function togglePushDoctor(){
             const sw = document.getElementById('pushSwitch');
             if(sw.checked){
@@ -757,6 +832,7 @@
             }
         }
         async function activarNotificacionesDoctor(){
+            if(!messaging) await cargarExtrasFirebase();   // messaging carga diferido: asegurarlo
             if(!daPushSoportado()){
                 alert('Tu navegador no permite notificaciones. Usa Chrome en Android/PC, o instala la app.');
                 scActualizarBotonPushDoctor();
@@ -765,7 +841,7 @@
             try{
                 const permiso = await Notification.requestPermission();
                 if(permiso !== 'granted'){ alert('No activaste las notificaciones.'); scActualizarBotonPushDoctor(); return; }
-                const reg = await navigator.serviceWorker.register('firebase-messaging-sw.js');
+                const reg = await daGetSwReg();   // un SOLO service worker (sw.js): caché + push
                 const token = await messaging.getToken({ vapidKey: DA_VAPID_KEY, serviceWorkerRegistration: reg });
                 if(!token){ alert('No se pudo generar el token.'); scActualizarBotonPushDoctor(); return; }
                 let tokens = [];
@@ -773,9 +849,13 @@
                     const doc = await db.collection('config_publica').doc('doctor_push').get();
                     if(doc.exists && doc.data().tokens) tokens = doc.data().tokens;
                 }catch(e){}
+                const viejo = localStorage.getItem('da_push_token');
+                if(viejo && viejo !== token) tokens = tokens.filter(t => t !== viejo);   // no acumular tokens muertos
                 if(!tokens.includes(token)) tokens.push(token);
+                if(tokens.length > 10) tokens = tokens.slice(-10);
                 await db.collection('config_publica').doc('doctor_push').set({ tokens: tokens, actualizado: Date.now() }, { merge:true });
                 localStorage.setItem('da_push_token', token);
+                localStorage.setItem('da_push_renov_ts', String(Date.now()));
                 localStorage.setItem('da_push_activo','1');
                 scActualizarBotonPushDoctor();
                 alert('✅ ¡Listo! Recibirás avisos cuando un paciente pida cita.');
@@ -795,6 +875,7 @@
                     tokens = tokens.filter(t => t !== miToken);
                     await db.collection('config_publica').doc('doctor_push').set({ tokens: tokens, actualizado: Date.now() }, { merge:true });
                 }
+                try{ if(messaging) await messaging.deleteToken(); }catch(e){}   // invalida el token en FCM
                 localStorage.removeItem('da_push_token');
                 localStorage.setItem('da_push_activo','0');
                 scActualizarBotonPushDoctor();
@@ -871,6 +952,7 @@
                     sincronizarConfirmaciones(true);
                     if(!intervaloConfirmaciones) intervaloConfirmaciones = setInterval(()=>sincronizarConfirmaciones(true), 3*60*1000);
                     scActualizarBotonPushDoctor();
+                    setTimeout(() => renovarTokenDoctor(false), 4000);
                 } else {
                     // No hay sesión: mostrar login
                     authListo = false;
@@ -1920,6 +2002,7 @@
             const pac = pacientes[nombre];
             const codigo = getCodigoPaciente(nombre); // genera si no tiene
             document.getElementById('editDirNombre').value = nombre; 
+            document.getElementById('editDirNombreNuevo').value = nombre;
             document.getElementById('editDirApodo').value = pac.apodo || '';
             document.getElementById('editDirTel').value = pac.telefono; 
             document.getElementById('editDirNacimiento').value = pac.nacimiento || '';
@@ -2296,9 +2379,34 @@
                 });
             }).catch(err => console.error('comprimirImagen', err));
         }
+        // ¿ya existe OTRO paciente con ese nombre? (sin importar mayúsculas ni espacios extra)
+        function nombreDuplicado(nuevo, actual){
+            const limpio = nuevo.trim().replace(/\s+/g,' ').toLowerCase();
+            return Object.keys(pacientes).some(k => k !== actual && k.trim().replace(/\s+/g,' ').toLowerCase() === limpio);
+        }
+        // Cambia el nombre de un paciente en su expediente Y en todas sus citas
+        function renombrarPaciente(viejo, nuevo){
+            pacientes[nuevo] = pacientes[viejo];
+            delete pacientes[viejo];
+            citas.forEach(c => { if(c.paciente === viejo) c.paciente = nuevo; });
+            if(dirNombreActual === viejo) dirNombreActual = nuevo;
+            document.getElementById('editDirNombre').value = nuevo;
+        }
         async function guardarEdicionDirectorio() {
             if(subidaFotoPromise) { await subidaFotoPromise; }
-            const nombre = document.getElementById('editDirNombre').value, tel = document.getElementById('editDirTel').value, foto = document.getElementById('editDirFotoBase64').value;
+            let nombre = document.getElementById('editDirNombre').value;
+            const tel = document.getElementById('editDirTel').value, foto = document.getElementById('editDirFotoBase64').value;
+            // ¿cambió el nombre?
+            const nombreNuevo = (document.getElementById('editDirNombreNuevo').value || '').trim().replace(/\s+/g,' ');
+            let seRenombro = false;
+            if(!nombreNuevo){ alert('El nombre no puede quedar vacío.'); return; }
+            if(nombreNuevo !== nombre){
+                if(nombreDuplicado(nombreNuevo, nombre)){ alert('Ya existe otro paciente llamado "' + nombreNuevo + '". Usa un nombre distinto.'); return; }
+                if(!confirm('¿Cambiar el nombre de "' + nombre + '" a "' + nombreNuevo + '"?\n\nSe actualizará también en todas sus citas.')) return;
+                renombrarPaciente(nombre, nombreNuevo);
+                nombre = nombreNuevo;
+                seRenombro = true;
+            }
             const apodo = document.getElementById('editDirApodo').value.trim();
             const nacimiento = document.getElementById('editDirNacimiento').value;
             const prev = pacientes[nombre] || {};
@@ -2310,6 +2418,7 @@
             guardarAgendaEnNube();
             syncPacienteAFirebase(nombre);
             cerrarEditorDirectorio(); renderListaContactos();
+            if(seRenombro){ loadCalendar(); }
         }
         function enviarCodigoWhatsApp(){
             const nombre = document.getElementById('editDirNombre').value;
@@ -2756,6 +2865,9 @@
                     });
                 });
             }).catch(()=>{});
+            document.addEventListener('visibilitychange', () => {
+                if(document.visibilityState === 'visible') renovarTokenDoctor(false);
+            });
             let recargado = false;
             navigator.serviceWorker.addEventListener('controllerchange', ()=>{
                 if(recargado) return; recargado = true;
