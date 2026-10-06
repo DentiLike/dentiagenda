@@ -325,8 +325,17 @@
             
             <button id="btnAbrirFormulario" class="btn-3d btn-submit" onclick="toggleFormulario(true)" style="margin-bottom: 1rem; border: 2px dashed var(--primary); background: transparent;">+ Anadir Nueva Cita</button>
             
-            <div id="formularioContainer" style="display: none; padding-top: 1rem; border-top: 1px solid var(--shadow-dark);">
-                <h3 id="formTitle" style="font-size: 1.1rem; color: var(--accent); margin-top:0;">Nueva Cita</h3>
+        </div>
+    </div>
+
+    <!-- Ventana para crear / editar una cita -->
+    <div class="modal-overlay" id="formularioOverlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 id="formTitle" style="margin: 0; color: var(--primary);">Nueva Cita</h2>
+                <button class="close-btn" onclick="toggleFormulario(false)">X</button>
+            </div>
+            <div id="formularioContainer">
                 <div class="form-group">
                     <label>Paciente</label>
                     <input type="text" id="paciente" class="inset-3d" list="pacientesGuardados" onchange="autoFillPhone()">
@@ -353,8 +362,10 @@
                 <div class="form-group"><label>Motivo</label><input type="text" id="motivo" class="inset-3d" list="motivosGuardados"><datalist id="motivosGuardados"></datalist></div>
                 <div class="form-group"><label>Notas Adicionales (Opcional)</label><textarea id="notas" class="inset-3d" rows="2"></textarea></div>
                 
+                <div class="aj-guardar">
                 <button class="btn-3d btn-submit" onclick="guardarCita()" style="background: var(--primary); color: white;">Guardar Cita</button>
                 <button class="btn-3d btn-submit" onclick="toggleFormulario(false)" style="margin-top: 10px; color: var(--text-muted);">Cancelar</button>
+                </div>
             </div>
         </div>
     </div>
@@ -1967,8 +1978,8 @@
         }
 
         function toggleFormulario(mostrar) {
-            document.getElementById('formularioContainer').style.display = mostrar ? 'block' : 'none';
-            document.getElementById('btnAbrirFormulario').style.display = mostrar ? 'none' : 'block';
+            document.getElementById('formularioOverlay').style.display = mostrar ? 'flex' : 'none';
+            if(mostrar){ const vent = document.querySelector('#formularioOverlay .modal'); if(vent) vent.scrollTop = 0; }
             if(!mostrar) {
                 editandoCitaId = null; document.getElementById('formTitle').innerText = 'Nueva Cita';
                 ['paciente','telefono','horaInicio','horaFin','motivo','notas','fechaCita'].forEach(id => document.getElementById(id).value = '');
@@ -3437,7 +3448,7 @@
             const abiertos = modalesAbiertos();
             if(!abiertos.length) return false;
             const id = abiertos[abiertos.length - 1].id;   // el último en el DOM es el que se ve encima
-            if(id === 'dayModalOverlay' && visible('formularioContainer')){ toggleFormulario(false); return true; }
+            if(id === 'formularioOverlay'){ toggleFormulario(false); return true; }   // cierra primero la ventana de edición
             if(id === 'directorioModal'){
                 if(visible('formNuevoPaciente')){ cancelarNuevoPaciente(); return true; }
                 if(visible('editorContacto')){ cerrarEditorDirectorio(); return true; }
