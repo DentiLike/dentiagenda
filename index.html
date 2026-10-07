@@ -283,7 +283,7 @@
     </header>
 
     <div class="search-bar-container">
-        <input type="text" id="globalSearch" class="inset-3d" style="width: 100%; border-radius: 20px;" placeholder="Buscar paciente o cita..." onkeyup="ejecutarBusquedaRapida()">
+        <input type="text" id="globalSearch" class="inset-3d" style="width: 100%; border-radius: 20px;" placeholder="Buscar por nombre o teléfono..." oninput="ejecutarBusquedaRapida()">
         <div id="searchResults" class="search-results"></div>
     </div>
 
@@ -2894,36 +2894,57 @@
         }
         function cerrarEditorDirectorio() { editandoAhora = false; dirNombreActual = null; document.getElementById('editorContacto').style.display = 'none'; document.getElementById('listaContactos').style.display = 'block'; var b=document.getElementById('btnNuevoPaciente'); if(b) b.style.display='block'; }
 
+        // ===== Búsqueda rápida: por nombre (sin importar acentos) o por teléfono (con cualquier formato) =====
+        function sinAcentos(s){ return String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); }
+        function soloDigitos(s){ return String(s == null ? '' : s).replace(/\D/g, ''); }
+        function coincideTelefono(telGuardado, consulta){
+            const t = soloDigitos(telGuardado), q = soloDigitos(consulta);
+            if(!t || q.length < 3) return false;
+            if(t.includes(q)) return true;
+            return q.length >= 5 && q.startsWith('52') && t.includes(q.slice(2));   // si escribió el +52
+        }
+        function consultaEsTelefono(texto){ return !/[a-záéíóúüñ]/i.test(texto) && soloDigitos(texto).length >= 3; }
+        let busquedaPacientes = [];
+        function busqVer(i){ const n = busquedaPacientes[i]; if(n) verExpedienteDesdeBusqueda(n); }
+        function busqAgendar(i){ const n = busquedaPacientes[i]; if(n) agendarDesdeBusqueda(n); }
         function ejecutarBusquedaRapida() {
-            const texto = document.getElementById('globalSearch').value.toLowerCase().trim();
+            const crudo = document.getElementById('globalSearch').value.trim();
             const resultadosBox = document.getElementById('searchResults');
-            if(texto.length < 2) { resultadosBox.style.display = 'none'; return; }
+            const tieneLetras = /[a-záéíóúüñ]/i.test(crudo);
+            // pocas letras o menos de 3 dígitos: esperar a que escriba un poco más
+            if(tieneLetras ? crudo.length < 2 : soloDigitos(crudo).length < 3){ resultadosBox.style.display = 'none'; return; }
+            const porTel = consultaEsTelefono(crudo);
+            const q = sinAcentos(crudo);
             let html = '';
 
-            // 1) PACIENTES que coincidan (del directorio)
-            const nombresPac = Object.keys(pacientes || {}).filter(n => n && n.toLowerCase().includes(texto)).sort((a,b)=>a.localeCompare(b)).slice(0,8);
-            if(nombresPac.length){
+            // 1) PACIENTES (por teléfono si escribió números; por nombre si escribió letras)
+            busquedaPacientes = Object.keys(pacientes || {})
+                .filter(n => n && (porTel ? coincideTelefono((pacientes[n] || {}).telefono, crudo) : sinAcentos(n).includes(q)))
+                .sort((a, b) => a.localeCompare(b)).slice(0, 8);
+            if(busquedaPacientes.length){
                 html += `<div style="font-size:0.72rem; text-transform:uppercase; letter-spacing:0.05em; opacity:0.7; margin:2px 0 4px;">Pacientes</div>`;
-                html += nombresPac.map(n=>{
-                    const nEsc = n.replace(/'/g,"\\'");
+                html += busquedaPacientes.map((n, i) => {
                     const tel = (pacientes[n] && pacientes[n].telefono) ? pacientes[n].telefono : '';
                     return `<div style="display:flex; justify-content:space-between; align-items:center; gap:8px; padding:7px 0; border-bottom:1px solid rgba(255,255,255,0.25);">
-                        <div style="flex:1; min-width:0;"><strong>${n}</strong>${tel?`<span style="opacity:0.7; font-size:0.8rem;"> · ${tel}</span>`:''}</div>
-                        <span class="chip" style="background:var(--accent); color:white; flex-shrink:0; cursor:pointer;" onclick="verExpedienteDesdeBusqueda('${nEsc}')">📋 Ver</span>
-                        <span class="chip" style="background:var(--primary); color:white; flex-shrink:0; cursor:pointer;" onclick="agendarDesdeBusqueda('${nEsc}')">📅 Agendar</span>
+                        <div style="flex:1; min-width:0;"><strong>${escHtml(n)}</strong>${tel ? `<span style="opacity:0.7; font-size:0.8rem;"> · ${escHtml(tel)}</span>` : ''}</div>
+                        <span class="chip" style="background:var(--accent); color:white; flex-shrink:0; cursor:pointer;" onclick="busqVer(${i})">📋 Ver</span>
+                        <span class="chip" style="background:var(--primary); color:white; flex-shrink:0; cursor:pointer;" onclick="busqAgendar(${i})">📅 Agendar</span>
                     </div>`;
                 }).join('');
             }
 
-            // 2) CITAS futuras que coincidan
+            // 2) CITAS futuras de esos pacientes / que coincidan
             const hoyStr = new Date().toISOString().split('T')[0];
-            const encontradas = citas.filter(c => c.paciente.toLowerCase().includes(texto) && c.fecha >= hoyStr).sort((a,b) => a.fecha.localeCompare(b.fecha)).slice(0,8);
+            const nombresOk = new Set(busquedaPacientes);
+            const encontradas = citas
+                .filter(c => c.fecha >= hoyStr && (porTel ? (nombresOk.has(c.paciente) || coincideTelefono(c.telefono, crudo)) : sinAcentos(c.paciente).includes(q)))
+                .sort((a, b) => a.fecha.localeCompare(b.fecha)).slice(0, 8);
             if(encontradas.length){
                 html += `<div style="font-size:0.72rem; text-transform:uppercase; letter-spacing:0.05em; opacity:0.7; margin:8px 0 4px;">Próximas citas</div>`;
-                html += encontradas.map(c => `<div style="padding:6px 0; border-bottom:1px solid rgba(255,255,255,0.25); font-size:0.88rem; cursor:pointer;" onclick="irACitaDesdeBusqueda('${c.fecha}', ${c.id})"><strong>${c.paciente}</strong> · ${formatearFechaLegible(c.fecha)} ${formatearHoraAmPm(c.horaInicio)}</div>`).join('');
+                html += encontradas.map(c => `<div style="padding:6px 0; border-bottom:1px solid rgba(255,255,255,0.25); font-size:0.88rem; cursor:pointer;" onclick="irACitaDesdeBusqueda('${c.fecha}', ${c.id})"><strong>${escHtml(c.paciente)}</strong> · ${escHtml(formatearFechaLegible(c.fecha))} ${escHtml(formatearHoraAmPm(c.horaInicio))}</div>`).join('');
             }
 
-            if(!html){ html = '<div style="font-size:0.9rem;">Sin resultados para "'+texto+'".</div>'; }
+            if(!html){ html = '<div style="font-size:0.9rem;">Sin resultados para "' + escHtml(crudo) + '".<br><span style="opacity:0.7; font-size:0.78rem;">Prueba con el nombre o con el teléfono (mínimo 3 dígitos).</span></div>'; }
             resultadosBox.innerHTML = html;
             resultadosBox.style.display = 'block';
         }
