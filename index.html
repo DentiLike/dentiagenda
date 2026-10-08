@@ -359,7 +359,7 @@
                     </div>
                     <div class="form-group" style="flex: 1;"><label>Fin</label><input type="time" id="horaFin" class="inset-3d"></div>
                 </div>
-                <div class="form-group"><label>Motivo</label><input type="text" id="motivo" class="inset-3d" list="motivosGuardados"><datalist id="motivosGuardados"></datalist></div>
+                <div class="form-group"><label>Motivo</label><input type="text" id="motivo" class="inset-3d" list="motivosGuardados" oninput="ajustarDuracionPorMotivo()" onchange="ajustarDuracionPorMotivo()"><datalist id="motivosGuardados"></datalist></div>
                 <div class="form-group"><label>Notas Adicionales (Opcional)</label><textarea id="notas" class="inset-3d" rows="2"></textarea></div>
                 
                 <div class="aj-guardar">
@@ -436,6 +436,10 @@
                 <div class="form-group"><label>¿Cómo le gusta que le digan?</label><input type="text" id="editDirApodo" class="inset-3d" placeholder="Ej. Male (si lo dejas vacío, se usa su primer nombre)"></div>
                 <div class="form-group"><label>Telefono</label><input type="tel" id="editDirTel" class="inset-3d"></div>
                 <div class="form-group"><label>🎂 Fecha de nacimiento</label><input type="date" id="editDirNacimiento" class="inset-3d"></div>
+                <div class="form-group" id="boxColocacion" style="background:rgba(0,180,180,0.07); border:1px solid var(--accent); border-radius:10px; padding:10px;">
+                    <label style="display:flex; gap:8px; align-items:center; font-weight:bold; color:var(--primary);"><input type="checkbox" id="editDirColocacion"> 🦷 Puede agendar su colocación de brackets</label>
+                    <div id="editDirColocacionNota" style="font-size:0.75rem; color:var(--text-muted); margin-top:5px; line-height:1.4;"></div>
+                </div>
 
                 <div class="codigo-box">
                     <div class="label">Código de acceso del paciente (para Mi Sonrisa)</div>
@@ -597,6 +601,13 @@
                 <input type="checkbox" id="confMostrarFotos" style="width:20px; height:20px; accent-color: var(--primary);">
                 <label style="margin:0; font-size:1rem;">Mostrar fotos de pacientes</label>
             </div>
+                <div class="form-group" style="margin-top:16px;">
+                    <label>🦷 Cita de colocación de brackets</label>
+                    <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:6px;">Queda bloqueada para los pacientes en SmileLike hasta que tú la desbloquees, paciente por paciente, desde su ficha.</div>
+                    <input type="text" id="confColocNombre" class="inset-3d" placeholder="Colocación de brackets">
+                    <label style="font-size:0.75rem; margin-top:8px;">Tiempo que necesitas</label>
+                    <select id="confColocMin" class="inset-3d"><option value="60">1 hora</option><option value="90">1.5 horas</option><option value="120">2 horas</option></select>
+                </div>
             </div></details>
             <details class="aj-sec"><summary>🎨 Colores por tratamiento</summary><div class="aj-body">
             <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:8px;">Si el motivo de la cita contiene la palabra, la cita se pinta de ese color (ej. "Ajuste" → azul marino). Se usa la primera coincidencia de la lista.</div>
@@ -1387,7 +1398,7 @@
                 <div class="inset-3d" style="padding:10px; margin-bottom:10px; border-radius:12px;">
                     <div style="font-weight:bold;">${escHtml(s.nombre)} ${etiqueta}</div>
                     <div style="font-size:0.85rem; color:var(--text-muted);">${escHtml(s.telefono)} · ${escHtml(s.motivo)}</div>
-                    ${detalle}
+                    ${detalle}${htmlAvisoColocacion(s)}
                     <div style="display:flex; gap:8px; margin-top:8px;">
                         <button class="btn-3d" style="flex:1; color:var(--status-green);" onclick="aceptarSolicitud('${escHtml(s.id)}')">✅ ${esReag ? 'Mover la cita' : 'Aceptar'}</button>
                         <button class="btn-3d" style="flex:1; color:var(--status-red);" onclick="rechazarSolicitud('${escHtml(s.id)}')">❌ Rechazar</button>
@@ -1437,6 +1448,7 @@
             localStorage.setItem('denti_citas_v16', JSON.stringify(citas));
             if(!pacientes[nombrePac]) pacientes[nombrePac] = { telefono: s.telefono, foto: null, codigo: s.codigoPaciente || generarCodigo(), esPotencial: !!s.esNuevoPaciente };
             else if(!pacientes[nombrePac].codigo) pacientes[nombrePac].codigo = s.codigoPaciente || generarCodigo();
+            consumirDesbloqueoColocacion(nombrePac, s.motivo);
             localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes));
             if(s.motivo && !motivos.includes(s.motivo)) { motivos.push(s.motivo); localStorage.setItem('denti_motivos_v16', JSON.stringify(motivos)); }
             guardarAgendaEnNube();
@@ -1483,7 +1495,8 @@
                 await db.collection('config_publica').doc('horarios').set({
                     clinica: config.clinica, doctor: config.doctor,
                     mInicio: config.mInicio, mFin: config.mFin,
-                    vInicio: config.vInicio, vFin: config.vFin
+                    vInicio: config.vInicio, vFin: config.vFin,
+                    colocacionNombre: colocNombre(), colocacionMin: colocMin()
                 });
                 publicarDisponibilidad();
             }catch(e){ console.error('publicarConfigPublica', e); }
@@ -1632,6 +1645,39 @@
             localStorage.setItem('da_backfill_fechas_v1', '1');
             console.log('fechasCitas actualizadas en', n, 'pacientes');
         }
+        // ===== Cita de colocación de brackets: bloqueada hasta que la desbloquees por paciente =====
+        const COLOC_NOMBRE_DEF = 'Colocación de brackets';
+        function colocNombre(){ return String(config.colocacionNombre || '').trim() || COLOC_NOMBRE_DEF; }
+        function colocMin(){ const m = parseInt(config.colocacionMin, 10); return [60, 90, 120].includes(m) ? m : 60; }
+        function colocTexto(){ const m = colocMin(); return m === 60 ? '1 hora' : (m === 90 ? '1.5 horas' : '2 horas'); }
+        function esMotivoColocacion(motivo){ return !!motivo && sinAcentos(motivo).trim() === sinAcentos(colocNombre()).trim(); }
+        function consumirDesbloqueoColocacion(nombre, motivo){
+            if(esMotivoColocacion(motivo) && pacientes[nombre] && pacientes[nombre].colocacionDesbloqueada) pacientes[nombre].colocacionDesbloqueada = false;
+        }
+        function actualizarCajaColocacion(pac){
+            const chk = document.getElementById('editDirColocacion'), nota = document.getElementById('editDirColocacionNota');
+            if(!chk || !nota) return;
+            const potencial = !!(pac && pac.esPotencial);
+            chk.checked = !!(pac && pac.colocacionDesbloqueada) && !potencial;
+            chk.disabled = potencial;
+            nota.textContent = potencial
+                ? 'Primero márcalo como paciente cautivo (ya no potencial) para poder desbloquearla.'
+                : `Al activarlo, en SmileLike le aparece el botón para agendar su colocación (${colocTexto()} completa). Se vuelve a bloquear sola cuando aceptas su cita. Recuerda guardar los cambios.`;
+        }
+        function ajustarDuracionPorMotivo(){
+            const m = document.getElementById('motivo'), sel = document.getElementById('duracion');
+            if(!m || !sel || !esMotivoColocacion(m.value)) return;
+            if(parseInt(sel.value, 10) < colocMin()){ sel.value = String(colocMin()); calcularHoraFin(); }
+        }
+        function htmlAvisoColocacion(s){
+            if(!esMotivoColocacion(s.motivo)) return '';
+            const p = pacientes[nombreRealDeSolicitud(s)];
+            const ok = !!(p && p.colocacionDesbloqueada && !p.esPotencial);
+            return ok
+                ? `<div style="font-size:0.78rem; color:#2f855a; margin-top:4px;">🦷 Colocación desbloqueada · ${colocTexto()} reservada</div>`
+                : `<div style="font-size:0.78rem; color:#c53030; margin-top:4px; font-weight:bold;">⚠️ Este paciente NO tenía desbloqueada la colocación. Revísalo antes de aceptar.</div>`;
+        }
+
         async function syncPacienteAFirebase(nombre){
             if(!fbOK || !authListo) return;
             const pac = pacientes[nombre]; if(!pac) return;
@@ -1662,6 +1708,7 @@
                     ortoFaseTexto: pac.ortoFaseTexto || 'Fase 1: Alineación y nivelación',
                     estudios: pac.estudios || [],
                     fechasCitas: fechasCitasPaciente(nombre),
+                    puedeColocacion: !!(pac.colocacionDesbloqueada && !pac.esPotencial),
                     actualizado: Date.now()
                 }, { merge:true });
             }catch(e){ console.error('sync paciente error', e); }
@@ -1725,6 +1772,8 @@
             document.getElementById('confMsgRegistradaTrat').checked = config.msgRegistradaTrat !== false;
             document.getElementById('confMsgSegNo').value = config.msgSegNo || MSG_SEG_NO_DEF;
             document.getElementById('confMsgSegSin').value = config.msgSegSin || MSG_SEG_SIN_DEF;
+            document.getElementById('confColocNombre').value = config.colocacionNombre || '';
+            document.getElementById('confColocMin').value = String(colocMin());
             actualizarVistasPreviasMensajes();
             renderPromos();
             renderColoresConfig();
@@ -1778,6 +1827,8 @@
             config.msgRegistradaTrat = document.getElementById('confMsgRegistradaTrat').checked;
             config.msgSegNo = document.getElementById('confMsgSegNo').value;
             config.msgSegSin = document.getElementById('confMsgSegSin').value;
+            config.colocacionNombre = document.getElementById('confColocNombre').value.trim();
+            config.colocacionMin = parseInt(document.getElementById('confColocMin').value, 10);
             config.coloresTrat = coloresTmp.filter(x => x.nombre && x.nombre.trim()).map(x => ({ nombre: x.nombre.trim(), color: x.color }));
             localStorage.setItem('denti_config_v16', JSON.stringify(config));
             guardarAgendaEnNube();
@@ -2211,8 +2262,9 @@
                     const esPotencial = pac.esPotencial;
                     const estiloPotencial = esPotencial ? 'border-left: 4px solid var(--accent); background: rgba(0,180,180,0.08);' : '';
                     const etiquetaPotencial = esPotencial ? ' <span style="color:var(--accent); font-size:0.75rem; font-weight:bold;">🎯 Potencial</span>' : '';
+                const etiquetaColoc = (!esPotencial && pacientes[nombre] && pacientes[nombre].colocacionDesbloqueada) ? ' <span style="color:#2f855a; font-size:0.72rem; font-weight:bold;">🦷 colocación desbloqueada</span>' : '';
                     return `<div class="contact-item" style="${estiloPotencial}" onclick="abrirEditorDirectorio('${nombreEsc}')">
-                        <div style="display:flex; align-items:center; gap:10px;">${fotoIcon} <strong>${nombre}</strong>${etiquetaPotencial}</div>
+                        <div style="display:flex; align-items:center; gap:10px;">${fotoIcon} <strong>${nombre}</strong>${etiquetaPotencial}${etiquetaColoc}</div>
                         <span style="color:var(--text-muted); font-size:0.8rem;">+52 ${tel}</span>
                     </div>`;
                 }).join('');
@@ -2238,6 +2290,7 @@
             if(pac.foto) { preview.src = pac.foto; preview.style.display = 'block'; } else { preview.src = ''; preview.style.display = 'none'; }
             document.getElementById('editDirFile').value = ''; document.getElementById('listaContactos').style.display = 'none'; document.getElementById('btnNuevoPaciente').style.display = 'none'; document.getElementById('editorContacto').style.display = 'block';
             document.getElementById('bannerPotencialFicha').style.display = pac.esPotencial ? 'block' : 'none';
+            actualizarCajaColocacion(pac);
             renderPlanTratamiento(nombre);
             renderOrtodoncia(nombre);
             renderEstudios(nombre);
@@ -2274,6 +2327,7 @@
             const nombre = document.getElementById('editDirNombre').value;
             if(!pacientes[nombre]) return;
             delete pacientes[nombre].esPotencial;
+            actualizarCajaColocacion(pacientes[nombre]);
             localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes));
             guardarAgendaEnNube();
             document.getElementById('bannerPotencialFicha').style.display = 'none';
@@ -2637,7 +2691,7 @@
             const nacimiento = document.getElementById('editDirNacimiento').value;
             const prev = pacientes[nombre] || {};
             // conservar TODO lo previo, solo actualizar tel, foto, apodo, nacimiento
-            pacientes[nombre] = Object.assign({}, prev, { telefono: tel, foto: foto, apodo: apodo, nacimiento: nacimiento, codigo: prev.codigo || generarCodigo() });
+            pacientes[nombre] = Object.assign({}, prev, { telefono: tel, foto: foto, apodo: apodo, nacimiento: nacimiento, codigo: prev.codigo || generarCodigo(), colocacionDesbloqueada: !prev.esPotencial && !!document.getElementById('editDirColocacion').checked });
             citas.forEach(c => { if(c.paciente === nombre) c.telefono = tel; });
             localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes));
             localStorage.setItem('denti_citas_v16', JSON.stringify(citas));
@@ -3375,6 +3429,7 @@
             localStorage.setItem('denti_citas_v16', JSON.stringify(citas));
             if(!pacientes[pac]) pacientes[pac] = { telefono: tel, foto: null, codigo: generarCodigo() }; 
             else { pacientes[pac].telefono = tel; if(!pacientes[pac].codigo) pacientes[pac].codigo = generarCodigo(); }
+            consumirDesbloqueoColocacion(pac, mot);
             localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes));
             if(!motivos.includes(mot)) { motivos.push(mot); localStorage.setItem('denti_motivos_v16', JSON.stringify(motivos)); }
             guardarAgendaEnNube();      // sube citas+pacientes+motivos
