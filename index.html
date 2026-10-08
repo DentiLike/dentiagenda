@@ -2988,12 +2988,28 @@
         }
 
         // ===== Materiales por surtir =====
-        const MATERIALES_BASE = ['NiTi .012', 'NiTi .014', 'NiTi .016', 'NiTi .018', 'NiTi 16x22', 'NiTi 17x25', 'NiTi 19x25',
-            'Acero .016', 'Acero .018', 'Acero 16x22', 'Acero 17x25', 'Acero 19x25',
-            'Cepillos de profilaxis', 'Elásticos intraorales', 'Juegos de brackets', 'Resina block out', 'Campos', 'Vasos', 'Enjuague', 'Agua destilada', 'Microbrush'];
+        const ARCOS_MAT = ['NiTi .012', 'NiTi .014', 'NiTi .016', 'NiTi .018', 'NiTi 16x22', 'NiTi 17x25', 'NiTi 19x25',
+            'Acero .016', 'Acero .018', 'Acero 16x22', 'Acero 17x25', 'Acero 19x25'];
+        const OTROS_MAT = ['Cepillos de profilaxis', 'Elásticos intraorales', 'Juegos de brackets', 'Resina block out', 'Campos', 'Vasos', 'Enjuague', 'Agua destilada', 'Microbrush'];
         function materialesLista(){
             if(!Array.isArray(config.materiales)){
-                config.materiales = MATERIALES_BASE.map((n, i) => ({ id: 'm' + i, nombre: n, falta: false }));
+                config.materiales = [];
+                ARCOS_MAT.forEach((n, i) => {
+                    config.materiales.push({ id: 'm' + i, nombre: n + ' superior', falta: false });
+                    config.materiales.push({ id: 'm' + i + 'i', nombre: n + ' inferior', falta: false });
+                });
+                OTROS_MAT.forEach((n, i) => config.materiales.push({ id: 'm' + (12 + i), nombre: n, falta: false }));
+                config.materialesV = 2;
+            } else if(config.materialesV !== 2){
+                // lista anterior: cada arco se separa en superior e inferior (conserva si ya estaba marcado como faltante)
+                const nueva = [];
+                config.materiales.forEach(m => {
+                    if(!m.propio && ARCOS_MAT.includes(m.nombre)){
+                        nueva.push({ id: m.id, nombre: m.nombre + ' superior', falta: !!m.falta });
+                        nueva.push({ id: m.id + 'i', nombre: m.nombre + ' inferior', falta: !!m.falta });
+                    } else nueva.push(m);
+                });
+                config.materiales = nueva; config.materialesV = 2;
             }
             return config.materiales;
         }
