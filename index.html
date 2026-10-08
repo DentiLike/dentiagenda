@@ -1075,7 +1075,7 @@
                     if(!intervaloConfirmaciones) intervaloConfirmaciones = setInterval(()=>sincronizarConfirmaciones(true), 3*60*1000);
                     scActualizarBotonPushDoctor();
                     setTimeout(() => renovarTokenDoctor(false), 4000);
-                    setTimeout(backfillFechasCitas, 15000); setTimeout(backfillColocacionPublica, 20000);
+                    setTimeout(backfillFechasCitas, 15000); setTimeout(backfillPacientePublico, 20000);
                 } else {
                     // No hay sesión: mostrar login
                     authListo = false;
@@ -1362,9 +1362,10 @@
                 const k = Object.keys(pacientes).find(n => pacientes[n] && pacientes[n].codigo === s.codigoPaciente && limpiarTel(pacientes[n].telefono) === tel);
                 if(k) return k;
             }
-            // Colocación pedida desde la página pública (solo trae teléfono): la ligamos al paciente de ortodoncia con ese teléfono
-            if(esMotivoColocacion(s.motivo)){
-                const cand = Object.keys(pacientes).filter(n => pacientes[n] && ultimos10(pacientes[n].telefono) === ultimos10(s.telefono) && colocPendiente(pacientes[n]));
+            // Solicitud de alguien que ya es paciente, hecha desde la página pública (solo trae teléfono): la ligamos a su ficha
+            if(!s.esNuevoPaciente){
+                let cand = Object.keys(pacientes).filter(n => pacientes[n] && !pacientes[n].esPotencial && ultimos10(pacientes[n].telefono) === ultimos10(s.telefono));
+                if(esMotivoColocacion(s.motivo)){ const c2 = cand.filter(n => colocPendiente(pacientes[n])); if(c2.length) cand = c2; }
                 if(cand.length) return cand.find(n => sinAcentos(n) === sinAcentos(s.nombre)) || cand[0];
             }
             return s.nombre;
@@ -1705,31 +1706,34 @@
                 : `<div style="font-size:0.78rem; color:#c53030; margin-top:4px; font-weight:bold;">⚠️ Este paciente no tenía pendiente la colocación en su módulo de ortodoncia. Revísalo antes de aceptar.</div>`;
         }
 
-        // Colocación visible en la página pública de citas: un doc por teléfono (sin nombre), solo se puede leer conociendo el teléfono
-        async function hashColoc(tel10){
-            const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('colocacion|' + tel10));
+        // Pacientes registrados visibles en la página pública de citas: un doc por teléfono (sin nombre ni datos clínicos).
+        // Sirve para que la página reconozca a quien ya es paciente y le ofrezca su colocación si le toca. Solo se consulta por teléfono; no se puede listar.
+        async function hashPacPub(tel10){
+            const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('pacpub|' + tel10));
             return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
         }
-        async function syncColocacionPublica(telefono){
+        async function syncPacientePublico(telefono){
             if(!fbOK || !authListo) return;
             const k = ultimos10(telefono); if(!k) return;
             try{
-                const pend = Object.keys(pacientes).filter(n => pacientes[n] && ultimos10(pacientes[n].telefono) === k).map(n => colocPendiente(pacientes[n])).filter(Boolean);
-                const ref = db.collection('colocaciones_pub').doc(await hashColoc(k));
-                if(pend.length) await ref.set({ pend: true, actualizado: Date.now() });
+                const mismos = Object.keys(pacientes).filter(n => pacientes[n] && ultimos10(pacientes[n].telefono) === k);
+                const registrado = mismos.some(n => !pacientes[n].esPotencial);
+                const coloc = mismos.some(n => colocPendiente(pacientes[n]));
+                const ref = db.collection('pacientes_pub').doc(await hashPacPub(k));
+                if(registrado) await ref.set({ reg: true, coloc: coloc, actualizado: Date.now() });
                 else await ref.delete();
-            }catch(e){ console.error('sync coloc pub', e); }
+            }catch(e){ console.error('sync paciente pub', e); }
         }
-        async function backfillColocacionPublica(){
+        async function backfillPacientePublico(){
             if(!fbOK || !authListo) return;
-            if(localStorage.getItem('da_backfill_coloc_pub_v1') === '1') return;
+            if(localStorage.getItem('da_backfill_pac_pub_v1') === '1') return;
             const vistos = new Set();
             for(const n of Object.keys(pacientes)){
                 const k = ultimos10((pacientes[n] || {}).telefono);
-                if(!k || vistos.has(k) || !pacientes[n].ortodoncia) continue;
-                vistos.add(k); await syncColocacionPublica(pacientes[n].telefono);
+                if(!k || vistos.has(k) || pacientes[n].esPotencial) continue;
+                vistos.add(k); await syncPacientePublico(pacientes[n].telefono);
             }
-            localStorage.setItem('da_backfill_coloc_pub_v1', '1');
+            localStorage.setItem('da_backfill_pac_pub_v1', '1');
         }
         async function syncPacienteAFirebase(nombre){
             if(!fbOK || !authListo) return;
@@ -1766,7 +1770,7 @@
                     actualizado: Date.now()
                 }, { merge:true });
             }catch(e){ console.error('sync paciente error', e); }
-            syncColocacionPublica(pac.telefono);
+            syncPacientePublico(pac.telefono);
             // NOTA: esta función solo actualiza el doc del paciente (para Mi Sonrisa).
             // NO llama a guardarAgendaEnNube para no crear doble escritura con sellos distintos.
         }
@@ -2848,7 +2852,7 @@
             pacientes[nombre] = Object.assign({}, prev, { telefono: tel, foto: foto, apodo: apodo, nacimiento: nacimiento, codigo: prev.codigo || generarCodigo() });
             citas.forEach(c => { if(c.paciente === nombre) c.telefono = tel; });
             localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes));
-            if(ultimos10(prev.telefono) !== ultimos10(tel)) syncColocacionPublica(prev.telefono);   // limpia el teléfono anterior
+            if(ultimos10(prev.telefono) !== ultimos10(tel)) syncPacientePublico(prev.telefono);   // limpia el teléfono anterior
             localStorage.setItem('denti_citas_v16', JSON.stringify(citas));
             guardarAgendaEnNube();
             syncPacienteAFirebase(nombre);
