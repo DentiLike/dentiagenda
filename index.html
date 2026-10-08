@@ -278,6 +278,7 @@
             <button class="btn-3d btn-text-icon" onclick="abrirDirectorio()">Pacientes</button>
             <button class="btn-3d btn-text-icon" onclick="abrirPotenciales()">🎯 Px Potencial</button>
             <button class="btn-3d btn-text-icon" id="btnSeguimiento" onclick="abrirSeguimiento()">📋 Seguimiento</button>
+            <button class="btn-3d btn-text-icon" id="btnMateriales" onclick="abrirMateriales()">🛒 Surtir</button>
             <button class="btn-3d btn-text-icon" onclick="openConfig()">Ajustes</button>
         </div>
     </header>
@@ -436,12 +437,7 @@
                 <div class="form-group"><label>¿Cómo le gusta que le digan?</label><input type="text" id="editDirApodo" class="inset-3d" placeholder="Ej. Male (si lo dejas vacío, se usa su primer nombre)"></div>
                 <div class="form-group"><label>Telefono</label><input type="tel" id="editDirTel" class="inset-3d"></div>
                 <div class="form-group"><label>🎂 Fecha de nacimiento</label><input type="date" id="editDirNacimiento" class="inset-3d"></div>
-                <div class="form-group" id="boxColocacion" style="background:rgba(0,180,180,0.07); border:1px solid var(--accent); border-radius:10px; padding:10px;">
-                    <label style="display:flex; gap:8px; align-items:center; font-weight:bold; color:var(--primary);"><input type="checkbox" id="editDirColocacion"> 🦷 Puede agendar su colocación de brackets</label>
-                    <div id="editDirColocacionNota" style="font-size:0.75rem; color:var(--text-muted); margin-top:5px; line-height:1.4;"></div>
-                </div>
-
-                <div class="codigo-box">
+                                <div class="codigo-box">
                     <div class="label">Código de acceso del paciente (para Mi Sonrisa)</div>
                     <div class="code" id="editDirCodigo">----</div>
                 </div>
@@ -470,6 +466,7 @@
                             <option value="con_extracciones">Con extracciones</option>
                         </select>
                         <div id="ortoResumen" style="text-align:center; padding:10px; background:var(--accent); color:white; border-radius:8px; margin-bottom:10px; font-weight:bold;">0% · Fase 1</div>
+                        <div id="ortoColocBox" style="background:rgba(0,180,180,0.07); border:1px solid var(--accent); border-radius:10px; padding:10px; margin-bottom:10px;"></div>
                         <div style="font-size:0.72rem; color:var(--text-muted); margin-bottom:6px;">Marca los arcos colocados (superior / inferior):</div>
                         <table style="width:100%; border-collapse:collapse; font-size:0.8rem;">
                             <thead><tr style="background:var(--primary); color:white;">
@@ -516,6 +513,7 @@
                 <div class="plan-box">
                     <h5>🩻 Estudios / Radiografías (los verá el paciente en Mi Sonrisa)</h5>
                     <div id="estudiosLista"></div>
+                <div id="estudiosRevisionBox" style="margin-top:8px;"></div>
                     <div style="margin-top:10px; display:grid; gap:8px;">
                         <button class="plan-add-btn" onclick="subirEstudio('Radiografía panorámica')">📷 Subir Panorámica</button>
                         <button class="plan-add-btn" onclick="subirEstudio('Radiografía lateral')">📷 Subir Lateral</button>
@@ -603,7 +601,7 @@
             </div>
                 <div class="form-group" style="margin-top:16px;">
                     <label>🦷 Cita de colocación de brackets</label>
-                    <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:6px;">Queda bloqueada para los pacientes en SmileLike hasta que tú la desbloquees, paciente por paciente, desde su ficha.</div>
+                    <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:6px;">Se ofrece sola al paciente cuando su ortodoncia está activada, hasta que marques «Brackets ya colocados» en su ficha (módulo de ortodoncia).</div>
                     <input type="text" id="confColocNombre" class="inset-3d" placeholder="Colocación de brackets">
                     <label style="font-size:0.75rem; margin-top:8px;">Tiempo que necesitas</label>
                     <select id="confColocMin" class="inset-3d"><option value="60">1 hora</option><option value="90">1.5 horas</option><option value="120">2 horas</option></select>
@@ -710,6 +708,17 @@
             </div>
             </div></details>
             <div class="aj-guardar"><button class="btn-3d btn-submit" style="background:var(--primary); color:white;" onclick="guardarConfig()">💾 Guardar Ajustes</button><div style="font-size:0.7rem; color:var(--text-muted); text-align:center; margin-top:4px;">Guarda consultorio, horarios, colores y mensajes</div></div>
+        </div>
+    </div>
+
+    <!-- Modal Materiales por surtir -->
+    <div class="modal-overlay" id="materialesModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 style="margin: 0; color: var(--primary);">🛒 Por surtir</h2>
+                <button class="close-btn" onclick="closeModal('materialesModal')">X</button>
+            </div>
+            <div id="materialesBody"></div>
         </div>
     </div>
 
@@ -1066,7 +1075,7 @@
                     if(!intervaloConfirmaciones) intervaloConfirmaciones = setInterval(()=>sincronizarConfirmaciones(true), 3*60*1000);
                     scActualizarBotonPushDoctor();
                     setTimeout(() => renovarTokenDoctor(false), 4000);
-                    setTimeout(backfillFechasCitas, 15000);
+                    setTimeout(backfillFechasCitas, 15000); setTimeout(backfillColocacionPublica, 20000);
                 } else {
                     // No hay sesión: mostrar login
                     authListo = false;
@@ -1224,7 +1233,8 @@
                 localStorage.setItem('denti_potenciales_v16', JSON.stringify(potenciales));
                 localStorage.setItem('denti_config_v16', JSON.stringify(config));
                 syncGlobalActivo = true;
-                loadCalendar(); updateDatalists(); loadConfig(); renderPotenciales();
+                loadCalendar(); updateDatalists(); loadConfig(); renderPotenciales(); actualizarBadgeMateriales();
+                if(document.getElementById('materialesModal').style.display === 'flex') renderMateriales();
                 setSync('on','Sincronizado');
             }, (err)=>{ console.error('snapshot error', err); setSync('err','Error de conexión'); });
         }
@@ -1277,7 +1287,7 @@
         function agendarDesdePotencial(id) {
             const p = potenciales.find(x => x.id === id);
             if(!p) return;
-            if(!pacientes[p.nombre]) pacientes[p.nombre] = { telefono: p.telefono, foto: null, codigo: generarCodigo(), apodo: '', esPotencial: true };
+            if(!pacientes[p.nombre]) pacientes[p.nombre] = { creado: Date.now(), telefono: p.telefono, foto: null, codigo: generarCodigo(), apodo: '', esPotencial: true };
             else pacientes[p.nombre].esPotencial = true;
             localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes));
             guardarAgendaEnNube();
@@ -1290,7 +1300,7 @@
             const p = potenciales.find(x => x.id === id);
             if(!p) return;
             if(!confirm(`¿Pasar a ${p.nombre} a tu directorio de pacientes? Podrás agendarle su primera cita desde ahí.`)) { renderPotenciales(); return; }
-            if(!pacientes[p.nombre]) pacientes[p.nombre] = { telefono: p.telefono, foto: null, codigo: generarCodigo(), apodo: '' };
+            if(!pacientes[p.nombre]) pacientes[p.nombre] = { creado: Date.now(), telefono: p.telefono, foto: null, codigo: generarCodigo(), apodo: '' };
             else delete pacientes[p.nombre].esPotencial; // ya es cautivo: sus citas vuelven al color normal
             potenciales = potenciales.filter(x => x.id !== id);
             localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes));
@@ -1305,7 +1315,7 @@
         function getCodigoPaciente(nombre){
             if(pacientes[nombre] && pacientes[nombre].codigo) return pacientes[nombre].codigo;
             const cod = generarCodigo();
-            if(!pacientes[nombre]) pacientes[nombre] = { telefono:'', foto:null };
+            if(!pacientes[nombre]) pacientes[nombre] = { creado: Date.now(), telefono:'', foto:null };
             pacientes[nombre].codigo = cod;
             localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes));
             return cod;
@@ -1351,6 +1361,11 @@
                 const tel = limpiarTel(s.telefono);
                 const k = Object.keys(pacientes).find(n => pacientes[n] && pacientes[n].codigo === s.codigoPaciente && limpiarTel(pacientes[n].telefono) === tel);
                 if(k) return k;
+            }
+            // Colocación pedida desde la página pública (solo trae teléfono): la ligamos al paciente de ortodoncia con ese teléfono
+            if(esMotivoColocacion(s.motivo)){
+                const cand = Object.keys(pacientes).filter(n => pacientes[n] && ultimos10(pacientes[n].telefono) === ultimos10(s.telefono) && colocPendiente(pacientes[n]));
+                if(cand.length) return cand.find(n => sinAcentos(n) === sinAcentos(s.nombre)) || cand[0];
             }
             return s.nombre;
         }
@@ -1444,11 +1459,11 @@
                 const detalle = conflictos.map(c => `${c.paciente} (${formatearHoraAmPm(c.horaInicio)}-${formatearHoraAmPm(c.horaFin)})`).join(', ');
                 if(!confirm(`⚠️ Esta solicitud se sobrepone con: ${detalle}.\n\n¿Aceptarla de todas formas?`)) return;
             }
+            if((!pacientes[nombrePac] || ultimos10(pacientes[nombrePac].telefono) !== ultimos10(s.telefono)) && !confirmarTelefonoRepetido(s.telefono, nombrePac, 'Aceptarla')) return;
             citas.push({ id: Date.now(), fecha: s.fecha, paciente: nombrePac, telefono: s.telefono, horaInicio: s.horaInicio, horaFin: s.horaFin, motivo: s.motivo, notas: s.esNuevoPaciente ? 'Paciente nuevo, agendado desde citas.dentilike.com.mx' : 'Agendada por el paciente desde Mi Sonrisa', estado: 'status-yellow' });
             localStorage.setItem('denti_citas_v16', JSON.stringify(citas));
-            if(!pacientes[nombrePac]) pacientes[nombrePac] = { telefono: s.telefono, foto: null, codigo: s.codigoPaciente || generarCodigo(), esPotencial: !!s.esNuevoPaciente };
+            if(!pacientes[nombrePac]) pacientes[nombrePac] = { creado: Date.now(), telefono: s.telefono, foto: null, codigo: s.codigoPaciente || generarCodigo(), esPotencial: !!s.esNuevoPaciente };
             else if(!pacientes[nombrePac].codigo) pacientes[nombrePac].codigo = s.codigoPaciente || generarCodigo();
-            consumirDesbloqueoColocacion(nombrePac, s.motivo);
             localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes));
             if(s.motivo && !motivos.includes(s.motivo)) { motivos.push(s.motivo); localStorage.setItem('denti_motivos_v16', JSON.stringify(motivos)); }
             guardarAgendaEnNube();
@@ -1650,19 +1665,32 @@
         function colocNombre(){ return String(config.colocacionNombre || '').trim() || COLOC_NOMBRE_DEF; }
         function colocMin(){ const m = parseInt(config.colocacionMin, 10); return [60, 90, 120].includes(m) ? m : 60; }
         function colocTexto(){ const m = colocMin(); return m === 60 ? '1 hora' : (m === 90 ? '1.5 horas' : '2 horas'); }
-        function esMotivoColocacion(motivo){ return !!motivo && sinAcentos(motivo).trim() === sinAcentos(colocNombre()).trim(); }
-        function consumirDesbloqueoColocacion(nombre, motivo){
-            if(esMotivoColocacion(motivo) && pacientes[nombre] && pacientes[nombre].colocacionDesbloqueada) pacientes[nombre].colocacionDesbloqueada = false;
+        function esMotivoColocacion(motivo){ return !!motivo && sinAcentos(motivo).trim().startsWith(sinAcentos(colocNombre()).trim()); }
+        // Colocación: se ofrece al paciente de ortodoncia hasta que marques sus brackets como colocados
+        function arcadaColocada(pac, arc){
+            const o = (pac && pac.ortoColoc) || {};
+            return !!o[arc] || Object.values((pac && pac.ortoArcos) || {}).some(a => a && a[arc]);
         }
-        function actualizarCajaColocacion(pac){
-            const chk = document.getElementById('editDirColocacion'), nota = document.getElementById('editDirColocacionNota');
-            if(!chk || !nota) return;
-            const potencial = !!(pac && pac.esPotencial);
-            chk.checked = !!(pac && pac.colocacionDesbloqueada) && !potencial;
-            chk.disabled = potencial;
-            nota.textContent = potencial
-                ? 'Primero márcalo como paciente cautivo (ya no potencial) para poder desbloquearla.'
-                : `Al activarlo, en SmileLike le aparece el botón para agendar su colocación (${colocTexto()} completa). Se vuelve a bloquear sola cuando aceptas su cita. Recuerda guardar los cambios.`;
+        function bracketsColocados(pac){ const o = (pac && pac.ortoColoc) || {}; return !!o.listo || arcadaColocada(pac, 'sup') || arcadaColocada(pac, 'inf'); }
+        function colocPendiente(pac){
+            if(!pac || pac.esPotencial || !pac.ortodoncia) return null;
+            return bracketsColocados(pac) ? null : 'coloc';
+        }
+        function toggleColocOrto(valor){
+            const nombre = dirNombreActual; if(!nombre || !pacientes[nombre]) return;
+            if(!pacientes[nombre].ortoColoc) pacientes[nombre].ortoColoc = {};
+            pacientes[nombre].ortoColoc.listo = !!valor;
+            if(!valor){ pacientes[nombre].ortoColoc.sup = false; pacientes[nombre].ortoColoc.inf = false; }
+            guardarPlan(nombre);
+            renderOrtodoncia(nombre);
+            renderListaContactos();
+        }
+        function renderColocOrto(pac){
+            const box = document.getElementById('ortoColocBox'); if(!box) return;
+            const auto = Object.values(pac.ortoArcos || {}).some(a => a && (a.sup || a.inf));
+            const pend = colocPendiente(pac);
+            const nota = pend ? `Al paciente le aparece «${colocNombre()}» (${colocTexto()} completa) en SmileLike y en la página de citas.` : 'Ya no tiene la colocación pendiente.';
+            box.innerHTML = `<label style="display:flex; gap:8px; align-items:center; font-weight:bold; font-size:0.85rem; color:var(--primary);"><input type="checkbox" ${bracketsColocados(pac) ? 'checked' : ''} ${auto ? 'disabled' : ''} onchange="toggleColocOrto(this.checked)"> 🦷 Brackets ya colocados${auto ? ' <span style="font-weight:normal; font-size:0.7rem; color:var(--text-muted);">(ya tiene arcos)</span>' : ''}</label><div style="font-size:0.72rem; color:var(--text-muted); margin-top:4px; line-height:1.4;">${nota}</div>`;
         }
         function ajustarDuracionPorMotivo(){
             const m = document.getElementById('motivo'), sel = document.getElementById('duracion');
@@ -1672,12 +1700,37 @@
         function htmlAvisoColocacion(s){
             if(!esMotivoColocacion(s.motivo)) return '';
             const p = pacientes[nombreRealDeSolicitud(s)];
-            const ok = !!(p && p.colocacionDesbloqueada && !p.esPotencial);
-            return ok
-                ? `<div style="font-size:0.78rem; color:#2f855a; margin-top:4px;">🦷 Colocación desbloqueada · ${colocTexto()} reservada</div>`
-                : `<div style="font-size:0.78rem; color:#c53030; margin-top:4px; font-weight:bold;">⚠️ Este paciente NO tenía desbloqueada la colocación. Revísalo antes de aceptar.</div>`;
+            return colocPendiente(p)
+                ? `<div style="font-size:0.78rem; color:#2f855a; margin-top:4px;">🦷 Colocación pendiente según su ortodoncia · ${colocTexto()} reservada</div>`
+                : `<div style="font-size:0.78rem; color:#c53030; margin-top:4px; font-weight:bold;">⚠️ Este paciente no tenía pendiente la colocación en su módulo de ortodoncia. Revísalo antes de aceptar.</div>`;
         }
 
+        // Colocación visible en la página pública de citas: un doc por teléfono (sin nombre), solo se puede leer conociendo el teléfono
+        async function hashColoc(tel10){
+            const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('colocacion|' + tel10));
+            return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+        async function syncColocacionPublica(telefono){
+            if(!fbOK || !authListo) return;
+            const k = ultimos10(telefono); if(!k) return;
+            try{
+                const pend = Object.keys(pacientes).filter(n => pacientes[n] && ultimos10(pacientes[n].telefono) === k).map(n => colocPendiente(pacientes[n])).filter(Boolean);
+                const ref = db.collection('colocaciones_pub').doc(await hashColoc(k));
+                if(pend.length) await ref.set({ pend: true, actualizado: Date.now() });
+                else await ref.delete();
+            }catch(e){ console.error('sync coloc pub', e); }
+        }
+        async function backfillColocacionPublica(){
+            if(!fbOK || !authListo) return;
+            if(localStorage.getItem('da_backfill_coloc_pub_v1') === '1') return;
+            const vistos = new Set();
+            for(const n of Object.keys(pacientes)){
+                const k = ultimos10((pacientes[n] || {}).telefono);
+                if(!k || vistos.has(k) || !pacientes[n].ortodoncia) continue;
+                vistos.add(k); await syncColocacionPublica(pacientes[n].telefono);
+            }
+            localStorage.setItem('da_backfill_coloc_pub_v1', '1');
+        }
         async function syncPacienteAFirebase(nombre){
             if(!fbOK || !authListo) return;
             const pac = pacientes[nombre]; if(!pac) return;
@@ -1708,10 +1761,12 @@
                     ortoFaseTexto: pac.ortoFaseTexto || 'Fase 1: Alineación y nivelación',
                     estudios: pac.estudios || [],
                     fechasCitas: fechasCitasPaciente(nombre),
-                    puedeColocacion: !!(pac.colocacionDesbloqueada && !pac.esPotencial),
+                    puedeColocacion: !!colocPendiente(pac),
+                    colocacionPend: colocPendiente(pac) || null,
                     actualizado: Date.now()
                 }, { merge:true });
             }catch(e){ console.error('sync paciente error', e); }
+            syncColocacionPublica(pac.telefono);
             // NOTA: esta función solo actualiza el doc del paciente (para Mi Sonrisa).
             // NO llama a guardarAgendaEnNube para no crear doble escritura con sellos distintos.
         }
@@ -2211,7 +2266,8 @@
             const tel = document.getElementById('nuevoPacTel').value.replace(/\D/g,'');
             if(!nombre){ alert('Escribe el nombre del paciente.'); return; }
             if(pacientes[nombre]){ alert('Ya existe un paciente con ese nombre. Usa un nombre distinto o edítalo desde la lista.'); return; }
-            pacientes[nombre] = { telefono: tel, foto: null, codigo: generarCodigo(), plan: [] };
+            if(tel && !confirmarTelefonoRepetido(tel, null, 'Crear el paciente')) return;
+            pacientes[nombre] = { creado: Date.now(), telefono: tel, foto: null, codigo: generarCodigo(), plan: [] };
             localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes));
             guardarAgendaEnNube();
             syncPacienteAFirebase(nombre);
@@ -2236,25 +2292,120 @@
             const p = nombre.trim().split(/\s+/);
             return p.length > 1 ? p[p.length-1] : nombre;
         }
+        // ===== Estudios: ¿ya los revisé? =====
+        function estadoEstudios(pac){
+            if(!pac) return 'sin';
+            if(pac.estudiosNoAplica) return 'noaplica';
+            const lista = Array.isArray(pac.estudios) ? pac.estudios : [];
+            if(!lista.length) return 'sin';
+            const ultimo = Math.max.apply(null, lista.map(e => Number(e.fecha) || 0));
+            return (pac.estudiosRevisados && pac.estudiosRevisados >= ultimo) ? 'ok' : 'pendiente';
+        }
+        function renderRevisionEstudios(nombre){
+            const box = document.getElementById('estudiosRevisionBox'); if(!box) return;
+            const pac = pacientes[nombre] || {};
+            const est = estadoEstudios(pac);
+            const sel = est === 'ok' ? 'ok' : (est === 'noaplica' ? 'noaplica' : 'pendiente');
+            const fecha = pac.estudiosRevisados ? new Date(pac.estudiosRevisados).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+            const aviso = est === 'sin' ? '⚠️ Este paciente no tiene estudios subidos.' : (est === 'pendiente' ? '⚠️ Hay estudios sin revisar.' : (est === 'ok' ? `✓ Revisados${fecha ? ' el ' + fecha : ''}.` : 'Marcado como que no requiere estudios.'));
+            const color = (est === 'sin' || est === 'pendiente') ? '#b7791f' : '#2f855a';
+            box.innerHTML = `<div style="font-size:0.78rem; color:${color}; margin-bottom:6px; font-weight:bold;">${aviso}</div>
+                <select class="inset-3d" onchange="cambiarRevisionEstudios(this.value)">
+                    <option value="pendiente"${sel === 'pendiente' ? ' selected' : ''}>Estudios pendientes de revisar</option>
+                    <option value="ok"${sel === 'ok' ? ' selected' : ''}>✓ Ya revisé los estudios</option>
+                    <option value="noaplica"${sel === 'noaplica' ? ' selected' : ''}>No requiere estudios</option>
+                </select>`;
+        }
+        function cambiarRevisionEstudios(valor){
+            const nombre = dirNombreActual; const pac = pacientes[nombre]; if(!pac) return;
+            delete pac.estudiosRevisados; delete pac.estudiosNoAplica;
+            if(valor === 'ok') pac.estudiosRevisados = Date.now();
+            else if(valor === 'noaplica') pac.estudiosNoAplica = true;
+            localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes));
+            guardarAgendaEnNube();
+            renderRevisionEstudios(nombre);
+            renderListaContactos();
+        }
+
+        // ===== Teléfonos repetidos =====
+        function ultimos10(t){ const d = String(t == null ? '' : t).replace(/\D/g, ''); return d.length >= 10 ? d.slice(-10) : ''; }
+        function otrosConTelefono(tel, excluir){
+            const k = ultimos10(tel); if(!k) return [];
+            return Object.keys(pacientes).filter(n => n !== excluir && pacientes[n] && ultimos10(pacientes[n].telefono) === k);
+        }
+        function mapaTelefonos(){
+            const m = {};
+            Object.keys(pacientes).forEach(n => { const k = ultimos10((pacientes[n] || {}).telefono); if(k) m[k] = (m[k] || 0) + 1; });
+            return m;
+        }
+        function confirmarTelefonoRepetido(tel, excluir, accion){
+            const otros = otrosConTelefono(tel, excluir);
+            if(!otros.length) return true;
+            const lista = otros.slice(0, 4).map(n => '• ' + n + (pacientes[n].esPotencial ? ' (potencial: aún no lo pasas a cautivo)' : '')).join('\n');
+            return confirm(`📞 Este teléfono ya lo tiene:\n${lista}\n\nSi es la MISMA persona, cancela y usa su ficha (búscala por nombre o teléfono). Si es un familiar que comparte el número, continúa.\n\n¿${accion} de todas formas?`);
+        }
+
+        // ===== Fecha de alta aproximada y filtros del directorio =====
+        function fechaAltaPaciente(nombre){
+            const pac = pacientes[nombre] || {};
+            if(pac.creado) return pac.creado;
+            const ids = citas.filter(c => c.paciente === nombre && typeof c.id === 'number' && c.id > 1e12).map(c => c.id);
+            return ids.length ? Math.min.apply(null, ids) : 0;
+        }
+        let filtrosDir = { reciente: false, sinEstudios: false, sinRevisar: false, telRepetido: false };
+        function toggleFiltroDir(k){ filtrosDir[k] = !filtrosDir[k]; renderListaContactos(); }
+        const DIR_RECIENTE_DIAS = 30;
+        function cumpleFiltroDir(nombre, k, mapTel){
+            const pac = pacientes[nombre] || {};
+            if(k === 'reciente') return fechaAltaPaciente(nombre) >= Date.now() - DIR_RECIENTE_DIAS * 86400000;
+            if(k === 'sinEstudios') return !pac.esPotencial && estadoEstudios(pac) === 'sin';
+            if(k === 'sinRevisar') return !pac.esPotencial && estadoEstudios(pac) === 'pendiente';
+            if(k === 'telRepetido') return (mapTel[ultimos10(pac.telefono)] || 0) > 1;
+            return true;
+        }
+        function etiquetasExtraDir(nombre, mapTel){
+            const pac = pacientes[nombre] || {}; let t = '';
+            if(!pac.esPotencial){
+                const e = estadoEstudios(pac);
+                if(e === 'sin') t += ' <span style="color:#b7791f; font-size:0.7rem; font-weight:bold;">⚠ sin estudios</span>';
+                else if(e === 'pendiente') t += ' <span style="color:#b7791f; font-size:0.7rem; font-weight:bold;">⚠ estudios sin revisar</span>';
+            }
+            if((mapTel[ultimos10(pac.telefono)] || 0) > 1) t += ' <span style="color:#6b46c1; font-size:0.7rem; font-weight:bold;">📞 teléfono repetido</span>';
+            return t;
+        }
+        function htmlFiltrosDir(todos, mapTel){
+            const defs = [['reciente', '🆕 Recientes'], ['sinEstudios', '⚠ Sin estudios'], ['sinRevisar', '⚠ Sin revisar'], ['telRepetido', '📞 Tel. repetido']];
+            return '<div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px;">' + defs.map(([k, txt]) => {
+                const n = todos.filter(x => cumpleFiltroDir(x, k, mapTel)).length;
+                const on = filtrosDir[k];
+                return `<button class="btn-plano" style="${on ? 'background:var(--accent); color:#fff; border-color:var(--accent);' : ''}" onclick="toggleFiltroDir('${k}')">${txt} (${n})</button>`;
+            }).join('') + '</div>';
+        }
+
         function renderListaContactos() {
             const list = document.getElementById('listaContactos');
             if(!list) return;
             let nombres = Object.keys(pacientes || {}).filter(n => n && pacientes[n]);
+            const mapTel = mapaTelefonos();
+            const todos = nombres.slice();
+            const hayFiltro = Object.keys(filtrosDir).some(k => filtrosDir[k]);
+            Object.keys(filtrosDir).forEach(k => { if(filtrosDir[k]) nombres = nombres.filter(n => cumpleFiltroDir(n, k, mapTel)); });
             // ordenar según el modo elegido
             if(ordenDirectorio === 'apellido'){
                 nombres.sort((a,b)=> ultimaPalabra(a).localeCompare(ultimaPalabra(b)));
             } else if(ordenDirectorio === 'reciente'){
                 // más reciente primero: por 'creado' o por la última cita
-                nombres.sort((a,b)=> (pacientes[b].creado||0) - (pacientes[a].creado||0));
+                nombres.sort((a,b)=> fechaAltaPaciente(b) - fechaAltaPaciente(a));
             } else {
                 nombres.sort((a,b)=>a.localeCompare(b));
             }
             // etiqueta del orden actual
             const ordenTxt = { nombre:'Nombre (A-Z)', apellido:'Apellido (A-Z)', reciente:'Más recientes' }[ordenDirectorio];
+            const chipsDir = htmlFiltrosDir(todos, mapTel);
             const btnOrden = `<button class="btn-3d" style="width:100%; margin-bottom:10px; font-size:0.82rem; color:var(--accent);" onclick="cambiarOrdenDirectorio()">🔀 Orden: ${ordenTxt} (toca para cambiar)</button>`;
-            if(nombres.length === 0) { list.innerHTML = btnOrden + '<p style="text-align:center; padding:1rem; color:var(--text-muted);">No hay pacientes guardados aún.</p>'; return; }
+            if(nombres.length === 0) { list.innerHTML = btnOrden + chipsDir + '<p style="text-align:center; padding:1rem; color:var(--text-muted);">' + (hayFiltro ? 'Ningún paciente coincide con los filtros.' : 'No hay pacientes guardados aún.') + '</p>'; return; }
             try {
-                list.innerHTML = btnOrden + nombres.map(nombre => {
+                list.innerHTML = btnOrden + chipsDir + nombres.map(nombre => {
                     const pac = pacientes[nombre] || {};
                     const tel = pac.telefono || 'sin teléfono';
                     let fotoIcon = (config.mostrarFotos && pac.foto) ? `<img src="${pac.foto}" style="width:30px; height:30px; border-radius:50%; object-fit:cover;">` : '<div style="width:30px;height:30px;border-radius:50%;background:#ccc;"></div>';
@@ -2262,9 +2413,9 @@
                     const esPotencial = pac.esPotencial;
                     const estiloPotencial = esPotencial ? 'border-left: 4px solid var(--accent); background: rgba(0,180,180,0.08);' : '';
                     const etiquetaPotencial = esPotencial ? ' <span style="color:var(--accent); font-size:0.75rem; font-weight:bold;">🎯 Potencial</span>' : '';
-                const etiquetaColoc = (!esPotencial && pacientes[nombre] && pacientes[nombre].colocacionDesbloqueada) ? ' <span style="color:#2f855a; font-size:0.72rem; font-weight:bold;">🦷 colocación desbloqueada</span>' : '';
+                const etiquetaColoc = (colocPendiente(pacientes[nombre]) ? ' <span style="color:#2f855a; font-size:0.72rem; font-weight:bold;">🦷 colocación pendiente</span>' : '');
                     return `<div class="contact-item" style="${estiloPotencial}" onclick="abrirEditorDirectorio('${nombreEsc}')">
-                        <div style="display:flex; align-items:center; gap:10px;">${fotoIcon} <strong>${nombre}</strong>${etiquetaPotencial}${etiquetaColoc}</div>
+                        <div style="display:flex; align-items:center; gap:10px;">${fotoIcon} <strong>${escHtml(nombre)}</strong>${etiquetaPotencial}${etiquetaColoc}${etiquetasExtraDir(nombre, mapTel)}</div>
                         <span style="color:var(--text-muted); font-size:0.8rem;">+52 ${tel}</span>
                     </div>`;
                 }).join('');
@@ -2290,7 +2441,6 @@
             if(pac.foto) { preview.src = pac.foto; preview.style.display = 'block'; } else { preview.src = ''; preview.style.display = 'none'; }
             document.getElementById('editDirFile').value = ''; document.getElementById('listaContactos').style.display = 'none'; document.getElementById('btnNuevoPaciente').style.display = 'none'; document.getElementById('editorContacto').style.display = 'block';
             document.getElementById('bannerPotencialFicha').style.display = pac.esPotencial ? 'block' : 'none';
-            actualizarCajaColocacion(pac);
             renderPlanTratamiento(nombre);
             renderOrtodoncia(nombre);
             renderEstudios(nombre);
@@ -2327,9 +2477,9 @@
             const nombre = document.getElementById('editDirNombre').value;
             if(!pacientes[nombre]) return;
             delete pacientes[nombre].esPotencial;
-            actualizarCajaColocacion(pacientes[nombre]);
             localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes));
             guardarAgendaEnNube();
+            syncPacienteAFirebase(nombre);
             document.getElementById('bannerPotencialFicha').style.display = 'none';
             loadCalendar();
             alert(`${nombre} ya quedó marcado como paciente cautivo.`);
@@ -2419,6 +2569,7 @@
             document.getElementById('ortoSlider').style.background = enOrto ? 'var(--accent)' : 'var(--status-gray)';
             document.getElementById('ortoFases').classList.toggle('show', enOrto);
             if(!enOrto) return;
+            renderColocOrto(pac);
             const tipoCaso = pac.ortoTipoCaso || 'sin_extracciones';
             document.getElementById('ortoTipoCaso').value = tipoCaso;
             const arcos = pac.ortoArcos || {};
@@ -2437,7 +2588,7 @@
         }
         function toggleOrtodoncia(){
             const nombre = dirNombreActual; if(!nombre) return;
-            if(!pacientes[nombre]) pacientes[nombre] = { telefono:'', codigo:generarCodigo() };
+            if(!pacientes[nombre]) pacientes[nombre] = { creado: Date.now(), telefono:'', codigo:generarCodigo() };
             const on = document.getElementById('ortoSwitch').checked;
             pacientes[nombre].ortodoncia = on;
             if(on){
@@ -2465,6 +2616,7 @@
             pacientes[nombre].ortoFaseTexto = r.fase;
             document.getElementById('ortoResumen').innerText = `${r.porcentaje}% · ${r.fase}`;
             guardarPlan(nombre);
+            renderColocOrto(pacientes[nombre]);
         }
 
         // ===== Estudios / Radiografías =====
@@ -2512,6 +2664,7 @@
         function renderEstudios(nombre){
             const pac = pacientes[nombre] || {};
             const estudios = pac.estudios || [];
+            renderRevisionEstudios(nombre);
             const cont = document.getElementById('estudiosLista');
             if(!cont) return;
             if(!estudios.length){ cont.innerHTML = '<p style="font-size:0.8rem; color:var(--text-muted); text-align:center; margin:6px 0;">Sin estudios subidos aún.</p>'; return; }
@@ -2680,6 +2833,7 @@
             const nombreNuevo = (document.getElementById('editDirNombreNuevo').value || '').trim().replace(/\s+/g,' ');
             let seRenombro = false;
             if(!nombreNuevo){ alert('El nombre no puede quedar vacío.'); return; }
+            if(ultimos10(tel) !== ultimos10((pacientes[nombre] || {}).telefono) && !confirmarTelefonoRepetido(tel, nombre, 'Guardar el cambio')) return;
             if(nombreNuevo !== nombre){
                 if(nombreDuplicado(nombreNuevo, nombre)){ alert('Ya existe otro paciente llamado "' + nombreNuevo + '". Usa un nombre distinto.'); return; }
                 if(!confirm('¿Cambiar el nombre de "' + nombre + '" a "' + nombreNuevo + '"?\n\nSe actualizará también en todas sus citas.')) return;
@@ -2691,9 +2845,10 @@
             const nacimiento = document.getElementById('editDirNacimiento').value;
             const prev = pacientes[nombre] || {};
             // conservar TODO lo previo, solo actualizar tel, foto, apodo, nacimiento
-            pacientes[nombre] = Object.assign({}, prev, { telefono: tel, foto: foto, apodo: apodo, nacimiento: nacimiento, codigo: prev.codigo || generarCodigo(), colocacionDesbloqueada: !prev.esPotencial && !!document.getElementById('editDirColocacion').checked });
+            pacientes[nombre] = Object.assign({}, prev, { telefono: tel, foto: foto, apodo: apodo, nacimiento: nacimiento, codigo: prev.codigo || generarCodigo() });
             citas.forEach(c => { if(c.paciente === nombre) c.telefono = tel; });
             localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes));
+            if(ultimos10(prev.telefono) !== ultimos10(tel)) syncColocacionPublica(prev.telefono);   // limpia el teléfono anterior
             localStorage.setItem('denti_citas_v16', JSON.stringify(citas));
             guardarAgendaEnNube();
             syncPacienteAFirebase(nombre);
@@ -2804,6 +2959,90 @@
             const si = document.getElementById('btnAsistSi'), no = document.getElementById('btnAsistNo');
             if(si) si.style.outline = c && c.asistencia === 'si' ? '3px solid #2f855a' : 'none';
             if(no) no.style.outline = c && c.asistencia === 'no' ? '3px solid #c53030' : 'none';
+        }
+
+        // ===== Materiales por surtir =====
+        const MATERIALES_BASE = ['NiTi .012', 'NiTi .014', 'NiTi .016', 'NiTi .018', 'NiTi 16x22', 'NiTi 17x25', 'NiTi 19x25',
+            'Acero .016', 'Acero .018', 'Acero 16x22', 'Acero 17x25', 'Acero 19x25',
+            'Cepillos de profilaxis', 'Elásticos intraorales', 'Juegos de brackets', 'Resina block out', 'Campos', 'Vasos', 'Enjuague', 'Agua destilada', 'Microbrush'];
+        function materialesLista(){
+            if(!Array.isArray(config.materiales)){
+                config.materiales = MATERIALES_BASE.map((n, i) => ({ id: 'm' + i, nombre: n, falta: false }));
+            }
+            return config.materiales;
+        }
+        function guardarMateriales(){
+            localStorage.setItem('denti_config_v16', JSON.stringify(config));
+            guardarAgendaEnNube();
+            actualizarBadgeMateriales();
+            renderMateriales();
+        }
+        function actualizarBadgeMateriales(){
+            const b = document.getElementById('btnMateriales'); if(!b) return;
+            const n = (Array.isArray(config.materiales) ? config.materiales : []).filter(m => m.falta).length;
+            b.textContent = '🛒 Surtir' + (n ? ' (' + n + ')' : '');
+        }
+        function abrirMateriales(){
+            materialesLista();
+            document.getElementById('materialesModal').style.display = 'flex';
+            renderMateriales();
+        }
+        function renderMateriales(){
+            const cont = document.getElementById('materialesBody'); if(!cont) return;
+            const lista = materialesLista();
+            const faltan = lista.filter(m => m.falta);
+            const fila = m => `<label style="display:flex; align-items:center; gap:10px; padding:9px 4px; border-bottom:1px solid rgba(128,128,128,0.2); ${m.falta ? 'font-weight:bold;' : 'opacity:0.85;'}">
+                <input type="checkbox" ${m.falta ? 'checked' : ''} onchange="toggleMaterial('${m.id}', this.checked)" style="width:20px; height:20px;">
+                <span style="flex:1;">${escHtml(m.nombre)}</span>
+                ${m.propio ? `<button class="btn-plano" style="padding:2px 8px;" onclick="event.preventDefault(); borrarMaterial('${m.id}')">🗑</button>` : ''}
+            </label>`;
+            cont.innerHTML = `<div style="font-size:0.78rem; color:var(--text-muted); margin-bottom:8px;">Marca lo que te falta. Cuando lo compres, desmárcalo.</div>
+                <div style="display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap;">
+                    <button class="btn-plano" onclick="copiarListaMateriales()" ${faltan.length ? '' : 'disabled'}>📋 Copiar lista (${faltan.length})</button>
+                    <button class="btn-plano" onclick="marcarSurtidoTodo()" ${faltan.length ? '' : 'disabled'}>✓ Ya surtí todo</button>
+                </div>
+                <div style="display:flex; gap:6px; margin-bottom:10px;">
+                    <input type="text" id="nuevoMaterial" class="inset-3d" placeholder="Agregar otro material…" style="flex:1;" onkeydown="if(event.key==='Enter'){agregarMaterial();}">
+                    <button class="btn-plano" onclick="agregarMaterial()">+ Agregar</button>
+                </div>
+                ${faltan.length ? '<div style="font-weight:bold; font-size:0.8rem; color:#b7791f; margin:6px 0;">Faltan (' + faltan.length + ')</div>' + faltan.map(fila).join('') : '<div style="font-size:0.85rem; color:#2f855a; margin:6px 0;">✓ No falta nada por ahora.</div>'}
+                <div style="font-weight:bold; font-size:0.8rem; color:var(--text-muted); margin:12px 0 6px;">Todo lo demás</div>
+                ${lista.filter(m => !m.falta).map(fila).join('')}`;
+        }
+        function toggleMaterial(id, valor){
+            const m = materialesLista().find(x => x.id === id); if(!m) return;
+            m.falta = !!valor; guardarMateriales();
+        }
+        function agregarMaterial(){
+            const inp = document.getElementById('nuevoMaterial'); if(!inp) return;
+            const nombre = inp.value.trim().replace(/\s+/g, ' ');
+            if(!nombre) return;
+            const lista = materialesLista();
+            const igual = lista.find(m => sinAcentos(m.nombre).toLowerCase() === sinAcentos(nombre).toLowerCase());
+            if(igual){ igual.falta = true; }
+            else lista.push({ id: 'm' + Date.now(), nombre: nombre.slice(0, 60), falta: true, propio: true });
+            guardarMateriales();
+        }
+        function borrarMaterial(id){
+            const lista = materialesLista(); const i = lista.findIndex(m => m.id === id && m.propio);
+            if(i < 0) return;
+            if(!confirm('¿Quitar "' + lista[i].nombre + '" de la lista?')) return;
+            lista.splice(i, 1); guardarMateriales();
+        }
+        function marcarSurtidoTodo(){
+            const faltan = materialesLista().filter(m => m.falta);
+            if(!faltan.length) return;
+            if(!confirm('¿Marcar los ' + faltan.length + ' materiales como ya surtidos?')) return;
+            faltan.forEach(m => { m.falta = false; }); guardarMateriales();
+        }
+        function textoListaMateriales(){
+            const faltan = materialesLista().filter(m => m.falta);
+            return '🛒 Por surtir – ' + (config.clinica || 'Dentilike') + '\n' + faltan.map(m => '• ' + m.nombre).join('\n');
+        }
+        async function copiarListaMateriales(){
+            const txt = textoListaMateriales();
+            try{ await navigator.clipboard.writeText(txt); alert('Lista copiada. Ya puedes pegarla en WhatsApp.'); }
+            catch(e){ prompt('Copia la lista:', txt); }
         }
 
         // ===== Seguimiento: quién no acudió y quién lleva meses sin cita =====
@@ -3417,6 +3656,7 @@
                 const detalle = conflictos.map(c => `${c.paciente} (${formatearHoraAmPm(c.horaInicio)}-${formatearHoraAmPm(c.horaFin)})`).join(', ');
                 if(!confirm(`⚠️ Esta cita se sobrepone con: ${detalle}.\n\n¿Deseas continuar y guardarla de todas formas?`)) return;
             }
+            if((!pacientes[pac] || ultimos10(pacientes[pac].telefono) !== ultimos10(tel)) && !confirmarTelefonoRepetido(tel, pac, 'Guardar la cita')) return;
             let fueEdicion = false;
             if(editandoCitaId) {
                 fueEdicion = true;
@@ -3427,9 +3667,8 @@
                 citas.push({ id: Date.now(), fecha: fechaCita, paciente: pac, telefono: tel, horaInicio: hIni, horaFin: hFin, motivo: mot, notas: notasAdicionales, estado: 'status-gray' });
             }
             localStorage.setItem('denti_citas_v16', JSON.stringify(citas));
-            if(!pacientes[pac]) pacientes[pac] = { telefono: tel, foto: null, codigo: generarCodigo() }; 
+            if(!pacientes[pac]) pacientes[pac] = { creado: Date.now(), telefono: tel, foto: null, codigo: generarCodigo() }; 
             else { pacientes[pac].telefono = tel; if(!pacientes[pac].codigo) pacientes[pac].codigo = generarCodigo(); }
-            consumirDesbloqueoColocacion(pac, mot);
             localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes));
             if(!motivos.includes(mot)) { motivos.push(mot); localStorage.setItem('denti_motivos_v16', JSON.stringify(motivos)); }
             guardarAgendaEnNube();      // sube citas+pacientes+motivos
