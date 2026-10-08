@@ -1691,7 +1691,7 @@
             const auto = Object.values(pac.ortoArcos || {}).some(a => a && (a.sup || a.inf));
             const pend = colocPendiente(pac);
             const nota = pend ? `Al paciente le aparece «${colocNombre()}» (${colocTexto()} completa) en SmileLike y en la página de citas.` : 'Ya no tiene la colocación pendiente.';
-            box.innerHTML = `<label style="display:flex; gap:8px; align-items:center; font-weight:bold; font-size:0.85rem; color:var(--primary);"><input type="checkbox" ${bracketsColocados(pac) ? 'checked' : ''} ${auto ? 'disabled' : ''} onchange="toggleColocOrto(this.checked)"> 🦷 Brackets ya colocados${auto ? ' <span style="font-weight:normal; font-size:0.7rem; color:var(--text-muted);">(ya tiene arcos)</span>' : ''}</label><div style="font-size:0.72rem; color:var(--text-muted); margin-top:4px; line-height:1.4;">${nota}</div>`;
+            box.innerHTML = `<label style="display:flex; gap:8px; align-items:center; font-weight:bold; font-size:0.85rem; color:var(--primary);"><input type="checkbox" ${bracketsColocados(pac) ? 'checked' : ''} ${auto ? 'disabled' : ''} onchange="toggleColocOrto(this.checked)"> 🦷 Brackets ya colocados${auto ? ' <span style="font-weight:normal; font-size:0.7rem; color:var(--text-muted);">(ya tiene arcos)</span>' : ''}</label><div style="font-size:0.72rem; color:var(--text-muted); margin-top:4px; line-height:1.4;">${nota}</div><button class="btn-plano" style="margin-top:8px;" onclick="diagnosticarColoc()">🔄 Publicar en la página de citas y comprobar</button>`;
         }
         function ajustarDuracionPorMotivo(){
             const m = document.getElementById('motivo'), sel = document.getElementById('duracion');
@@ -1712,7 +1712,7 @@
             const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('pacpub|' + tel10));
             return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
         }
-        async function syncPacientePublico(telefono){
+        async function syncPacientePublico(telefono, lanzar){
             if(!fbOK || !authListo) return;
             const k = ultimos10(telefono); if(!k) return;
             try{
@@ -1722,7 +1722,29 @@
                 const ref = db.collection('pacientes_pub').doc(await hashPacPub(k));
                 if(registrado) await ref.set({ reg: true, coloc: coloc, actualizado: Date.now() });
                 else await ref.delete();
-            }catch(e){ console.error('sync paciente pub', e); }
+            }catch(e){ console.error('sync paciente pub', e); if(lanzar) throw e; }
+        }
+        // Botón de la ficha: explica por qué un paciente no aparece en la página de citas, o lo publica y lo comprueba
+        async function diagnosticarColoc(){
+            const nombre = dirNombreActual, pac = pacientes[nombre];
+            if(!pac) return;
+            const motivos = [];
+            if(pac.esPotencial) motivos.push('está marcado como POTENCIAL (pásalo a cautivo)');
+            if(!pac.ortodoncia) motivos.push('no tiene activado el módulo de ortodoncia');
+            if(bracketsColocados(pac)) motivos.push('ya tiene brackets colocados o algún arco marcado en la tabla');
+            if(!ultimos10(pac.telefono)) motivos.push('su teléfono no tiene 10 dígitos');
+            if(!fbOK || !authListo) motivos.push('DentiAgenda no está conectada a Firebase ahora');
+            if(motivos.length){ alert('A ' + nombre + ' NO le aparece la colocación porque:\n\n• ' + motivos.join('\n• ') + '\n\n(Si es un paciente registrado sin colocación pendiente, la página sí lo reconoce como paciente pero no le ofrece colocación.)'); }
+            try{
+                await syncPacientePublico(pac.telefono, true);
+                const k = ultimos10(pac.telefono);
+                const d = await db.collection('pacientes_pub').doc(await hashPacPub(k)).get();
+                if(!d.exists){ if(!motivos.length) alert('No quedó publicado y no hay un motivo claro. Revisa tu conexión e inténtalo otra vez.'); return; }
+                alert(d.data().coloc ? '✅ Publicado: con el teléfono ' + pac.telefono + ', en citas.dentilike.com.mx → «Ya soy paciente» → Verificar, le debe aparecer «Colocación de brackets».' : '✅ Publicado como paciente registrado, sin colocación pendiente.');
+            }catch(e){
+                const code = (e && e.code) || '';
+                alert('❌ No se pudo publicar en la página de citas.\n\n' + (code === 'permission-denied' ? 'Firebase rechazó la escritura: faltan publicar las REGLAS nuevas de Firestore (bloque pacientes_pub).' : 'Error: ' + (e && e.message ? e.message : e)));
+            }
         }
         async function backfillPacientePublico(){
             if(!fbOK || !authListo) return;
