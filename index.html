@@ -23,9 +23,9 @@
         .btn-3d:active { box-shadow: inset 3px 3px 6px var(--shadow-dark), inset -3px -3px 6px var(--shadow-light); color: var(--accent); }
         .inset-3d { background: var(--bg-color); border-radius: 10px; box-shadow: inset 4px 4px 8px var(--shadow-dark), inset -4px -4px 8px var(--shadow-light); border: none; outline: none; padding: 1rem; color: var(--text-main); font-size: 1rem; width: 100%;}
 
-        header { padding: 1.5rem 1.5rem 0.5rem 1.5rem; text-align: center; position: relative; display: flex; justify-content: center; align-items: center;}
-        .logo-container img { max-width: 220px; height: auto; }
-        .header-actions { position: absolute; right: 1.5rem; display: flex; gap: 10px; }
+        header { padding: 1.2rem 1.5rem 0.5rem 1.5rem; text-align: center; position: relative; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 12px;}
+        .logo-container img { max-width: 220px; height: auto; mix-blend-mode: multiply; }
+        .header-actions { position: static; display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
         .btn-text-icon { display: flex; align-items: center; justify-content: center; font-size: 0.85rem; padding: 0.5rem 0.8rem; }
         
         .search-bar-container { padding: 0 1.5rem 1.5rem 1.5rem; max-width: 600px; margin: 0 auto; }
@@ -227,7 +227,7 @@
             .container { max-width: 96vw; padding: 0 1.5rem; }
             .search-bar-container { max-width: 96vw; padding: 0 1.5rem 1.5rem 1.5rem; }
             .logo-container img { max-width: 15rem !important; }
-            .header-actions { right: 2rem; gap: 0.8rem; }
+            .header-actions { gap: 0.8rem; }
             .btn-text-icon { font-size: 0.95rem; padding: 0.6rem 1.1rem; }
             .desktop-layout { gap: 2.2rem; }
             .cal-col { flex: 1.6; }
@@ -276,7 +276,7 @@
         </div>
         <div class="header-actions">
             <button class="btn-3d btn-text-icon" onclick="abrirDirectorio()">Pacientes</button>
-            <button class="btn-3d btn-text-icon" onclick="abrirPotenciales()">🎯 Px Potencial</button>
+            <button class="btn-3d btn-text-icon" onclick="abrirPotenciales()">🎯 Px Potencial<span id="btnPotencialesBadge"></span></button>
             <button class="btn-3d btn-text-icon" id="btnSeguimiento" onclick="abrirSeguimiento()">📋 Seguimiento</button>
             <button class="btn-3d btn-text-icon" id="btnMateriales" onclick="abrirMateriales()">🛒 Surtir</button>
             <button class="btn-3d btn-text-icon" onclick="openConfig()">Ajustes</button>
@@ -422,6 +422,7 @@
                 <div class="form-group"><label>Teléfono (10 dígitos)</label>
                     <div class="phone-input-group"><span class="phone-prefix">MEX +52</span><input type="tel" id="nuevoPacTel" class="inset-3d" placeholder="Ej. 444 123 4567"></div>
                 </div>
+                <label style="display:flex; align-items:center; gap:8px; margin:6px 0 12px 0; font-size:0.85rem;"><input type="checkbox" id="nuevoPacPotencial" style="width:20px; height:20px;"> 🎯 Es potencial (aún no paga sus radiografías)</label>
                 <button class="btn-3d btn-submit" style="background:var(--primary); color:white;" onclick="guardarNuevoPaciente()">Guardar paciente</button>
                 <button class="btn-3d btn-submit" style="margin-top:10px;" onclick="cancelarNuevoPaciente()">Cancelar</button>
             </div>
@@ -430,7 +431,7 @@
                 <h4 style="color: var(--accent); margin-top:0;">Editar Expediente</h4>
                 <div id="bannerPotencialFicha" style="display:none; background:rgba(0,180,180,0.08); border:1px solid var(--accent); border-radius:10px; padding:10px; margin-bottom:1rem;">
                     <div style="font-size:0.85rem; color:var(--primary); margin-bottom:6px;">🎯 Este paciente sigue marcado como <strong>potencial</strong>.</div>
-                    <button class="btn-3d" style="width:100%; background:var(--accent); color:white;" onclick="marcarComoCautivoDesdeFicha()">✅ Ya es paciente cautivo</button>
+                    <button class="btn-3d" style="width:100%; background:var(--accent); color:white;" onclick="marcarComoCautivoDesdeFicha()">✅ Convertido (ya pagó sus radiografías)</button>
                 </div>
                 <div class="form-group" style="display:none;"><input type="text" id="editDirNombre" readonly></div>
                 <div class="form-group"><label>Nombre del paciente</label><input type="text" id="editDirNombreNuevo" class="inset-3d" placeholder="Nombre completo"></div>
@@ -773,7 +774,7 @@
                 <h2 style="margin: 0; color: var(--primary);">🎯 Pacientes Potenciales</h2>
                 <button class="close-btn" onclick="closeModal('potencialesModalOverlay')">X</button>
             </div>
-            <p style="font-size:0.85rem; color:var(--text-muted); margin-top:0;">Leads de primer contacto que aún no confirman si continúan. Marca "Ya es paciente cautivo" para pasarlo a tu directorio real.</p>
+            <p style="font-size:0.85rem; color:var(--text-muted); margin-top:0;">Leads de primer contacto que aún no confirman si continúan. Aquí salen los contactos que agregues y también los pacientes del directorio marcados como potenciales (p. ej. los que llegan por la página de citas). Cuando paguen sus radiografías, toca "✅ Convertido".</p>
 
             <div id="listaPotenciales" style="margin-bottom: 1.5rem;"></div>
 
@@ -1248,24 +1249,47 @@
             renderPotenciales();
             document.getElementById('potencialesModalOverlay').style.display = 'flex';
         }
+        // Lista unificada: contactos sueltos (array) + pacientes del directorio marcados como potenciales
+        function listaPotencialesTodos(){
+            const lista = potenciales.map(p => ({ tipo:'lead', id:p.id, nombre:p.nombre, telefono:p.telefono||'', motivo:p.motivo||'', notas:p.notas||'', fecha:p.fechaContacto||'' }));
+            const vistos = new Set(lista.map(x => x.nombre));
+            Object.keys(pacientes).forEach(n => {
+                const pac = pacientes[n];
+                if(!pac || !pac.esPotencial || vistos.has(n)) return;
+                lista.push({ tipo:'pac', id:null, nombre:n, telefono:pac.telefono||'', motivo:'', notas:'', fecha: pac.creado ? fechaAISO(new Date(pac.creado)) : '' });
+            });
+            return lista;
+        }
+        function actualizarBadgePotenciales(){
+            const b = document.getElementById('btnPotencialesBadge');
+            if(!b) return;
+            const n = listaPotencialesTodos().length;
+            b.textContent = n ? ' ('+n+')' : '';
+        }
+        function escAttr(t){ return String(t).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/'/g,'&#39;'); }
         function renderPotenciales() {
+            actualizarBadgePotenciales();
             const cont = document.getElementById('listaPotenciales');
             if(!cont) return;
-            if(potenciales.length === 0) { cont.innerHTML = '<p style="text-align:center; color:var(--text-muted);">Sin pacientes potenciales por ahora.</p>'; return; }
-            cont.innerHTML = potenciales.map(p => `
+            const lista = listaPotencialesTodos();
+            if(lista.length === 0) { cont.innerHTML = '<p style="text-align:center; color:var(--text-muted);">Sin pacientes potenciales por ahora.</p>'; return; }
+            cont.innerHTML = lista.map(p => {
+                const ref = p.tipo === 'lead' ? String(p.id) : escAttr(p.nombre);
+                const onConv = p.tipo === 'lead' ? `convertirPotencial(${p.id})` : `convertirPotencialPac(this.dataset.n)`;
+                const onAg = p.tipo === 'lead' ? `agendarDesdePotencial(${p.id})` : `agendarDesdeBusqueda(this.dataset.n)`;
+                return `
                 <div class="inset-3d" style="padding:10px; margin-bottom:10px; border-radius:12px; color: var(--primary);">
-                    <div style="font-weight:bold; color: var(--primary);">${p.nombre}</div>
-                    <div style="font-size:0.85rem; color:var(--primary);">${p.telefono} · ${p.motivo || 'Sin motivo especificado'}</div>
-                    <div style="font-size:0.8rem; color:var(--primary);">Contactado: ${formatearFechaLegible(p.fechaContacto)}</div>
+                    <div style="font-weight:bold; color: var(--primary);">${p.nombre} ${p.tipo==='pac' ? '<span style="font-size:0.7rem; color:var(--accent);">(en directorio)</span>' : ''}</div>
+                    <div style="font-size:0.85rem; color:var(--primary);">${p.telefono || 'Sin teléfono'} · ${p.motivo || 'Sin motivo especificado'}</div>
+                    ${p.fecha ? `<div style="font-size:0.8rem; color:var(--primary);">Contactado: ${formatearFechaLegible(p.fecha)}</div>` : ''}
                     ${p.notas ? `<div style="font-size:0.8rem; margin-top:4px; color:var(--primary);">${p.notas}</div>` : ''}
-                    <div style="display:flex; align-items:center; gap:8px; margin-top:8px;">
-                        <input type="checkbox" id="chkCautivo-${p.id}" style="width:20px; height:20px; accent-color: var(--primary);" onchange="migrarPotencial(${p.id})">
-                        <label for="chkCautivo-${p.id}" style="margin:0; font-size:0.85rem;">Ya es paciente cautivo</label>
-                        <button class="btn-3d" style="margin-left:auto; padding:4px 10px; font-size:0.8rem; color:var(--status-red);" onclick="eliminarPotencial(${p.id})">Eliminar</button>
+                    <button class="btn-3d btn-submit" data-n="${escAttr(p.nombre)}" style="margin-top:8px; background:var(--accent); color:white;" onclick="${onConv}">✅ Convertido (ya pagó sus radiografías)</button>
+                    <div style="display:flex; gap:8px; margin-top:8px;">
+                        <button class="btn-3d" data-n="${escAttr(p.nombre)}" style="flex:1; color:var(--accent);" onclick="${onAg}">📅 Agendar cita</button>
+                        ${p.tipo==='lead' ? `<button class="btn-3d" style="padding:4px 10px; font-size:0.8rem; color:var(--status-red);" onclick="eliminarPotencial(${p.id})">Eliminar</button>` : ''}
                     </div>
-                    <button class="btn-3d btn-submit" style="margin-top:8px; color:var(--accent);" onclick="agendarDesdePotencial(${p.id})">📅 Agendar cita</button>
-                </div>
-            `).join('');
+                </div>`;
+            }).join('');
         }
         function agregarPotencial() {
             const nombre = document.getElementById('potNombre').value.trim();
@@ -1296,20 +1320,36 @@
             closeModal('potencialesModalOverlay');
             alert(`Listo. Toca el día donde quieres agendar a ${p.nombre}, luego "+ Añadir Nueva Cita" y sus datos ya estarán precargados. Su cita se verá con un color distinto por ser paciente potencial, hasta que lo marques como cautivo.`);
         }
-        function migrarPotencial(id) {
-            const p = potenciales.find(x => x.id === id);
-            if(!p) return;
-            if(!confirm(`¿Pasar a ${p.nombre} a tu directorio de pacientes? Podrás agendarle su primera cita desde ahí.`)) { renderPotenciales(); return; }
-            if(!pacientes[p.nombre]) pacientes[p.nombre] = { creado: Date.now(), telefono: p.telefono, foto: null, codigo: generarCodigo(), apodo: '' };
-            else delete pacientes[p.nombre].esPotencial; // ya es cautivo: sus citas vuelven al color normal
-            potenciales = potenciales.filter(x => x.id !== id);
+        function finalizarConversion(nombre){
+            pacientes[nombre].convertidoEn = fechaAISO(new Date());
             localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes));
-            guardarPotenciales();
+            guardarPotenciales();            // guarda array + agenda en la nube
+            syncPacienteAFirebase(nombre);   // actualiza su carnet y pacientes_pub
             updateDatalists();
             renderPotenciales();
             loadCalendar();
             if(selectedDate) openDay(selectedDate);
-            alert(`${p.nombre} ya está en tu directorio de pacientes. Ahora puedes agendarle su cita.`);
+            try{ if(document.getElementById('directorioModal').style.display === 'flex') renderListaContactos(); }catch(e){}
+        }
+        function convertirPotencial(id) {
+            const p = potenciales.find(x => x.id === id);
+            if(!p) return;
+            if(!confirm(`¿Marcar a ${p.nombre} como CONVERTIDO (ya pagó sus radiografías)? Pasará a tu directorio como paciente.`)) return;
+            const nombre = p.nombre;
+            if(!pacientes[nombre]) pacientes[nombre] = { creado: Date.now(), telefono: String(p.telefono||'').replace(/\D/g,''), foto: null, codigo: generarCodigo(), apodo: '' };
+            else delete pacientes[nombre].esPotencial;
+            potenciales = potenciales.filter(x => x.id !== id);
+            finalizarConversion(nombre);
+            alert(`${nombre} ya es paciente. Quedó en tu directorio.`);
+        }
+        function convertirPotencialPac(nombre) {
+            if(!pacientes[nombre]) return;
+            if(!confirm(`¿Marcar a ${nombre} como CONVERTIDO (ya pagó sus radiografías)?`)) return;
+            delete pacientes[nombre].esPotencial;
+            // si además hubiera un contacto suelto con el mismo nombre, se limpia
+            potenciales = potenciales.filter(x => x.nombre !== nombre);
+            finalizarConversion(nombre);
+            alert(`${nombre} ya es paciente.`);
         }
         function generarCodigo(){ return String(Math.floor(1000 + Math.random()*9000)); } // 4 dígitos
         function getCodigoPaciente(nombre){
@@ -2075,6 +2115,7 @@
         }
         function changeMonth(dir) { nav += dir; loadCalendar(); }
         function loadCalendar() {
+            try{ actualizarBadgePotenciales(); }catch(e){}
             const dt = new Date(); if (nav !== 0) dt.setMonth(new Date().getMonth() + nav);
             const month = dt.getMonth(), year = dt.getFullYear();
             const firstDay = new Date(year, month, 1), daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -2279,6 +2320,7 @@
             document.getElementById('editorContacto').style.display = 'none';
             document.getElementById('nuevoPacNombre').value = '';
             document.getElementById('nuevoPacTel').value = '';
+            if(document.getElementById('nuevoPacPotencial')) document.getElementById('nuevoPacPotencial').checked = false;
             document.getElementById('formNuevoPaciente').style.display = 'block';
         }
         function cancelarNuevoPaciente(){
@@ -2294,6 +2336,7 @@
             if(pacientes[nombre]){ alert('Ya existe un paciente con ese nombre. Usa un nombre distinto o edítalo desde la lista.'); return; }
             if(tel && !confirmarTelefonoRepetido(tel, null, 'Crear el paciente')) return;
             pacientes[nombre] = { creado: Date.now(), telefono: tel, foto: null, codigo: generarCodigo(), plan: [] };
+            if(document.getElementById('nuevoPacPotencial') && document.getElementById('nuevoPacPotencial').checked) pacientes[nombre].esPotencial = true;
             localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes));
             guardarAgendaEnNube();
             syncPacienteAFirebase(nombre);
@@ -2503,12 +2546,16 @@
             const nombre = document.getElementById('editDirNombre').value;
             if(!pacientes[nombre]) return;
             delete pacientes[nombre].esPotencial;
+            pacientes[nombre].convertidoEn = fechaAISO(new Date());
+            potenciales = potenciales.filter(x => x.nombre !== nombre);
             localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes));
-            guardarAgendaEnNube();
+            guardarPotenciales();
             syncPacienteAFirebase(nombre);
             document.getElementById('bannerPotencialFicha').style.display = 'none';
+            renderPotenciales();
             loadCalendar();
-            alert(`${nombre} ya quedó marcado como paciente cautivo.`);
+            try{ renderListaContactos(); }catch(e){}
+            alert(`${nombre} quedó como CONVERTIDO (paciente).`);
         }
 
         // ===== Ortodoncia (secuencias de arcos) =====
@@ -3295,6 +3342,7 @@
         }
         function agendarDesdeBusqueda(nombre){
             cerrarBusqueda();
+            try{ closeModal('potencialesModalOverlay'); }catch(e){}
             const pac = pacientes[nombre] || {};
             potencialParaAgendar = { nombre: nombre, telefono: pac.telefono || '', motivo: '' };
             // abrir el día de hoy y el formulario
@@ -3308,8 +3356,10 @@
         }
 
         function mostrarPotencialesEnChatHTML() {
-            if(potenciales.length === 0) return '<p style="margin:0;">No tienes pacientes potenciales registrados.</p>';
-            let html = potenciales.map(p => `
+            const soloPac = listaPotencialesTodos().filter(x => x.tipo === 'pac');
+            if(potenciales.length === 0 && soloPac.length === 0) return '<p style="margin:0;">No tienes pacientes potenciales registrados.</p>';
+            let html = soloPac.map(p => `<div style="padding:6px 0; border-bottom:1px solid rgba(0,0,0,0.1);">${p.nombre} — ${p.telefono || 'sin teléfono'} <span style="font-size:0.75rem;">(directorio)</span></div>`).join('');
+            html += potenciales.map(p => `
                 <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid rgba(0,0,0,0.1); gap:8px;">
                     <span>${p.nombre} — ${p.telefono}</span>
                     <span class="chip" style="background:var(--status-red); color:white; flex-shrink:0;" onclick="eliminarPotencialDesdeChat(${p.id})">🗑️</span>
