@@ -401,6 +401,7 @@
                 </div>
                 <button class="btn-3d status-btn" id="btnAsistQuitar" style="margin-top: 8px; font-size: 0.8rem; display: none;" onclick="marcarAsistenciaDesdeOpciones('')">↩ Quitar la marca</button>
             </div>
+            <button class="btn-3d status-btn" id="btnArcosCita" style="margin-top: 14px; display:none; color:var(--accent);" onclick="abrirArcosDesdeOpciones()">🦷 Registrar arcos de hoy</button>
             <button class="btn-3d status-btn" style="margin-top: 20px; color: #e53e3e;" onclick="eliminarCita()">Borrar Cita</button>
         </div>
     </div>
@@ -451,6 +452,13 @@
                         <input type="hidden" id="editDirFotoBase64">
                         <button type="button" class="btn-3d" style="color:var(--status-red); padding:6px 10px; font-size:0.8rem;" onclick="quitarFotoDir()">🗑️ Quitar</button>
                     </div>
+                </div>
+                <div class="form-group" style="background:rgba(214,158,46,0.12); border:1.5px solid #d69e2e; border-radius:10px; padding:10px;">
+                    <label style="display:flex; align-items:center; gap:10px; margin:0; cursor:pointer; font-weight:bold; color:var(--primary);">
+                        <input type="checkbox" id="editDirFactura" style="width:22px; height:22px; flex-shrink:0;">
+                        🧾 Requiere factura
+                    </label>
+                    <div style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">Te aparecerá un aviso en su cita cada vez que venga.</div>
                 </div>
                 <div class="orto-box">
                     <div class="orto-switch-row">
@@ -535,7 +543,28 @@
                 <button class="btn-3d btn-submit" style="color:var(--accent);" onclick="enviarMensajePromocion()">🎁 Enviar mensaje de promociones</button>
                 <button class="btn-3d btn-submit" style="background:var(--primary); color:white;" onclick="guardarEdicionDirectorio()">Guardar Cambios</button>
                 <button class="btn-3d btn-submit" style="margin-top:10px;" onclick="cerrarEditorDirectorio()">Cancelar</button>
+
+                <div class="plan-box" style="margin-top:22px; border:1.5px dashed #e53e3e;">
+                    <h5 style="color:#c53030;">⚠️ Zona delicada</h5>
+                    <button class="btn-3d btn-submit" id="btnArchivarPac" onclick="archivarPaciente()">📦 Archivar paciente</button>
+                    <div style="font-size:0.75rem; color:var(--text-muted); margin:4px 0 12px;">Lo oculta de las listas, la búsqueda y los avisos, pero conserva todo su expediente. Se puede restaurar.</div>
+                    <button class="btn-3d btn-submit" style="color:#e53e3e;" onclick="eliminarPaciente()">🗑️ Eliminar paciente definitivamente</button>
+                    <div style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">Borra su expediente, su carnet de SmileLike y sus estudios. No se puede deshacer.</div>
+                </div>
             </div>
+        </div>
+    </div>
+
+    <!-- Modal Arcos (se abre al marcar "Sí acudió" en pacientes de ortodoncia) -->
+    <div class="modal-overlay" id="arcosModalOverlay" style="z-index:1100;">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 style="margin:0; color:var(--primary);">🦷 ¿Qué arcos colocaste?</h2>
+                <button class="close-btn" onclick="closeModal('arcosModalOverlay')">X</button>
+            </div>
+            <div id="arcosModalBody"></div>
+            <button class="btn-3d btn-submit" style="background:var(--accent); color:white; margin-top:14px;" onclick="guardarArcosModal()">✅ Guardar arcos</button>
+            <button class="btn-3d btn-submit" style="margin-top:10px;" onclick="closeModal('arcosModalOverlay')">Sin cambio de arco hoy</button>
         </div>
     </div>
 
@@ -2224,9 +2253,9 @@
                         const tipoCaso = pacDatos.ortoTipoCaso || 'sin_extracciones';
                         const arcos = pacDatos.ortoArcos || {};
                         const rOrto = calcularProgresoOrto(tipoCaso, arcos);
-                        const arcoActual = arcoActualOrto(tipoCaso, arcos);
-                        barraOrto = `<div style="margin-left:22px; margin-top:6px;">
-                            <div style="font-size:0.75rem; opacity:0.9; margin-bottom:2px;">🦷 ${rOrto.porcentaje}% · Arco: ${arcoActual}</div>
+                        const arcoActual = textoArcosCorto(pacDatos);
+                        barraOrto = `<div style="margin-left:22px; margin-top:6px;" onclick="event.stopPropagation(); abrirArcos(${c.id})">
+                            <div style="font-size:0.75rem; opacity:0.9; margin-bottom:2px;">🦷 ${rOrto.porcentaje}% · ${arcoActual} <span style="text-decoration:underline;">(tocar para cambiar)</span></div>
                             <div style="background:rgba(0,0,0,0.15); border-radius:6px; height:6px; overflow:hidden;">
                                 <div style="width:${rOrto.porcentaje}%; height:100%; background:var(--accent);"></div>
                             </div>
@@ -2242,7 +2271,7 @@
                     return `<div class="appointment-item ${claseItem}" style="${estiloItem}" onclick="abrirOpcionesCita(${c.id})">
                         <div class="appointment-header"><span class="status-dot ${c.estado}"></span><strong style="font-size:1.1rem;">${formatearHoraAmPm(c.horaInicio)} - ${formatearHoraAmPm(c.horaFin)}</strong>${etiquetaPotencial}${marcaReagendar(c)}${badgeAsistencia(c)}</div>
                         <div style="margin-left: 22px;">- ${c.motivo}</div>
-                        <div style="margin-left: 22px;">- ${c.paciente} ${textoNotas}</div>
+                        <div style="margin-left: 22px;">- ${c.paciente} ${textoNotas}${pacDatos.requiereFactura ? ' <span style="background:#d69e2e; color:#fff; border-radius:8px; padding:1px 7px; font-size:0.72rem; font-weight:bold; white-space:nowrap;">🧾 Pide factura</span>' : ''}</div>
                         ${barraOrto}
                         ${botonesAsistencia(c)}
                     </div>`
@@ -2290,7 +2319,7 @@
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
                     <div style="flex:1;">
                         <p style="margin:0; line-height:1.4;">
-                            <strong>Paciente:</strong> ${cita.paciente}<br>
+                            <strong>Paciente:</strong> ${cita.paciente}${pacData.requiereFactura ? ' <span style="background:#d69e2e; color:#fff; border-radius:8px; padding:1px 7px; font-size:0.75rem; font-weight:bold;">🧾 Pide factura</span>' : ''}<br>
                             <strong>Telefono:</strong> +52 ${cita.telefono}<br>
                             <strong>Tratamiento:</strong> ${cita.motivo}<br>
                             <strong>Horario:</strong> ${formatearHoraAmPm(cita.horaInicio)} - ${formatearHoraAmPm(cita.horaFin)}
@@ -2456,6 +2485,10 @@
             if(!list) return;
             let nombres = Object.keys(pacientes || {}).filter(n => n && pacientes[n]);
             const mapTel = mapaTelefonos();
+            const archivados = nombres.filter(n => pacientes[n].archivado);
+            const activos = nombres.filter(n => !pacientes[n].archivado);
+            if(!archivados.length) verArchivadosDir = false;
+            nombres = verArchivadosDir ? archivados : activos;
             const todos = nombres.slice();
             const hayFiltro = Object.keys(filtrosDir).some(k => filtrosDir[k]);
             Object.keys(filtrosDir).forEach(k => { if(filtrosDir[k]) nombres = nombres.filter(n => cumpleFiltroDir(n, k, mapTel)); });
@@ -2471,7 +2504,8 @@
             // etiqueta del orden actual
             const ordenTxt = { nombre:'Nombre (A-Z)', apellido:'Apellido (A-Z)', reciente:'Más recientes' }[ordenDirectorio];
             const chipsDir = htmlFiltrosDir(todos, mapTel);
-            const btnOrden = `<button class="btn-3d" style="width:100%; margin-bottom:10px; font-size:0.82rem; color:var(--accent);" onclick="cambiarOrdenDirectorio()">🔀 Orden: ${ordenTxt} (toca para cambiar)</button>`;
+            const btnOrden = `<button class="btn-3d" style="width:100%; margin-bottom:10px; font-size:0.82rem; color:var(--accent);" onclick="cambiarOrdenDirectorio()">🔀 Orden: ${ordenTxt} (toca para cambiar)</button>`
+                + (archivados.length ? `<button class="btn-3d" style="width:100%; margin-bottom:10px; font-size:0.82rem; ${verArchivadosDir ? 'background:var(--accent); color:#fff;' : 'color:var(--text-muted);'}" onclick="toggleArchivadosDir()">📦 ${verArchivadosDir ? 'Viendo archivados (toca para volver)' : 'Archivados (' + archivados.length + ')'}</button>` : '');
             if(nombres.length === 0) { list.innerHTML = btnOrden + chipsDir + '<p style="text-align:center; padding:1rem; color:var(--text-muted);">' + (hayFiltro ? 'Ningún paciente coincide con los filtros.' : 'No hay pacientes guardados aún.') + '</p>'; return; }
             try {
                 list.innerHTML = btnOrden + chipsDir + nombres.map(nombre => {
@@ -2482,9 +2516,10 @@
                     const esPotencial = pac.esPotencial;
                     const estiloPotencial = esPotencial ? 'border-left: 4px solid var(--accent); background: rgba(0,180,180,0.08);' : '';
                     const etiquetaPotencial = esPotencial ? ' <span style="color:var(--accent); font-size:0.75rem; font-weight:bold;">🎯 Potencial</span>' : '';
+                const etiquetaFactura = pac.requiereFactura ? ' <span style="color:#b7791f; font-size:0.72rem; font-weight:bold;">🧾 factura</span>' : '';
                 const etiquetaColoc = (colocPendiente(pacientes[nombre]) ? ' <span style="color:#2f855a; font-size:0.72rem; font-weight:bold;">🦷 colocación pendiente</span>' : '');
                     return `<div class="contact-item" style="${estiloPotencial}" onclick="abrirEditorDirectorio('${nombreEsc}')">
-                        <div style="display:flex; align-items:center; gap:10px;">${fotoIcon} <strong>${escHtml(nombre)}</strong>${etiquetaPotencial}${etiquetaColoc}${etiquetasExtraDir(nombre, mapTel)}</div>
+                        <div style="display:flex; align-items:center; gap:10px;">${fotoIcon} <strong>${escHtml(nombre)}</strong>${etiquetaPotencial}${etiquetaColoc}${etiquetaFactura}${etiquetasExtraDir(nombre, mapTel)}</div>
                         <span style="color:var(--text-muted); font-size:0.8rem;">+52 ${tel}</span>
                     </div>`;
                 }).join('');
@@ -2494,16 +2529,72 @@
             }
         }
         let dirNombreActual = null;
+        let verArchivadosDir = false;
+        function toggleArchivadosDir(){ verArchivadosDir = !verArchivadosDir; renderListaContactos(); }
+        function archivarPaciente(){
+            const nombre = dirNombreActual; const pac = nombre && pacientes[nombre]; if(!pac) return;
+            const yaArch = !!pac.archivado;
+            const msg = yaArch
+                ? `¿Restaurar a ${nombre}? Volverá a aparecer en tus listas y búsquedas.`
+                : `¿Archivar a ${nombre}?\n\nDejará de aparecer en listas, búsqueda y avisos de seguimiento. Su expediente se conserva y puedes restaurarlo cuando quieras.`;
+            if(!confirm(msg)) return;
+            if(yaArch) delete pac.archivado; else pac.archivado = Date.now();
+            localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes));
+            guardarAgendaEnNube();
+            cerrarEditorDirectorio();
+            renderListaContactos(); updateDatalists(); loadCalendar();
+        }
+        async function eliminarPaciente(){
+            const nombre = dirNombreActual; const pac = nombre && pacientes[nombre]; if(!pac) return;
+            const propias = citas.filter(c => c.paciente === nombre);
+            const resp = prompt(`⚠️ Vas a ELIMINAR DEFINITIVAMENTE a ${nombre}.\n\nSe borran su expediente, su plan, sus estudios y su carnet de SmileLike. No se puede deshacer.\n\nSi solo quieres ocultarlo, cancela y usa "Archivar paciente".\n\nPara confirmar escribe: ELIMINAR`);
+            if(resp === null) return;
+            if(resp.trim().toUpperCase() !== 'ELIMINAR'){ alert('No se eliminó nada.'); return; }
+            let borrarCitas = true;
+            if(propias.length) borrarCitas = confirm(`${nombre} tiene ${propias.length} cita(s) en la agenda.\n\nAceptar = borrarlas también.\nCancelar = dejarlas en la agenda.`);
+            const tel = limpiarTel(pac.telefono);
+            const codigo = pac.codigo || getCodigoPaciente(nombre);
+            const estudios = (pac.estudios || []).slice();
+            const otrosMismoTel = tel.length === 10 ? otrosConTelefono(tel, nombre).length : 0;
+            // 1) local + agenda en la nube
+            delete pacientes[nombre];
+            if(borrarCitas) citas = citas.filter(c => c.paciente !== nombre);
+            localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes));
+            localStorage.setItem('denti_citas_v16', JSON.stringify(citas));
+            editandoAhora = false; dirNombreActual = null;
+            document.getElementById('editorContacto').style.display = 'none';
+            document.getElementById('listaContactos').style.display = 'block';
+            var bn = document.getElementById('btnNuevoPaciente'); if(bn) bn.style.display = 'block';
+            guardarAgendaEnNube();
+            renderListaContactos(); updateDatalists(); renderPotenciales(); loadCalendar();
+            if(selectedDate) openDay(selectedDate);
+            // 2) limpieza en la nube (carnet del paciente y estudios); si algo falla no se detiene
+            let aviso = '';
+            try{
+                if(fbOK && authListo && tel.length === 10){
+                    const llave = await hashLlave(tel, codigo);
+                    await db.collection('citas_pacientes').doc(llave).delete();
+                    if(!otrosMismoTel){ const k = await hashPacPub(tel); await db.collection('pacientes_pub').doc(k).delete(); }
+                }
+            }catch(e){ console.error('borrar carnet', e); aviso = '\n\n(No pude borrar su carnet de SmileLike en la nube; revisa las reglas de Firebase.)'; }
+            try{
+                if(storage) estudios.forEach(e => { if(e && e.url && e.url.indexOf('https://') === 0) storage.refFromURL(e.url).delete().catch(()=>{}); });
+            }catch(e){ console.error('borrar estudios', e); }
+            alert(`${nombre} fue eliminado.${aviso}`);
+        }
         function abrirEditorDirectorio(nombre) {
             dirNombreActual = nombre;
             editandoAhora = true;   // evita que el snapshot pise mientras edito
             const pac = pacientes[nombre];
+            const bArch = document.getElementById('btnArchivarPac');
+            if(bArch) bArch.textContent = (pac && pac.archivado) ? '↩ Restaurar paciente archivado' : '📦 Archivar paciente';
             const codigo = getCodigoPaciente(nombre); // genera si no tiene
             document.getElementById('editDirNombre').value = nombre; 
             document.getElementById('editDirNombreNuevo').value = nombre;
             document.getElementById('editDirApodo').value = pac.apodo || '';
             document.getElementById('editDirTel').value = pac.telefono; 
             document.getElementById('editDirNacimiento').value = pac.nacimiento || '';
+            document.getElementById('editDirFactura').checked = !!pac.requiereFactura;
             document.getElementById('editDirFotoBase64').value = pac.foto || '';
             document.getElementById('editDirCodigo').innerText = codigo;
             const preview = document.getElementById('editDirFotoPreview');
@@ -2677,19 +2768,86 @@
             guardarPlan(nombre);
             renderOrtodoncia(nombre);
         }
+        // Marca/desmarca un arco en una arcada y recalcula el avance (NO guarda)
+        function aplicarArcoPaciente(nombre, idArco, arcada, valor){
+            const pac = pacientes[nombre]; if(!pac) return null;
+            if(!pac.ortoArcos) pac.ortoArcos = {};
+            if(!pac.ortoArcos[idArco]) pac.ortoArcos[idArco] = { sup:false, inf:false };
+            pac.ortoArcos[idArco][arcada] = valor;
+            const tipoCaso = pac.ortoTipoCaso || 'sin_extracciones';
+            const r = calcularProgresoOrto(tipoCaso, pac.ortoArcos);
+            pac.ortoPorcentaje = r.porcentaje;
+            pac.ortoFaseTexto = r.fase;
+            return r;
+        }
         function toggleArcoOrto(idArco, arcada, valor){
             const nombre = dirNombreActual; if(!nombre) return;
-            if(!pacientes[nombre].ortoArcos) pacientes[nombre].ortoArcos = {};
-            if(!pacientes[nombre].ortoArcos[idArco]) pacientes[nombre].ortoArcos[idArco] = { sup:false, inf:false };
-            pacientes[nombre].ortoArcos[idArco][arcada] = valor;
-            // recalcular y guardar
-            const tipoCaso = pacientes[nombre].ortoTipoCaso || 'sin_extracciones';
-            const r = calcularProgresoOrto(tipoCaso, pacientes[nombre].ortoArcos);
-            pacientes[nombre].ortoPorcentaje = r.porcentaje;
-            pacientes[nombre].ortoFaseTexto = r.fase;
+            const r = aplicarArcoPaciente(nombre, idArco, arcada, valor);
             document.getElementById('ortoResumen').innerText = `${r.porcentaje}% · ${r.fase}`;
             guardarPlan(nombre);
             renderColocOrto(pacientes[nombre]);
+        }
+        // Arco actual y siguiente de cada arcada (el último de la secuencia que esté marcado)
+        function infoArcosPaciente(pac){
+            const tipo = (pac && pac.ortoTipoCaso) || 'sin_extracciones';
+            const sec = ORTO_SECUENCIAS[tipo] || ORTO_SECUENCIAS.sin_extracciones;
+            const arcos = (pac && pac.ortoArcos) || {};
+            const res = { sec: sec };
+            ['sup','inf'].forEach(ar => {
+                let idx = -1;
+                sec.forEach((p, i) => { if((arcos[p.id] || {})[ar]) idx = i; });
+                res[ar] = { idx: idx, actual: idx >= 0 ? sec[idx].name : null, sig: sec[idx + 1] || null };
+            });
+            return res;
+        }
+        function textoArcosCorto(pac){
+            const i = infoArcosPaciente(pac);
+            const a = i.sup.actual || 'sin iniciar', b = i.inf.actual || 'sin iniciar';
+            return a === b ? 'Arco: ' + a : `Sup: ${a} · Inf: ${b}`;
+        }
+        let arcosCitaActual = null;
+        function abrirArcos(idCita){
+            const c = citas.find(x => String(x.id) === String(idCita));
+            const pac = c && pacientes[c.paciente];
+            if(!pac || !pac.ortodoncia) return;
+            arcosCitaActual = c.paciente;
+            const info = infoArcosPaciente(pac);
+            const fila = (ar, etiqueta) => {
+                const d = info[ar];
+                const opts = ['<option value="">— Sin cambio —</option>'].concat(info.sec.map(p => {
+                    const marca = (d.sig && d.sig.id === p.id) ? ' (siguiente)' : '';
+                    return `<option value="${p.id}" ${d.sig && d.sig.id === p.id ? 'selected' : ''}>${p.name}${marca}</option>`;
+                })).join('');
+                return `<div style="margin-bottom:12px;">
+                    <div style="font-weight:bold; color:var(--primary);">${etiqueta}</div>
+                    <div style="font-size:0.8rem; color:var(--text-muted); margin-bottom:4px;">Ahora tiene: ${d.actual || 'sin iniciar'}</div>
+                    <select id="arcoSel_${ar}" style="width:100%; padding:10px; border-radius:8px; border:1.5px solid #b8cce4; background:#eef4fb; color:var(--primary); font-size:0.95rem;">${opts}</select>
+                </div>`;
+            };
+            document.getElementById('arcosModalBody').innerHTML =
+                `<div style="font-size:0.9rem; margin-bottom:12px; color:var(--primary);"><strong>${escHtml(c.paciente)}</strong><br><span style="color:var(--text-muted); font-size:0.8rem;">Ya viene elegido el siguiente arco de su secuencia. Cambia el que no coincida.</span></div>` +
+                fila('sup', 'Arcada superior') + fila('inf', 'Arcada inferior');
+            document.getElementById('arcosModalOverlay').style.display = 'flex';
+        }
+        function abrirArcosDesdeOpciones(){
+            const id = citaSeleccionadaId;
+            closeModal('opcionesCitaModal');
+            abrirArcos(id);
+        }
+        function guardarArcosModal(){
+            const nombre = arcosCitaActual; if(!nombre || !pacientes[nombre]) { closeModal('arcosModalOverlay'); return; }
+            let cambios = 0;
+            ['sup','inf'].forEach(ar => {
+                const el = document.getElementById('arcoSel_' + ar);
+                if(el && el.value){ aplicarArcoPaciente(nombre, el.value, ar, true); cambios++; }
+            });
+            closeModal('arcosModalOverlay');
+            if(cambios){
+                guardarPlan(nombre);
+                if(selectedDate) openDay(selectedDate);
+                loadCalendar();
+            }
+            arcosCitaActual = null;
         }
 
         // ===== Estudios / Radiografías =====
@@ -2919,6 +3077,7 @@
             const prev = pacientes[nombre] || {};
             // conservar TODO lo previo, solo actualizar tel, foto, apodo, nacimiento
             pacientes[nombre] = Object.assign({}, prev, { telefono: tel, foto: foto, apodo: apodo, nacimiento: nacimiento, codigo: prev.codigo || generarCodigo() });
+            if(document.getElementById('editDirFactura').checked) pacientes[nombre].requiereFactura = true; else delete pacientes[nombre].requiereFactura;
             citas.forEach(c => { if(c.paciente === nombre) c.telefono = tel; });
             localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes));
             if(ultimos10(prev.telefono) !== ultimos10(tel)) syncPacientePublico(prev.telefono);   // limpia el teléfono anterior
@@ -3001,15 +3160,18 @@
             guardarCambioCita(c.paciente);
         }
         function marcarAsistenciaDesdeOpciones(valor){
-            marcarAsistencia(citaSeleccionadaId, valor);
+            const idCita = citaSeleccionadaId;
+            marcarAsistencia(idCita, valor);
             closeModal('opcionesCitaModal');
             if(selectedDate) openDay(selectedDate);
             loadCalendar();
+            if(valor === 'si') abrirArcos(idCita);
         }
         function marcarAsistenciaRapida(id, valor){
             marcarAsistencia(id, valor);
             if(selectedDate) openDay(selectedDate);
             loadCalendar();
+            if(valor === 'si') abrirArcos(id);
         }
         function puedeMarcarAsistencia(c){
             return !!c && c.fecha <= fechaAISO(new Date()) && c.estado !== 'status-red';
@@ -3029,6 +3191,7 @@
             const box = document.getElementById('asistenciaBox'); if(!box) return;
             box.style.display = puedeMarcarAsistencia(c) ? 'block' : 'none';
             const quitar = document.getElementById('btnAsistQuitar'); if(quitar) quitar.style.display = c && c.asistencia ? 'block' : 'none';
+            const bArc = document.getElementById('btnArcosCita'); if(bArc){ const pc = c && pacientes[c.paciente]; bArc.style.display = (pc && pc.ortodoncia) ? 'block' : 'none'; }
             const si = document.getElementById('btnAsistSi'), no = document.getElementById('btnAsistNo');
             if(si) si.style.outline = c && c.asistencia === 'si' ? '3px solid #2f855a' : 'none';
             if(no) no.style.outline = c && c.asistencia === 'no' ? '3px solid #c53030' : 'none';
@@ -3158,7 +3321,7 @@
                 .sort((a, b) => b.fecha.localeCompare(a.fecha) || (b.horaInicio || '').localeCompare(a.horaInicio || ''));
             const noAcudieron = [], sinCita = [];
             Object.keys(pacientes).forEach(nombre => {
-                const p = pacientes[nombre]; if(!p) return;
+                const p = pacientes[nombre]; if(!p || p.archivado) return;
                 const propias = (porPaciente[nombre] || []).filter(c => c.estado !== 'status-red');
                 if(!propias.length) return;
                 if(propias.some(c => c.fecha >= hoy)) return;          // ya tiene una cita próxima
@@ -3301,7 +3464,7 @@
 
             // 1) PACIENTES (por teléfono si escribió números; por nombre si escribió letras)
             busquedaPacientes = Object.keys(pacientes || {})
-                .filter(n => n && (porTel ? coincideTelefono((pacientes[n] || {}).telefono, crudo) : sinAcentos(n).includes(q)))
+                .filter(n => n && !(pacientes[n] && pacientes[n].archivado) && (porTel ? coincideTelefono((pacientes[n] || {}).telefono, crudo) : sinAcentos(n).includes(q)))
                 .sort((a, b) => a.localeCompare(b)).slice(0, 8);
             if(busquedaPacientes.length){
                 html += `<div style="font-size:0.72rem; text-transform:uppercase; letter-spacing:0.05em; opacity:0.7; margin:2px 0 4px;">Pacientes</div>`;
@@ -3390,6 +3553,7 @@
             const limiteStr = fechaAISO(limite);
             const resultado = [];
             Object.keys(pacientes).forEach(nombre => {
+                if(pacientes[nombre] && pacientes[nombre].archivado) return;
                 const citasPac = citas.filter(c => c.paciente === nombre);
                 if(citasPac.length === 0) return;
                 const tieneFutura = citasPac.some(c => c.fecha >= hoyStr);
@@ -3499,6 +3663,7 @@
                 // busca pacientes con fecha de nacimiento hoy (si la tienen guardada)
                 const hoyMD = `${String(hoy.getMonth()+1).padStart(2,'0')}-${String(hoy.getDate()).padStart(2,'0')}`;
                 const cumpleaneros = Object.keys(pacientes).filter(n=>{
+                    if(pacientes[n].archivado) return false;
                     const f = pacientes[n].nacimiento;
                     return f && f.slice(5) === hoyMD;
                 });
@@ -3727,7 +3892,7 @@
             if(id === 'directorioModal'){ editandoAhora = false; dirNombreActual = null; }
             document.getElementById(id).style.display = 'none'; 
         }
-        function updateDatalists() { document.getElementById('pacientesGuardados').innerHTML = Object.keys(pacientes).map(p => `<option value="${p}">`).join(''); document.getElementById('motivosGuardados').innerHTML = motivos.map(m => `<option value="${m}">`).join(''); }
+        function updateDatalists() { document.getElementById('pacientesGuardados').innerHTML = Object.keys(pacientes).filter(p => !(pacientes[p] && pacientes[p].archivado)).map(p => `<option value="${p}">`).join(''); document.getElementById('motivosGuardados').innerHTML = motivos.map(m => `<option value="${m}">`).join(''); }
         function autoFillPhone() { const name = document.getElementById('paciente').value; if(pacientes[name]) document.getElementById('telefono').value = pacientes[name].telefono; }
         function calcularHoraFin() {
             const inicio = document.getElementById('horaInicio').value, duracion = parseInt(document.getElementById('duracion').value);
