@@ -121,6 +121,11 @@
         .form-group label { display: block; font-size: 0.85rem; font-weight: bold; margin-bottom: 0.6rem; color: var(--primary); }
         textarea.inset-3d { resize: none; }
         .time-row { display: flex; gap: 1rem; }
+        .fichas-hora { display:grid; grid-template-columns:repeat(auto-fill,minmax(86px,1fr)); gap:7px; margin:4px 0 8px; }
+        .ficha-hora { border:1.5px solid rgba(18,69,120,0.28); background:var(--bg-color); color:var(--primary); border-radius:10px; padding:9px 4px; font-size:0.85rem; font-weight:600; cursor:pointer; text-align:center; box-shadow:2px 2px 5px var(--shadow-dark), -2px -2px 5px var(--shadow-light); }
+        .ficha-hora.sel { background:var(--accent); color:#fff; border-color:var(--accent); box-shadow:inset 2px 2px 4px rgba(0,0,0,0.2); }
+        .fichas-turno { font-size:0.78rem; font-weight:bold; color:var(--text-muted); margin:8px 0 2px; }
+        .color-row select { flex:none; width:84px; padding:0.55rem 0.3rem; font-size:0.82rem; }
         .btn-submit { width: 100%; padding: 1.2rem; font-size: 1rem; border-radius: 15px; margin-top: 1rem; color: var(--primary); }
         
         .appointment-item { padding: 1rem; border-radius: 12px; margin-bottom: 1rem; font-size: 0.9rem; cursor: pointer; position: relative; background-color: var(--primary); color: white; box-shadow: 5px 5px 10px var(--shadow-dark), -5px -5px 10px var(--shadow-light); transition: all 0.2s ease; }
@@ -349,18 +354,23 @@
                         <input type="tel" id="telefono" class="inset-3d" placeholder="Ej. 444 123 4567">
                     </div>
                 </div>
-                <div class="form-group"><label>📅 Día de la cita</label><input type="date" id="fechaCita" class="inset-3d"></div>
-                <div class="time-row">
-                    <div class="form-group" style="flex: 1;"><label>Inicio</label><input type="time" id="horaInicio" class="inset-3d" onchange="calcularHoraFin()"></div>
-                    <div class="form-group" style="flex: 1;"><label>Duracion</label>
-                        <select id="duracion" class="inset-3d" onchange="calcularHoraFin()">
-                            <option value="30">30 min</option><option value="60">1 hr</option>
-                            <option value="90">1.5 hrs</option><option value="120">2 hrs</option>
-                        </select>
-                    </div>
-                    <div class="form-group" style="flex: 1;"><label>Fin</label><input type="time" id="horaFin" class="inset-3d"></div>
-                </div>
                 <div class="form-group"><label>Motivo</label><input type="text" id="motivo" class="inset-3d" list="motivosGuardados" oninput="ajustarDuracionPorMotivo()" onchange="ajustarDuracionPorMotivo()"><datalist id="motivosGuardados"></datalist></div>
+                <div class="form-group"><label>📅 Día de la cita</label><input type="date" id="fechaCita" class="inset-3d" onchange="renderFichasHora()"></div>
+                <div class="form-group"><label>⏱ Duración <span id="durAutoTxt" style="font-weight:normal; font-size:0.75rem; color:var(--text-muted);"></span></label>
+                    <select id="duracion" class="inset-3d" onchange="duracionManualCambio()">
+                        <option value="30">30 min</option><option value="60">1 hr</option>
+                        <option value="90">1.5 hrs</option><option value="120">2 hrs</option>
+                    </select>
+                </div>
+                <div class="form-group"><label>🕐 Hora de inicio</label>
+                    <div id="fichasHora"></div>
+                    <div id="horaResumen" style="font-size:0.85rem; font-weight:bold; color:var(--primary); margin:2px 0 6px;"></div>
+                    <button type="button" class="btn-plano neutro" onclick="toggleOtraHora()">🕒 Otra hora…</button>
+                    <div id="otraHoraBox" style="display:none; margin-top:8px;">
+                        <input type="time" id="horaInicio" class="inset-3d" onchange="elegirHoraManual()">
+                    </div>
+                    <input type="hidden" id="horaFin">
+                </div>
                 <div class="form-group"><label>Notas Adicionales (Opcional)</label><textarea id="notas" class="inset-3d" rows="2"></textarea></div>
                 
                 <div class="aj-guardar">
@@ -637,8 +647,8 @@
                     <select id="confColocMin" class="inset-3d"><option value="60">1 hora</option><option value="90">1.5 horas</option><option value="120">2 horas</option></select>
                 </div>
             </div></details>
-            <details class="aj-sec"><summary>🎨 Colores por tratamiento</summary><div class="aj-body">
-            <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:8px;">Si el motivo de la cita contiene la palabra, la cita se pinta de ese color (ej. "Ajuste" → azul marino). Se usa la primera coincidencia de la lista.</div>
+            <details class="aj-sec"><summary>🎨 Colores y duración por tratamiento</summary><div class="aj-body">
+            <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:8px;">Si el motivo de la cita contiene la palabra, la cita se pinta de ese color (ej. "Ajuste" → azul marino) y se propone la duración que elijas aquí (en las fichas de hora al agendar). Se usa la primera coincidencia de la lista.</div>
             <div id="coloresTratList"></div>
             <button class="btn-3d" style="width:100%; margin-bottom:6px; font-size:0.85rem;" onclick="agregarColorTrat()">+ Agregar tratamiento</button>
             </div></details>
@@ -1295,7 +1305,6 @@
             const n = listaPotencialesTodos().length;
             b.textContent = n ? ' ('+n+')' : '';
         }
-        function escAttr(t){ return String(t).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/'/g,'&#39;'); }
         function renderPotenciales() {
             actualizarBadgePotenciales();
             const cont = document.getElementById('listaPotenciales');
@@ -1762,10 +1771,83 @@
             const nota = pend ? `Al paciente le aparece «${colocNombre()}» (${colocTexto()} completa) en SmileLike y en la página de citas.` : 'Ya no tiene la colocación pendiente.';
             box.innerHTML = `<label style="display:flex; gap:8px; align-items:center; font-weight:bold; font-size:0.85rem; color:var(--primary);"><input type="checkbox" ${bracketsColocados(pac) ? 'checked' : ''} ${auto ? 'disabled' : ''} onchange="toggleColocOrto(this.checked)"> 🦷 Brackets ya colocados${auto ? ' <span style="font-weight:normal; font-size:0.7rem; color:var(--text-muted);">(ya tiene arcos)</span>' : ''}</label><div style="font-size:0.72rem; color:var(--text-muted); margin-top:4px; line-height:1.4;">${nota}</div><button class="btn-plano" style="margin-top:8px;" onclick="diagnosticarColoc()">🔄 Publicar en la página de citas y comprobar</button>`;
         }
+        // ===== Fichas de hora para agendar (en vez del reloj) =====
+        let duracionManual = false;   // true si cambié la duración a mano (ya no se ajusta sola por el motivo)
+        function aMinH(h){ const p = String(h).split(':').map(Number); return p[0] * 60 + p[1]; }
+        function minAHora(m){ return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); }
+        // Horas de inicio libres para una cita de 'dur' minutos ese día, separadas por turno
+        function fichasDisponibles(fecha, dur, excluirId){
+            const turnos = [['☀️ Mañana', config.mInicio, config.mFin], ['🌙 Tarde', config.vInicio, config.vFin]];
+            return turnos.map(([etiqueta, ini, fin]) => {
+                if(!ini || !fin) return { etiqueta, horas: [] };
+                const finMin = aMinH(fin);
+                const horas = horasEntreDA(ini, fin).filter(h => {
+                    const s0 = aMinH(h), e0 = s0 + dur;
+                    if(e0 > finMin) return false;                                   // no cabe antes de cerrar el turno
+                    if(citasSobrepuestas(fecha, h, minAHora(e0), excluirId).length) return false;
+                    for(let t = s0; t < e0; t += 30) if(horaBloqueada(fecha, minAHora(t))) return false;
+                    return true;
+                });
+                return { etiqueta, horas };
+            });
+        }
+        function renderFichasHora(){
+            const cont = document.getElementById('fichasHora'); if(!cont) return;
+            const fecha = (document.getElementById('fechaCita').value || '').trim();
+            const dur = parseInt(document.getElementById('duracion').value, 10) || 30;
+            const actual = document.getElementById('horaInicio').value;
+            if(!fecha){ cont.innerHTML = '<div style="font-size:0.8rem; color:var(--text-muted);">Elige primero el día de la cita.</div>'; actualizarResumenHora(); return; }
+            const grupos = fichasDisponibles(fecha, dur, editandoCitaId);
+            let html = '', hayAlguna = false;
+            grupos.forEach(g => {
+                if(!g.horas.length) return;
+                hayAlguna = true;
+                html += `<div class="fichas-turno">${g.etiqueta}</div><div class="fichas-hora">` +
+                    g.horas.map(h => `<button type="button" class="ficha-hora ${h === actual ? 'sel' : ''}" onclick="elegirFicha('${h}')">${formatearHoraAmPm(h)}</button>`).join('') + '</div>';
+            });
+            if(!hayAlguna) html = '<div style="font-size:0.8rem; color:#c53030; font-weight:bold;">No hay horarios libres ese día con esta duración. Prueba otro día, otra duración o "Otra hora…".</div>';
+            cont.innerHTML = html;
+            actualizarResumenHora();
+        }
+        function actualizarResumenHora(){
+            const r = document.getElementById('horaResumen'); if(!r) return;
+            const ini = document.getElementById('horaInicio').value, fin = document.getElementById('horaFin').value;
+            r.textContent = ini && fin ? `✅ ${formatearHoraAmPm(ini)} – ${formatearHoraAmPm(fin)}` : 'Toca una hora para elegirla.';
+        }
+        function elegirFicha(h){
+            document.getElementById('horaInicio').value = h;
+            calcularHoraFin();
+            renderFichasHora();
+        }
+        function elegirHoraManual(){ calcularHoraFin(); renderFichasHora(); }
+        function toggleOtraHora(){
+            const b = document.getElementById('otraHoraBox');
+            b.style.display = b.style.display === 'none' ? 'block' : 'none';
+        }
+        function duracionManualCambio(){ duracionManual = true; calcularHoraFin(); renderFichasHora(); }
+        function ponerDuracion(min){
+            const sel = document.getElementById('duracion'); if(!sel) return;
+            if(!Array.from(sel.options).some(o => parseInt(o.value, 10) === min)){
+                const o = new Option(min % 60 === 0 ? (min / 60) + ' hr' : min + ' min', String(min));
+                sel.add(o);
+            }
+            sel.value = String(min);
+        }
+        // Al escribir/elegir el motivo se propone la duración de ese tratamiento (si no la cambié a mano)
         function ajustarDuracionPorMotivo(){
             const m = document.getElementById('motivo'), sel = document.getElementById('duracion');
-            if(!m || !sel || !esMotivoColocacion(m.value)) return;
-            if(parseInt(sel.value, 10) < colocMin()){ sel.value = String(colocMin()); calcularHoraFin(); }
+            if(!m || !sel) return;
+            const txt = (m.value || '').trim();
+            const aviso = document.getElementById('durAutoTxt');
+            if(txt && !duracionManual){
+                const d = duracionDeMotivo(txt);
+                ponerDuracion(d);
+                if(aviso) aviso.textContent = '(automática según el motivo; cámbiala si hace falta)';
+            } else if(txt && esMotivoColocacion(txt) && parseInt(sel.value, 10) < colocMin()){
+                ponerDuracion(colocMin());
+            }
+            calcularHoraFin();
+            renderFichasHora();
         }
         function htmlAvisoColocacion(s){
             if(!esMotivoColocacion(s.motivo)) return '';
@@ -1979,7 +2061,7 @@
             config.msgSegSin = document.getElementById('confMsgSegSin').value;
             config.colocacionNombre = document.getElementById('confColocNombre').value.trim();
             config.colocacionMin = parseInt(document.getElementById('confColocMin').value, 10);
-            config.coloresTrat = coloresTmp.filter(x => x.nombre && x.nombre.trim()).map(x => ({ nombre: x.nombre.trim(), color: x.color }));
+            config.coloresTrat = coloresTmp.filter(x => x.nombre && x.nombre.trim()).map(x => ({ nombre: x.nombre.trim(), color: x.color, min: [30, 60, 90, 120].includes(parseInt(x.min, 10)) ? parseInt(x.min, 10) : durDefDeNombre(x.nombre) }));
             localStorage.setItem('denti_config_v16', JSON.stringify(config));
             guardarAgendaEnNube();
             publicarConfigPublica();
@@ -1989,10 +2071,23 @@
 
         // ===== Colores por tratamiento (configurables en Ajustes) =====
         const COLORES_TRAT_DEFAULT = [
-            { nombre: 'Ajuste',     color: '#1b2f6b' },  // azul marino
-            { nombre: 'Colocación', color: '#2f9e6b' },  // verde
-            { nombre: 'Valoración', color: '#6b7280' }   // gris
+            { nombre: 'Ajuste',     color: '#1b2f6b', min: 30 },  // azul marino
+            { nombre: 'Colocación', color: '#2f9e6b', min: 60 },  // verde
+            { nombre: 'Valoración', color: '#6b7280', min: 30 },  // gris
+            { nombre: 'Extracción', color: '#b45309', min: 30 }   // naranja
         ];
+        // Duración sugerida por tratamiento (si la fila no trae una propia)
+        const DUR_DEF = [['colocacion', 60], ['valoracion', 30], ['ajuste', 30], ['extraccion', 30]];
+        function durDefDeNombre(nombre){ const n = normTxt(nombre); const d = DUR_DEF.find(([k]) => n.includes(k)); return d ? d[1] : 30; }
+        function filaEsColocacion(nombre){ const n = normTxt(nombre).trim(), c = normTxt(colocNombre()).trim(); return !!n && (c.startsWith(n) || n.startsWith(c)); }
+        // Minutos que dura una cita según su motivo
+        function duracionDeMotivo(motivo){
+            if(esMotivoColocacion(motivo)) return colocMin();
+            const m = normTxt(motivo);
+            const r = listaColoresTrat().find(x => x.nombre && normTxt(x.nombre).trim() && m.includes(normTxt(x.nombre).trim()));
+            if(r) return [30, 60, 90, 120].includes(parseInt(r.min, 10)) ? parseInt(r.min, 10) : durDefDeNombre(r.nombre);
+            return durDefDeNombre(motivo);
+        }
         let coloresTmp = [];
         function normTxt(t){ return (t || '').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
         function escAttr(t){ return (t || '').toString().replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
@@ -2009,6 +2104,7 @@
         }
         function renderColoresConfig(){
             coloresTmp = JSON.parse(JSON.stringify(listaColoresTrat()));
+            coloresTmp.forEach(x => { if(![30, 60, 90, 120].includes(parseInt(x.min, 10))) x.min = durDefDeNombre(x.nombre); });
             pintarFilasColores();
         }
         function pintarFilasColores(){
@@ -2017,10 +2113,13 @@
             cont.innerHTML = coloresTmp.map((x,i) => `<div class="color-row">
                 <input type="text" class="inset-3d" placeholder="Ej. Blanqueamiento" value="${escAttr(x.nombre)}" oninput="coloresTmp[${i}].nombre=this.value">
                 <input type="color" value="${x.color}" oninput="coloresTmp[${i}].color=this.value">
+                ${filaEsColocacion(x.nombre)
+                    ? `<span style="font-size:0.72rem; color:var(--text-muted); width:84px; text-align:center;" title="Se cambia arriba, en «Cita de colocación de brackets»">${colocTexto()} ↑</span>`
+                    : `<select class="inset-3d" onchange="coloresTmp[${i}].min=parseInt(this.value,10)">${[[30,'30 min'],[60,'1 hr'],[90,'1.5 hrs'],[120,'2 hrs']].map(([v,t]) => `<option value="${v}" ${parseInt(x.min,10)===v?'selected':''}>${t}</option>`).join('')}</select>`}
                 <button class="close-btn" onclick="quitarColorTrat(${i})">✕</button>
             </div>`).join('');
         }
-        function agregarColorTrat(){ coloresTmp.push({ nombre: '', color: '#124578' }); pintarFilasColores(); }
+        function agregarColorTrat(){ coloresTmp.push({ nombre: '', color: '#124578', min: 30 }); pintarFilasColores(); }
         function quitarColorTrat(i){ coloresTmp.splice(i,1); pintarFilasColores(); }
 
         function minutosEntre(hIni, hFin) {
@@ -2185,6 +2284,9 @@
             if(!mostrar) {
                 editandoCitaId = null; document.getElementById('formTitle').innerText = 'Nueva Cita';
                 ['paciente','telefono','horaInicio','horaFin','motivo','notas','fechaCita'].forEach(id => document.getElementById(id).value = '');
+                duracionManual = false; ponerDuracion(30);
+                const at = document.getElementById('durAutoTxt'); if(at) at.textContent = '';
+                const ob = document.getElementById('otraHoraBox'); if(ob) ob.style.display = 'none';
             } else {
                 // al abrir para nueva cita, poner por defecto el día seleccionado
                 if(!editandoCitaId){
@@ -2198,6 +2300,7 @@
                 document.getElementById('motivo').value = potencialParaAgendar.motivo || '';
                 potencialParaAgendar = null; // uso de una sola vez
             }
+            if(mostrar){ ajustarDuracionPorMotivo(); }
         }
 
         // Llena el panel lateral (solo visible en desktop) con las citas del día
@@ -2305,6 +2408,7 @@
             if(inputFecha) inputFecha.value = dateStr;
             const inputHora = document.getElementById('horaInicio');
             if(inputHora){ inputHora.value = hora; calcularHoraFin(); }
+            renderFichasHora();
         }
 
         function abrirOpcionesCita(id) {
@@ -3714,7 +3818,10 @@
             document.getElementById('notas').value = cita.notas || '';
             document.getElementById('fechaCita').value = cita.fecha;
             document.getElementById('formTitle').innerText = 'Editando Cita';
+            duracionManual = true;      // al editar se respeta la duración que ya tenía
+            ponerDuracion(Math.max(30, minutosEntre(cita.horaInicio, cita.horaFin)));
             closeModal('opcionesCitaModal'); toggleFormulario(true);
+            renderFichasHora();
         }
         function enviarWhatsAppNueva(pac, tel, hIni, hFin, mot, fecha) {
             const msg = armarMensajeCita('registrada', pac, fecha, hIni, mot);
@@ -3896,9 +4003,10 @@
         function autoFillPhone() { const name = document.getElementById('paciente').value; if(pacientes[name]) document.getElementById('telefono').value = pacientes[name].telefono; }
         function calcularHoraFin() {
             const inicio = document.getElementById('horaInicio').value, duracion = parseInt(document.getElementById('duracion').value);
-            if(!inicio) return;
+            if(!inicio){ document.getElementById('horaFin').value = ''; try{ actualizarResumenHora(); }catch(e){} return; }
             const [h, m] = inicio.split(':').map(Number); const date = new Date(); date.setHours(h, m + duracion);
             document.getElementById('horaFin').value = `${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}`;
+            try{ actualizarResumenHora(); }catch(e){}
         }
         function citasSobrepuestas(fecha, hIni, hFin, excluirId) {
             return citas.filter(c => c.fecha === fecha && c.id !== excluirId && hIni < c.horaFin && hFin > c.horaInicio);
