@@ -890,7 +890,7 @@
             try{
                 if('Notification' in window && Notification.permission === 'granted' && 'serviceWorker' in navigator){
                     navigator.serviceWorker.ready
-                        .then(reg => reg.showNotification(titulo, { body: cuerpo, icon: 'favicon.png', badge: 'favicon.png' }))
+                        .then(reg => reg.showNotification(titulo, { body: cuerpo, icon: 'favicon.png', badge: 'badge.png', data: { title: titulo, body: cuerpo, accion: ((titulo + ' ' + cuerpo).toLowerCase().indexOf('solicitud') !== -1 ? 'solicitudes' : 'hoy') } }))
                         .catch(()=>{});
                 }
             }catch(e){}
@@ -1083,7 +1083,9 @@
                 if(reg){
                     await reg.showNotification('🦷 Prueba DentiAgenda', {
                         body: 'Si ves esto, tus notificaciones funcionan correctamente. ✓',
-                        icon: 'favicon.png'
+                        icon: 'favicon.png',
+                        badge: 'badge.png',
+                        data: { title: '🦷 Prueba DentiAgenda', body: 'prueba', accion: 'hoy' }
                     });
                 } else {
                     new Notification('🦷 Prueba DentiAgenda', { body: 'Tus notificaciones funcionan. ✓', icon:'favicon.png' });
@@ -4059,6 +4061,34 @@
             } else {
                 alert('Para instalar:\n\nToca el menú ⋮ de tu navegador y elige "Instalar app" o "Agregar a pantalla de inicio".');
             }
+        }
+        // ===== Avisos (push): qué hacer al tocar uno, y aviso dentro de la app si está abierta =====
+        function daAbrirDesdePush(accion, intento){
+            intento = intento || 0;
+            const lock = document.getElementById('lockScreen');
+            const bloqueada = lock && lock.style.display && lock.style.display !== 'none';
+            if(bloqueada || typeof abrirSolicitudes !== 'function'){
+                if(intento < 25) setTimeout(() => daAbrirDesdePush(accion, intento + 1), 600);   // espera a que cargue/inicie sesión
+                return;
+            }
+            try{
+                if(accion === 'solicitudes'){ abrirSolicitudes(); }
+                else if(accion === 'hoy'){ if(typeof openDay === 'function') openDay(fechaAISO(new Date())); }
+            }catch(e){ console.error('abrir desde push', e); }
+        }
+        try{
+            const pPush = new URLSearchParams(location.search).get('push');
+            if(pPush){
+                history.replaceState(null, '', location.pathname);   // limpia el parámetro para no repetirlo al recargar
+                setTimeout(() => daAbrirDesdePush(pPush), 800);
+            }
+        }catch(e){}
+        if('serviceWorker' in navigator){
+            navigator.serviceWorker.addEventListener('message', (e) => {
+                const m = e.data; if(!m || typeof m !== 'object') return;
+                if(m.tipo === 'da-push'){ try{ daMostrarToastAviso(m.titulo || 'DentiAgenda', m.cuerpo || ''); }catch(err){} }
+                else if(m.tipo === 'da-push-click'){ daAbrirDesdePush(m.accion); }
+            });
         }
         if('serviceWorker' in navigator){
             navigator.serviceWorker.register('sw.js').then((reg)=>{
