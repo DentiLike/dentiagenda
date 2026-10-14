@@ -716,6 +716,7 @@
             <div style="margin:16px 0 4px;">
                 <button class="btn-3d btn-submit" style="color:#d97706;" onclick="closeModal('configModalOverlay'); abrirBloqueos();">🚫 Bloquear horarios (vacaciones, comida...)</button>
                 <button class="btn-3d btn-submit" style="margin-top:8px;" onclick="sincronizarConfirmaciones(false)">🔄 Revisar confirmaciones ahora</button>
+                <button class="btn-3d" style="margin-top:8px; width:100%;" onclick="this.textContent='⏳ Revisando…'; sincronizarUsoSmile(true).then(()=>{this.textContent='🔄 Actualizar uso de SmileLike'; alert('Listo. Míralo en Pacientes (directorio).');})">🔄 Actualizar uso de SmileLike</button>
                 <button class="btn-3d btn-submit" style="margin-top:8px; color:var(--primary);" onclick="abrirDashboard()">📊 Ver Dashboard</button>
             </div>
             </div></details>
@@ -2626,11 +2627,11 @@
             }).join('') + '</div>' + htmlResumenSmile();
         }
         function htmlResumenSmile(){
-            const el = elegiblesSmile(); if(!el.length) return '';
+            const el = elegiblesSmile();
             const ts = +localStorage.getItem('da_uso_smile_ts') || 0;
             const usan = el.filter(usaSmile).length;
-            const act = ts ? 'actualizado ' + textoHace(ts) : 'sin datos aún';
-            return `<div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin:-2px 0 10px; font-size:0.8rem; color:var(--text-muted);"><span>📱 Usan SmileLike: <strong>${usan} de ${el.length}</strong> (${act})</span><button class="btn-plano" style="font-size:0.75rem;" onclick="sincronizarUsoSmile(true)">🔄</button></div>`;
+            const act = ts ? 'actualizado ' + textoHace(ts) + ' ' + new Date(ts).toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'}) : 'sin datos aún';
+            return `<div style="margin:-2px 0 10px; padding:8px 10px; border:1px solid var(--border, #ddd); border-radius:10px; font-size:0.82rem;"><div style="margin-bottom:6px;">📱 Usan SmileLike: <strong>${usan} de ${el.length}</strong> <span style="color:var(--text-muted);">(${act})</span></div><button class="btn-3d" style="width:100%; font-size:0.82rem; color:var(--accent);" onclick="this.textContent='⏳ Revisando…'; sincronizarUsoSmile(true)">🔄 Actualizar uso de SmileLike</button></div>`;
         }
 
         function renderListaContactos() {
