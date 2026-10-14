@@ -1113,7 +1113,7 @@
                     escucharAgendaEnTiempoReal();
                     escucharSolicitudes();
                     publicarConfigPublica();
-                    sincronizarConfirmaciones(true);
+                    sincronizarConfirmaciones(true); setTimeout(()=>sincronizarUsoSmile(false), 9000);
                     if(!intervaloConfirmaciones) intervaloConfirmaciones = setInterval(()=>sincronizarConfirmaciones(true), 3*60*1000);
                     scActualizarBotonPushDoctor();
                     setTimeout(() => renovarTokenDoctor(false), 4000);
@@ -2556,7 +2556,38 @@
             const ids = citas.filter(c => c.paciente === nombre && typeof c.id === 'number' && c.id > 1e12).map(c => c.id);
             return ids.length ? Math.min.apply(null, ids) : 0;
         }
-        let filtrosDir = { reciente: false, sinEstudios: false, sinRevisar: false, telRepetido: false };
+        let filtrosDir = { reciente: false, sinEstudios: false, sinRevisar: false, telRepetido: false, sinSmile: false };
+        // ===== Uso de SmileLike por paciente (lee "ultimoUso" que escribe la app del paciente) =====
+        let usoSmile = {}; try{ usoSmile = JSON.parse(localStorage.getItem('da_uso_smile') || '{}'); }catch(e){ usoSmile = {}; }
+        function elegiblesSmile(){
+            return Object.keys(pacientes || {}).filter(n => { const p = pacientes[n]; return p && !p.archivado && !p.esPotencial && limpiarTel(p.telefono).length === 10 && p.codigo; });
+        }
+        let usoSmileCargando = false;
+        async function sincronizarUsoSmile(forzar){
+            if(!fbOK || !authListo || usoSmileCargando) return;
+            const ult = +localStorage.getItem('da_uso_smile_ts') || 0;
+            if(!forzar && Date.now() - ult < 12*3600*1000) return;
+            usoSmileCargando = true;
+            const nuevo = {};
+            for(const nombre of elegiblesSmile()){
+                const pac = pacientes[nombre];
+                try{
+                    const llave = await hashLlave(limpiarTel(pac.telefono), pac.codigo);
+                    const doc = await db.collection('citas_pacientes').doc(llave).get();
+                    const dd = doc.exists ? doc.data() : {};
+                    nuevo[nombre] = { ts: +dd.ultimoUso || 0, push: Array.isArray(dd.pushTokens) && dd.pushTokens.length > 0 };
+                }catch(e){ if(usoSmile[nombre]) nuevo[nombre] = usoSmile[nombre]; }
+            }
+            usoSmile = nuevo; usoSmileCargando = false;
+            localStorage.setItem('da_uso_smile', JSON.stringify(nuevo));
+            localStorage.setItem('da_uso_smile_ts', String(Date.now()));
+            if(document.getElementById('listaContactos')) renderListaContactos();
+        }
+        function textoHace(ts){
+            const d = Math.floor((Date.now() - ts) / 86400000);
+            return d <= 0 ? 'hoy' : (d === 1 ? 'ayer' : 'hace ' + d + ' d');
+        }
+        function usaSmile(nombre){ const u = usoSmile[nombre]; return !!(u && u.ts); }
         function toggleFiltroDir(k){ filtrosDir[k] = !filtrosDir[k]; renderListaContactos(); }
         const DIR_RECIENTE_DIAS = 30;
         function cumpleFiltroDir(nombre, k, mapTel){
@@ -2565,6 +2596,7 @@
             if(k === 'sinEstudios') return !pac.esPotencial && estadoEstudios(pac) === 'sin';
             if(k === 'sinRevisar') return !pac.esPotencial && estadoEstudios(pac) === 'pendiente';
             if(k === 'telRepetido') return (mapTel[ultimos10(pac.telefono)] || 0) > 1;
+            if(k === 'sinSmile') return elegiblesSmile().includes(nombre) && !usaSmile(nombre);
             return true;
         }
         function etiquetasExtraDir(nombre, mapTel){
@@ -2575,15 +2607,30 @@
                 else if(e === 'pendiente') t += ' <span style="color:#b7791f; font-size:0.7rem; font-weight:bold;">⚠ estudios sin revisar</span>';
             }
             if((mapTel[ultimos10(pac.telefono)] || 0) > 1) t += ' <span style="color:#6b46c1; font-size:0.7rem; font-weight:bold;">📞 teléfono repetido</span>';
+            const u = usoSmile[nombre];
+            if(u && u.ts){
+                const dias = (Date.now() - u.ts) / 86400000;
+                const col = dias <= 7 ? '#2f855a' : (dias <= 30 ? '#b7791f' : '#c05621');
+                t += ` <span style="color:${col}; font-size:0.7rem; font-weight:bold;">📱 ${textoHace(u.ts)}</span>`;
+            } else if(u){
+                t += ' <span style="color:var(--text-muted); font-size:0.7rem;">📱 sin abrir</span>';
+            }
             return t;
         }
         function htmlFiltrosDir(todos, mapTel){
-            const defs = [['reciente', '🆕 Recientes'], ['sinEstudios', '⚠ Sin estudios'], ['sinRevisar', '⚠ Sin revisar'], ['telRepetido', '📞 Tel. repetido']];
+            const defs = [['reciente', '🆕 Recientes'], ['sinEstudios', '⚠ Sin estudios'], ['sinRevisar', '⚠ Sin revisar'], ['telRepetido', '📞 Tel. repetido'], ['sinSmile', '📱 Sin SmileLike']];
             return '<div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px;">' + defs.map(([k, txt]) => {
                 const n = todos.filter(x => cumpleFiltroDir(x, k, mapTel)).length;
                 const on = filtrosDir[k];
                 return `<button class="btn-plano" style="${on ? 'background:var(--accent); color:#fff; border-color:var(--accent);' : ''}" onclick="toggleFiltroDir('${k}')">${txt} (${n})</button>`;
-            }).join('') + '</div>';
+            }).join('') + '</div>' + htmlResumenSmile();
+        }
+        function htmlResumenSmile(){
+            const el = elegiblesSmile(); if(!el.length) return '';
+            const ts = +localStorage.getItem('da_uso_smile_ts') || 0;
+            const usan = el.filter(usaSmile).length;
+            const act = ts ? 'actualizado ' + textoHace(ts) : 'sin datos aún';
+            return `<div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin:-2px 0 10px; font-size:0.8rem; color:var(--text-muted);"><span>📱 Usan SmileLike: <strong>${usan} de ${el.length}</strong> (${act})</span><button class="btn-plano" style="font-size:0.75rem;" onclick="sincronizarUsoSmile(true)">🔄</button></div>`;
         }
 
         function renderListaContactos() {
