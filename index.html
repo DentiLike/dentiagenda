@@ -264,6 +264,7 @@
         <div style="font-size:3rem; margin-bottom:1rem;">🔐</div>
         <h2 style="color:var(--primary); margin:0 0 0.5rem 0;">DentiAgenda</h2>
         <p style="color:var(--text-muted); margin:0 0 1.5rem 0; text-align:center; font-size:0.9rem;">Acceso exclusivo del Dr. Miguel Alvarado</p>
+        <p class="da-ver-txt" style="color:var(--text-muted); font-size:0.75rem; margin:-1rem 0 1rem;"></p>
         <button class="btn-3d" style="max-width:320px; width:100%; padding:1rem; display:flex; align-items:center; justify-content:center; gap:10px;" onclick="hacerLoginGoogle()">
             <span style="font-weight:bold; color:#4285F4;">G</span> Entrar con Google
         </button>
@@ -278,6 +279,7 @@
     <header>
         <div class="logo-container">
             <img src="logo-dentiagenda.png" alt="DentiAgenda" style="max-width:220px;" onerror="this.style.display='none';">
+            <div class="da-ver-txt" style="font-size:0.65rem; color:var(--text-muted); text-align:center; margin-top:2px;"></div>
         </div>
         <div class="header-actions">
             <button class="btn-3d btn-text-icon" onclick="abrirDirectorio()">Pacientes</button>
@@ -470,7 +472,7 @@
                     </label>
                     <div style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">Te aparecerá un aviso en su cita cada vez que venga.</div>
                 </div>
-                <div id="editDirSmile" style="font-size:0.85rem; font-weight:bold; margin:-4px 0 12px; padding:8px 10px; border-radius:10px; background:rgba(0,0,0,0.04);"></div>
+                <div id="editDirSmile" style="font-size:0.85rem; font-weight:bold; margin:-4px 0 12px; padding:8px 10px; border-radius:10px; background:rgba(0,0,0,0.04);">📱 SmileLike: <span id="editDirSmileTxt">…</span></div>
                 <div class="orto-box">
                     <div class="orto-switch-row">
                         <span>😬 Paciente en ortodoncia</span>
@@ -2429,6 +2431,7 @@
                         <p style="margin:0; line-height:1.4;">
                             <strong>Paciente:</strong> ${cita.paciente}${pacData.requiereFactura ? ' <span style="background:#d69e2e; color:#fff; border-radius:8px; padding:1px 7px; font-size:0.75rem; font-weight:bold;">🧾 Pide factura</span>' : ''}<br>
                             <strong>Telefono:</strong> +52 ${cita.telefono}<br>
+                            <strong>SmileLike:</strong> <span id="detSmile">${textoEstadoSmile(cita.paciente)}</span><br>
                             <strong>Tratamiento:</strong> ${cita.motivo}<br>
                             <strong>Horario:</strong> ${formatearHoraAmPm(cita.horaInicio)} - ${formatearHoraAmPm(cita.horaFin)}
                         </p>
@@ -2438,6 +2441,7 @@
             if(cita.notas) htmlDetalle += `<p style="margin-top:10px; padding-top:10px; border-top:1px solid rgba(255,255,255,0.3);"><strong>Nota Adicional:</strong><br>${cita.notas}</p>`;
             const detEl = document.getElementById('detalleCitaData');
             detEl.innerHTML = htmlDetalle;
+            refrescarSmilePaciente(cita.paciente, ['detSmile']);
             const colDet = colorDeCita(cita.motivo);
             detEl.style.backgroundColor = colDet || '';
             detEl.style.color = colDet ? textoSobre(colDet) : '';
@@ -2590,6 +2594,32 @@
             return d <= 0 ? 'hoy' : (d === 1 ? 'ayer' : 'hace ' + d + ' d');
         }
         function usaSmile(nombre){ const u = usoSmile[nombre]; return !!(u && u.ts); }
+        const DA_VERSION = 'v46';
+        window.addEventListener('load', () => document.querySelectorAll('.da-ver-txt').forEach(e => e.textContent = 'DentiAgenda ' + DA_VERSION));
+        // Texto del estado de SmileLike para un paciente (usa lo guardado; abajo se refresca solo ese paciente)
+        function textoEstadoSmile(nombre){
+            const pac = pacientes[nombre] || {};
+            if(limpiarTel(pac.telefono).length !== 10 || !pac.codigo) return '— (sin teléfono o código)';
+            const u = usoSmile[nombre];
+            if(u && u.ts) return '✅ lo usa (última vez ' + textoHace(u.ts) + ')';
+            if(u) return '❌ aún no lo abre';
+            return '… consultando';
+        }
+        // Lee solo a este paciente (1 lectura), guarda y pinta en los elementos indicados
+        async function refrescarSmilePaciente(nombre, ids){
+            const pac = pacientes[nombre] || {};
+            const pintar = () => ids.forEach(id => { const el = document.getElementById(id); if(el) el.textContent = textoEstadoSmile(nombre); });
+            pintar();
+            if(!fbOK || !authListo || limpiarTel(pac.telefono).length !== 10 || !pac.codigo) return;
+            try{
+                const llave = await hashLlave(limpiarTel(pac.telefono), pac.codigo);
+                const doc = await db.collection('citas_pacientes').doc(llave).get();
+                const dd = doc.exists ? doc.data() : {};
+                usoSmile[nombre] = { ts: +dd.ultimoUso || 0, push: Array.isArray(dd.pushTokens) && dd.pushTokens.length > 0 };
+                localStorage.setItem('da_uso_smile', JSON.stringify(usoSmile));
+            }catch(e){ if(!usoSmile[nombre]) { const el0 = ids.map(i => document.getElementById(i)).find(Boolean); if(el0) el0.textContent = '— (sin conexión)'; return; } }
+            pintar();
+        }
         function toggleFiltroDir(k){ filtrosDir[k] = !filtrosDir[k]; renderListaContactos(); }
         const DIR_RECIENTE_DIAS = 30;
         function cumpleFiltroDir(nombre, k, mapTel){
@@ -2750,14 +2780,7 @@
             document.getElementById('editDirTel').value = pac.telefono; 
             document.getElementById('editDirNacimiento').value = pac.nacimiento || '';
             document.getElementById('editDirFactura').checked = !!pac.requiereFactura;
-            (function(){
-                const el = document.getElementById('editDirSmile'); if(!el) return;
-                const u = usoSmile[nombre];
-                if(limpiarTel(pac.telefono).length !== 10 || !pac.codigo){ el.innerHTML = '📱 SmileLike: <span style="color:var(--text-muted); font-weight:normal;">sin teléfono o código</span>'; }
-                else if(u && u.ts){ el.innerHTML = '📱 SmileLike: <span style="color:#2f855a;">✅ lo usa</span> <span style="font-weight:normal; color:var(--text-muted);">(última vez ' + textoHace(u.ts) + ')</span>'; }
-                else if(u){ el.innerHTML = '📱 SmileLike: <span style="color:#c53030;">❌ aún no lo abre</span>'; }
-                else { el.innerHTML = '📱 SmileLike: <span style="color:var(--text-muted); font-weight:normal;">sin datos — actualiza en la lista de pacientes</span>'; }
-            })();
+            refrescarSmilePaciente(nombre, ['editDirSmileTxt']);
             document.getElementById('editDirFotoBase64').value = pac.foto || '';
             document.getElementById('editDirCodigo').innerText = codigo;
             const preview = document.getElementById('editDirFotoPreview');
