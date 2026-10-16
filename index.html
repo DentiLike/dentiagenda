@@ -284,6 +284,7 @@
         <div class="header-actions">
             <button class="btn-3d btn-text-icon" onclick="abrirDirectorio()">Pacientes</button>
             <button class="btn-3d btn-text-icon" onclick="abrirPotenciales()">🎯 Px Potencial<span id="btnPotencialesBadge"></span></button>
+            <button class="btn-3d btn-text-icon" id="btnEscritorio" onclick="abrirEscritorio()">🖥️ Mi consultorio</button>
             <button class="btn-3d btn-text-icon" id="btnSeguimiento" onclick="abrirSeguimiento()">📋 Seguimiento</button>
             <button class="btn-3d btn-text-icon" id="btnMateriales" onclick="abrirMateriales()">🛒 Surtir</button>
             <button class="btn-3d btn-text-icon" onclick="openConfig()">Ajustes</button>
@@ -1232,6 +1233,7 @@
                     motivos: motivos,
                     config: config,
                     potenciales: potenciales,
+                    papelera: (typeof papelera !== 'undefined' ? papelera : []),
                     escritoPor: sello   // sello para reconocer mi propio eco
                 });
                 setSync('on','Sincronizado');
@@ -1271,6 +1273,8 @@
                 }
                 motivos = data.motivos || [];
                 potenciales = data.potenciales || [];
+                papelera = Array.isArray(data.papelera) ? data.papelera : [];
+                try{ guardarPapeleraLocal(); }catch(e){}
                 if(data.config) config = data.config;
                 reinsertarFotos();
                 localStorage.setItem('denti_citas_v16', JSON.stringify(citas));
@@ -1279,7 +1283,7 @@
                 localStorage.setItem('denti_potenciales_v16', JSON.stringify(potenciales));
                 localStorage.setItem('denti_config_v16', JSON.stringify(config));
                 syncGlobalActivo = true;
-                loadCalendar(); updateDatalists(); loadConfig(); renderPotenciales(); actualizarBadgeMateriales();
+                loadCalendar(); updateDatalists(); loadConfig(); renderPotenciales(); actualizarBadgeMateriales(); try{ actualizarBadgeEscritorio(); }catch(e){}
                 if(document.getElementById('materialesModal').style.display === 'flex') renderMateriales();
                 setSync('on','Sincronizado');
             }, (err)=>{ console.error('snapshot error', err); setSync('err','Error de conexión'); });
@@ -1532,7 +1536,7 @@
             try{ await db.collection('solicitudes').doc(s.id).delete(); }catch(e){ console.error('borrar solicitud', e); }
             loadCalendar();
             try{ actualizarPanelDia(s.fecha); }catch(e){}
-            alert(`Cita movida. ${cita.paciente} recibirá un aviso en su app.`);
+            if(confirm(`Cita movida. ${cita.paciente} recibirá un aviso en su app.\n\n¿Enviarle también el nuevo horario por WhatsApp?`)) abrirWa(cita.telefono, armarMensajeCita('reagendada', cita.paciente, cita.fecha, cita.horaInicio, cita.motivo));
         }
         async function aceptarSolicitud(id){
             const s = solicitudes.find(x => x.id === id);
@@ -1556,7 +1560,7 @@
             try{ await db.collection('solicitudes').doc(id).delete(); }catch(e){ console.error('borrar solicitud', e); }
             updateDatalists(); loadCalendar();
             if(selectedDate === s.fecha) openDay(selectedDate);
-            alert(`Cita de ${nombrePac} confirmada. Ya se sincronizó con Mi Sonrisa.`);
+            if(confirm(`Cita de ${nombrePac} confirmada. Ya se sincronizó con Mi Sonrisa.\n\n¿Enviarle la cita agendada por WhatsApp?`)) abrirWa(s.telefono, armarMensajeCita('registrada', nombrePac, s.fecha, s.horaInicio, s.motivo));
         }
         async function rechazarSolicitud(id){
             const s = solicitudes.find(x => x.id === id);
@@ -2594,7 +2598,7 @@
             return d <= 0 ? 'hoy' : (d === 1 ? 'ayer' : 'hace ' + d + ' d');
         }
         function usaSmile(nombre){ const u = usoSmile[nombre]; return !!(u && u.ts); }
-        const DA_VERSION = 'v46';
+        const DA_VERSION = 'v48';
         window.addEventListener('load', () => document.querySelectorAll('.da-ver-txt').forEach(e => e.textContent = 'DentiAgenda ' + DA_VERSION));
         // Texto del estado de SmileLike para un paciente (usa lo guardado; abajo se refresca solo ese paciente)
         function textoEstadoSmile(nombre){
@@ -3082,6 +3086,7 @@
             const pac = pacientes[nombre] || {};
             const estudios = pac.estudios || [];
             renderRevisionEstudios(nombre);
+            try{ actualizarBadgeEscritorio(); }catch(e){}
             const cont = document.getElementById('estudiosLista');
             if(!cont) return;
             if(!estudios.length){ cont.innerHTML = '<p style="font-size:0.8rem; color:var(--text-muted); text-align:center; margin:6px 0;">Sin estudios subidos aún.</p>'; return; }
@@ -3320,8 +3325,10 @@
         function armarMensajeCita(tipo, paciente, fecha, hora, motivo){
             const defaults = {
                 confirmacion: 'Hola {nombre}, te contactamos de DENTILIKE para confirmar tu cita programada.\n\nFecha: {fecha}\nHora: {hora}\n\nPor favor confírmanos de recibido.',
-                registrada: 'Hola {nombre}, tu cita ha sido registrada con éxito en DENTILIKE.\n\nFecha: {fecha}\nHora: {hora}\n\nTe esperamos.'
+                registrada: 'Hola {nombre}, tu cita ha sido registrada con éxito en DENTILIKE.\n\nFecha: {fecha}\nHora: {hora}\n\nTe esperamos.',
+                reagendada: 'Hola {nombre}, te avisamos de DENTILIKE que tu cita fue reprogramada. Este es tu nuevo horario:\n\nFecha: {fecha}\nHora: {hora}\n\nTe esperamos. Si no te acomoda, avísanos por aquí.'
             };
+            if(tipo === 'reagendada') return construirMensaje(config.msgReagendada || defaults.reagendada, true, paciente, fecha, hora, motivo);
             const conf = tipo === 'confirmacion';
             const plantilla = (conf ? config.msgConfirmacion : config.msgRegistrada) || defaults[tipo];
             const incluir = (conf ? config.msgConfirmacionTrat : config.msgRegistradaTrat) !== false;
@@ -3352,12 +3359,14 @@
             if(selectedDate) openDay(selectedDate);
             loadCalendar();
             if(valor === 'si') abrirArcos(idCita);
+            if(valor === 'no'){ const cc = citas.find(x => String(x.id) === String(idCita)); if(cc) ofrecerPapelera(cc.paciente); }
         }
         function marcarAsistenciaRapida(id, valor){
             marcarAsistencia(id, valor);
             if(selectedDate) openDay(selectedDate);
             loadCalendar();
             if(valor === 'si') abrirArcos(id);
+            if(valor === 'no'){ const cc = citas.find(x => String(x.id) === String(id)); if(cc) ofrecerPapelera(cc.paciente); }
         }
         function puedeMarcarAsistencia(c){
             return !!c && c.fecha <= fechaAISO(new Date()) && c.estado !== 'status-red';
@@ -4104,10 +4113,11 @@
                 if(!confirm(`⚠️ Esta cita se sobrepone con: ${detalle}.\n\n¿Deseas continuar y guardarla de todas formas?`)) return;
             }
             if((!pacientes[pac] || ultimos10(pacientes[pac].telefono) !== ultimos10(tel)) && !confirmarTelefonoRepetido(tel, pac, 'Guardar la cita')) return;
-            let fueEdicion = false;
+            let fueEdicion = false, cambioHorario = false;
             if(editandoCitaId) {
                 fueEdicion = true;
                 const index = citas.findIndex(c => c.id === editandoCitaId);
+                if(index !== -1){ const o = citas[index]; cambioHorario = (o.fecha !== fechaCita || o.horaInicio !== hIni); }
                 if(index !== -1) { citas[index] = { ...citas[index], fecha: fechaCita, paciente: pac, telefono: tel, horaInicio: hIni, horaFin: hFin, motivo: mot, notas: notasAdicionales }; }
                 editandoCitaId = null;
             } else {
@@ -4124,6 +4134,8 @@
             updateDatalists(); openDay(fechaCita); loadCalendar();
             if(!fueEdicion) {
                 if(confirm('Cita guardada. ¿Enviar mensaje de registro por WhatsApp?')) enviarWhatsAppNueva(pac, tel, hIni, hFin, mot, fechaCita);
+            } else if(cambioHorario) {
+                if(confirm('Cita actualizada. ¿Enviarle el nuevo horario al paciente por WhatsApp?')) abrirWa(tel, armarMensajeCita('reagendada', pac, fechaCita, hIni, mot));
             } else { alert('Cita actualizada correctamente.'); }
         }
 
@@ -4272,5 +4284,373 @@
         // cargar storage y messaging en segundo plano (no bloquean el arranque)
         setTimeout(cargarExtrasFirebase, 100);
     </script>
+
+<!-- ===================== MI CONSULTORIO VIRTUAL ===================== -->
+<style>
+  .esc-tiles { display:grid; grid-template-columns:repeat(5,1fr); gap:8px; margin-bottom:14px; }
+  .esc-tile { background:var(--bg-color); border-radius:12px; padding:8px 2px; text-align:center; cursor:pointer; box-shadow:3px 3px 6px var(--shadow-dark), -3px -3px 6px var(--shadow-light); }
+  .esc-tile b { display:block; font-size:1.25rem; color:var(--primary); }
+  .esc-tile span { font-size:0.62rem; color:var(--text-muted); line-height:1.1; display:block; }
+  .esc-tray { margin-bottom:14px; border-radius:14px; padding:10px; box-shadow:inset 3px 3px 7px var(--shadow-dark), inset -3px -3px 7px var(--shadow-light); }
+  .esc-tray h3 { margin:0 0 8px; font-size:0.95rem; color:var(--primary); display:flex; justify-content:space-between; align-items:center; }
+  .esc-tray h3 small { font-weight:normal; color:var(--text-muted); font-size:0.72rem; }
+  .esc-card { display:flex; gap:10px; align-items:center; background:var(--bg-color); border-radius:12px; padding:8px; margin-bottom:8px; cursor:pointer; box-shadow:3px 3px 6px var(--shadow-dark), -3px -3px 6px var(--shadow-light); }
+  .esc-card img, .esc-card .esc-ph { width:52px; height:52px; border-radius:9px; object-fit:cover; flex-shrink:0; background:#cbd5e0; display:flex; align-items:center; justify-content:center; }
+  .esc-card .esc-info { flex:1; min-width:0; }
+  .esc-card .esc-nom { font-weight:bold; font-size:0.9rem; color:var(--text-main); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .esc-sub { font-size:0.74rem; color:var(--text-muted); line-height:1.3; }
+  .esc-chip { display:inline-block; border-radius:8px; padding:1px 7px; font-size:0.68rem; font-weight:bold; margin-right:4px; }
+  .esc-mini { border:none; border-radius:9px; padding:6px 9px; font-size:0.74rem; font-weight:bold; cursor:pointer; background:var(--bg-color); color:var(--primary); box-shadow:2px 2px 4px var(--shadow-dark), -2px -2px 4px var(--shadow-light); }
+  .esc-vacio { text-align:center; color:var(--text-muted); font-size:0.78rem; padding:8px 0; }
+  .mesa-estudios { display:flex; gap:10px; overflow-x:auto; padding-bottom:6px; margin-bottom:12px; }
+  .mesa-estudios img { height:130px; border-radius:10px; cursor:zoom-in; flex-shrink:0; border:2px solid var(--shadow-light); }
+  .mesa-sec { margin-bottom:12px; }
+  .mesa-sec > label { display:block; font-size:0.82rem; font-weight:bold; color:var(--primary); margin-bottom:5px; }
+  .mesa-chips { display:flex; flex-wrap:wrap; gap:6px; }
+  .mesa-chip { border:none; border-radius:18px; padding:7px 12px; font-size:0.8rem; cursor:pointer; background:var(--bg-color); color:var(--text-main); box-shadow:2px 2px 4px var(--shadow-dark), -2px -2px 4px var(--shadow-light); }
+  .mesa-chip.on { background:var(--accent); color:#fff; box-shadow:inset 2px 2px 4px rgba(0,0,0,0.25); }
+  .mesa-dientes { display:grid; grid-template-columns:repeat(16,1fr); gap:3px; margin-top:6px; }
+  .mesa-dientes button { border:none; border-radius:6px; padding:6px 0; font-size:0.62rem; cursor:pointer; background:var(--bg-color); color:var(--text-main); box-shadow:1px 1px 3px var(--shadow-dark), -1px -1px 3px var(--shadow-light); }
+  .mesa-dientes button.on { background:#c53030; color:#fff; }
+  @media (max-width:480px){ .esc-tiles{ grid-template-columns:repeat(5,1fr); gap:5px; } .mesa-dientes button{ font-size:0.55rem; } }
+  #mesaZoomBox { display:none; position:fixed; inset:0; z-index:7000; background:rgba(0,0,0,0.92); overflow:auto; }
+  #mesaZoomBox img { width:100%; cursor:zoom-in; display:block; }
+  #mesaZoomBox img.z { width:300%; max-width:none; cursor:zoom-out; }
+  #mesaZoomBox button { position:fixed; top:10px; right:10px; z-index:7001; }
+</style>
+
+<!-- Escritorio -->
+<div class="modal-overlay" id="escritorioModal">
+  <div class="modal" style="max-width:760px;">
+    <div class="modal-header">
+      <h2 style="margin:0; color:var(--primary);">🖥️ Mi consultorio virtual</h2>
+      <button class="close-btn" onclick="closeModal('escritorioModal')">X</button>
+    </div>
+    <div id="escritorioBody"></div>
+  </div>
+</div>
+
+<!-- Mesa de trabajo -->
+<div class="modal-overlay" id="mesaModal" style="z-index:1100;">
+  <div class="modal" style="max-width:760px;">
+    <div class="modal-header">
+      <h2 id="mesaTitulo" style="margin:0; color:var(--primary); font-size:1.1rem;">Mesa de trabajo</h2>
+      <button class="close-btn" onclick="cerrarMesa()">X</button>
+    </div>
+    <div id="mesaBody"></div>
+  </div>
+</div>
+<div id="mesaZoomBox"><button class="btn-3d" onclick="mesaZoomCerrar()">✕ Cerrar</button><img id="mesaZoomImg" onclick="this.classList.toggle('z')" alt=""></div>
+
+<script>
+// ============ PAPELERA (potenciales que no acudieron) ============
+let papelera = []; try{ papelera = JSON.parse(localStorage.getItem('denti_papelera_v16') || '[]'); }catch(e){ papelera = []; }
+if(!Array.isArray(papelera)) papelera = [];
+const PAPELERA_DIAS = 30;
+function guardarPapeleraLocal(){ localStorage.setItem('denti_papelera_v16', JSON.stringify(papelera)); }
+// Quita lo que lleva más de 30 días en la papelera. Devuelve true si limpió algo.
+function purgarPapelera(){
+    const lim = Date.now() - PAPELERA_DIAS * 86400000;
+    const antes = papelera.length;
+    papelera = papelera.filter(x => (x.fecha || 0) >= lim);
+    if(papelera.length !== antes){ guardarPapeleraLocal(); return true; }
+    return false;
+}
+function refrescarTodoTrasCambio(){
+    try{ updateDatalists(); }catch(e){}
+    try{ loadCalendar(); }catch(e){}
+    try{ renderPotenciales(); }catch(e){}
+    try{ if(selectedDate) openDay(selectedDate); }catch(e){}
+    try{ renderListaContactos(); }catch(e){}
+    try{ actualizarBadgeEscritorio(); }catch(e){}
+    try{ if(document.getElementById('escritorioModal').style.display === 'flex') renderEscritorio(); }catch(e){}
+}
+function moverAPapelera(nombre){
+    const pac = pacientes[nombre] || null;
+    papelera.push({
+        id: 'p' + Date.now(), nombre: nombre, paciente: pac,
+        citas: citas.filter(c => c.paciente === nombre),
+        leads: potenciales.filter(p => p.nombre === nombre),
+        fecha: Date.now()
+    });
+    citas = citas.filter(c => c.paciente !== nombre);
+    delete pacientes[nombre];
+    potenciales = potenciales.filter(p => p.nombre !== nombre);
+    localStorage.setItem('denti_citas_v16', JSON.stringify(citas));
+    localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes));
+    localStorage.setItem('denti_potenciales_v16', JSON.stringify(potenciales));
+    guardarPapeleraLocal();
+    guardarAgendaEnNube();
+    refrescarTodoTrasCambio();
+}
+function ofrecerPapelera(nombre){
+    const pac = pacientes[nombre];
+    const esLead = potenciales.some(p => p.nombre === nombre);
+    if(!(pac && pac.esPotencial) && !esLead) return;
+    setTimeout(() => {
+        if(confirm(`${nombre} es paciente potencial y no acudió.\n\n¿Moverlo a la papelera junto con sus citas?\n(Podrás restaurarlo; se borra solo a los ${PAPELERA_DIAS} días.)`)) moverAPapelera(nombre);
+    }, 200);
+}
+function restaurarDePapelera(id){
+    const it = papelera.find(x => x.id === id); if(!it) return;
+    let nombre = it.nombre;
+    if(pacientes[nombre]){ nombre = it.nombre + ' (restaurado)'; }
+    if(it.paciente) pacientes[nombre] = it.paciente;
+    const citasRest = (it.citas || []).map(c => Object.assign({}, c, { paciente: nombre }));
+    let empalmes = 0;
+    citasRest.forEach(c => { try{ if(citasSobrepuestas(c.fecha, c.horaInicio, c.horaFin, c.id).length) empalmes++; }catch(e){} });
+    citas = citas.concat(citasRest);
+    (it.leads || []).forEach(l => { if(!potenciales.some(p => p.id === l.id)) potenciales.push(l); });
+    papelera = papelera.filter(x => x.id !== id);
+    localStorage.setItem('denti_citas_v16', JSON.stringify(citas));
+    localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes));
+    localStorage.setItem('denti_potenciales_v16', JSON.stringify(potenciales));
+    guardarPapeleraLocal();
+    guardarAgendaEnNube();
+    refrescarTodoTrasCambio();
+    alert(`${nombre} fue restaurado${empalmes ? `\n\n⚠️ ${empalmes} de sus citas se empalma(n) con otras. Revísalas en la agenda.` : '.'}`);
+}
+function eliminarDePapeleraDefinitivo(id){
+    const it = papelera.find(x => x.id === id); if(!it) return;
+    if(!confirm(`¿Borrar definitivamente a ${it.nombre}? Ya no se podrá restaurar.`)) return;
+    papelera = papelera.filter(x => x.id !== id);
+    guardarPapeleraLocal(); guardarAgendaEnNube(); refrescarTodoTrasCambio();
+}
+
+// ============ ESCRITORIO ============
+function ultimoEstudioTs(p){
+    const l = Array.isArray(p && p.estudios) ? p.estudios : [];
+    return l.length ? Math.max.apply(null, l.map(e => Number(e.fecha) || 0)) : 0;
+}
+function escCategorias(){
+    const por = [], bor = [], lis = [], env = [];
+    Object.keys(pacientes || {}).forEach(n => {
+        const p = pacientes[n]; if(!p || p.archivado) return;
+        const et = p.diag && p.diag.etapa;
+        if(et === 'borrador') bor.push(n);
+        else if(et === 'listo') lis.push(n);
+        else if(et === 'enviado') env.push(n);
+        else if(estadoEstudios(p) === 'pendiente') por.push(n);
+    });
+    por.sort((a, b) => ultimoEstudioTs(pacientes[a]) - ultimoEstudioTs(pacientes[b]));   // el que más espera, primero
+    return { por, bor, lis, env };
+}
+function actualizarBadgeEscritorio(){
+    const b = document.getElementById('btnEscritorio'); if(!b) return;
+    const c = escCategorias();
+    const n = c.por.length + c.lis.length;
+    b.textContent = '🖥️ Mi consultorio' + (n ? ' (' + n + ')' : '');
+}
+function abrirEscritorio(){
+    if(purgarPapelera()) guardarAgendaEnNube();
+    document.getElementById('escritorioModal').style.display = 'flex';
+    renderEscritorio();
+}
+function diasDesdeTs(ts){ return ts ? Math.floor((Date.now() - ts) / 86400000) : 0; }
+function escTarjeta(n, bot){
+    const p = pacientes[n] || {};
+    const es = (p.estudios || []);
+    const thumb = es.length ? `<img src="${escAttr(es[es.length - 1].url)}" alt="">` : '<div class="esc-ph">🦷</div>';
+    const ts = ultimoEstudioTs(p);
+    const d = diasDesdeTs(ts);
+    const espera = ts ? `<span class="esc-chip" style="background:${d >= 2 ? '#c53030' : (d >= 1 ? '#d69e2e' : '#718096')}; color:#fff;">⏳ ${d === 0 ? 'hoy' : 'hace ' + d + ' d'}</span>` : '';
+    const pot = p.esPotencial ? '<span class="esc-chip" style="background:var(--accent); color:#fff;">🎯 potencial</span>' : '';
+    return `<div class="esc-card" data-n="${escAttr(n)}" onclick="escAbrirMesa(this.dataset.n)">
+        ${thumb}
+        <div class="esc-info"><div class="esc-nom">${escHtml(n)}</div><div class="esc-sub">${pot}${espera}${es.length} estudio(s)</div></div>
+        ${bot || ''}
+    </div>`;
+}
+function renderEscritorio(){
+    const cont = document.getElementById('escritorioBody'); if(!cont) return;
+    const c = escCategorias();
+    purgarPapelera();
+    const bt = (txt, fn) => `<button class="esc-mini" data-n="@N" onclick="event.stopPropagation(); ${fn}(this.dataset.n)">${txt}</button>`;
+    const conBoton = (lista, txt, fn) => lista.map(n => escTarjeta(n, bt(txt, fn).replace('@N', escAttr(n)))).join('');
+    const bandeja = (id, titulo, sub, lista, htmlCards) => `<div class="esc-tray" id="${id}">
+        <h3><span>${titulo}</span><small>${lista.length}</small></h3>
+        <div class="esc-sub" style="margin:-4px 0 8px;">${sub}</div>
+        ${lista.length ? htmlCards : '<div class="esc-vacio">Nada por aquí 👌</div>'}
+    </div>`;
+    const tile = (id, ico, n, txt) => `<div class="esc-tile" onclick="document.getElementById('${id}').scrollIntoView({behavior:'smooth', block:'start'})"><b>${n}</b><span>${ico}<br>${txt}</span></div>`;
+    const papCards = papelera.slice().sort((a, b) => b.fecha - a.fecha).map(it => {
+        const restan = Math.max(0, PAPELERA_DIAS - diasDesdeTs(it.fecha));
+        return `<div class="esc-card" style="cursor:default;">
+            <div class="esc-ph">🗑️</div>
+            <div class="esc-info"><div class="esc-nom">${escHtml(it.nombre)}</div><div class="esc-sub">${(it.citas || []).length} cita(s) · se borra en ${restan} d</div></div>
+            <button class="esc-mini" data-id="${escAttr(it.id)}" onclick="restaurarDePapelera(this.dataset.id)">↩ Restaurar</button>
+            <button class="esc-mini" style="color:#c53030;" data-id="${escAttr(it.id)}" onclick="eliminarDePapeleraDefinitivo(this.dataset.id)">✕</button>
+        </div>`;
+    }).join('');
+    cont.innerHTML = `
+        <div class="esc-tiles">
+            ${tile('trayPor', '📥', c.por.length, 'Por analizar')}
+            ${tile('trayBor', '🧠', c.bor.length, 'En diagnóstico')}
+            ${tile('trayLis', '📤', c.lis.length, 'Listos para enviar')}
+            ${tile('trayEnv', '⏳', c.env.length, 'Esperando respuesta')}
+            ${tile('trayPap', '🗑️', papelera.length, 'Papelera')}
+        </div>
+        ${bandeja('trayPor', '📥 Por analizar', 'Estudios subidos que aún no revisas. Los que más llevan esperando, primero.', c.por, c.por.map(n => escTarjeta(n)).join(''))}
+        ${bandeja('trayBor', '🧠 En diagnóstico', 'Borradores que dejaste a medias.', c.bor, c.bor.map(n => escTarjeta(n)).join(''))}
+        ${bandeja('trayLis', '📤 Listos para enviar', 'Diagnóstico aprobado; falta mandarlo por WhatsApp.', c.lis, conBoton(c.lis, '📲 Enviar', 'escEnviarDirecto'))}
+        ${bandeja('trayEnv', '⏳ Esperando respuesta', 'Ya se lo mandaste. Márcalo como resuelto cuando responda o agende.', c.env, conBoton(c.env, '✔ Resuelto', 'escMarcarResuelto'))}
+        <div class="esc-tray" id="trayPap">
+            <h3><span>🗑️ Papelera</span><small>${papelera.length}</small></h3>
+            <div class="esc-sub" style="margin:-4px 0 8px;">Potenciales que no acudieron. Se limpia sola a los ${PAPELERA_DIAS} días.</div>
+            ${papelera.length ? papCards : '<div class="esc-vacio">Vacía 👌</div>'}
+        </div>
+        <p class="esc-sub" style="text-align:center;">Los potenciales sin estudios siguen en 🎯 Px Potencial. Al subir sus estudios aparecen aquí.</p>`;
+}
+function escMarcarResuelto(n){
+    const p = pacientes[n]; if(!p) return;
+    p.diag = Object.assign({}, p.diag, { etapa: 'cerrado', cerradoEn: Date.now() });
+    guardarPacienteDiag(n);
+    renderEscritorio();
+}
+function escEnviarDirecto(n){
+    const p = pacientes[n]; if(!p || !p.diag || !p.diag.mensaje) return escAbrirMesa(n);
+    abrirWa(p.telefono, p.diag.mensaje);
+    p.diag = Object.assign({}, p.diag, { etapa: 'enviado', enviadoEn: Date.now() });
+    guardarPacienteDiag(n);
+    renderEscritorio();
+}
+function guardarPacienteDiag(n){
+    localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes));
+    guardarAgendaEnNube();
+    try{ actualizarBadgeEscritorio(); }catch(e){}
+}
+
+// ============ MESA DE TRABAJO ============
+const MESA_REL = [['I', 'Clase I · buena relación'], ['II', 'Clase II · mandíbula retruida'], ['III', 'Clase III · mandíbula adelantada'], ['?', 'Por confirmar']];
+const MESA_INC = [['normal', 'Inclinación adecuada'], ['pro', 'Proinclinados'], ['retro', 'Retroinclinados']];
+const MESA_HALL = [['caries', 'Caries'], ['terceros', 'Terceros molares'], ['raices', 'Raíces cortas'], ['retenidos', 'Dientes retenidos/incluidos'], ['ausencias', 'Ausencias dentales'], ['apinamiento', 'Apiñamiento'], ['diastemas', 'Espacios (diastemas)'], ['osea', 'Pérdida ósea'], ['patologia', 'Lesión/patología a vigilar']];
+const MESA_BRACKET = ['Metálico', 'Estético (cerámico)', 'Zafiro', 'Autoligado metálico', 'Autoligado estético', 'Alineadores'];
+const MESA_DIENTES_SUP = [18,17,16,15,14,13,12,11,21,22,23,24,25,26,27,28];
+const MESA_DIENTES_INF = [48,47,46,45,44,43,42,41,31,32,33,34,35,36,37,38];
+let mesa = null;
+function escAbrirMesa(n){
+    const p = pacientes[n]; if(!p) return;
+    const dg = p.diag || {};
+    mesa = { nombre: n, d: Object.assign({ rel: '', incSup: '', incInf: '', hall: [], otro: '', extr: '', dientes: [], bracket: '', nota: '' }, dg.d || {}), mensaje: dg.mensaje || '', editado: !!dg.editado };
+    editandoAhora = true;
+    document.getElementById('mesaTitulo').textContent = '🧠 ' + n;
+    renderMesaDecisiones();
+    if(!mesa.mensaje) mesaRegenerar(true); else mesaPintarMensaje();
+    document.getElementById('mesaModal').style.display = 'flex';
+}
+function mesaHayCambios(){
+    const d = mesa.d;
+    return !!(d.rel || d.incSup || d.incInf || d.hall.length || d.otro || d.extr || d.bracket || d.nota);
+}
+function cerrarMesa(){
+    // Si dejaste algo marcado, se guarda solo como borrador para no perder tu trabajo
+    if(mesa && mesaHayCambios()){
+        const p = pacientes[mesa.nombre];
+        const et = p && p.diag && p.diag.etapa;
+        if(p && et !== 'listo' && et !== 'enviado') mesaGuardar('borrador', true);
+        else if(p && p.diag){ p.diag = Object.assign({}, p.diag, { d: mesa.d, mensaje: mesa.mensaje, editado: mesa.editado, actualizado: Date.now() }); guardarPacienteDiag(mesa.nombre); }
+    }
+    document.getElementById('mesaModal').style.display = 'none';
+    mesa = null;
+    if(document.getElementById('directorioModal').style.display !== 'flex') editandoAhora = false;
+    renderEscritorio();
+}
+function mesaZoom(url){ const i = document.getElementById('mesaZoomImg'); i.src = url; i.classList.remove('z'); document.getElementById('mesaZoomBox').style.display = 'block'; }
+function mesaZoomCerrar(){ document.getElementById('mesaZoomBox').style.display = 'none'; }
+function mesaChip(campo, valor, txt, multi){
+    const on = multi ? mesa.d[campo].includes(valor) : mesa.d[campo] === valor;
+    return `<button class="mesa-chip${on ? ' on' : ''}" onclick="${multi ? 'mesaToggle' : 'mesaSet'}('${campo}','${String(valor).replace(/'/g, "\\'")}')">${txt}</button>`;
+}
+function mesaSet(campo, valor){ mesa.d[campo] = (mesa.d[campo] === valor ? '' : valor); if(campo === 'extr' && valor !== 'si') mesa.d.dientes = []; mesaCambio(); }
+function mesaToggle(campo, valor){ const a = mesa.d[campo]; const i = a.indexOf(valor); if(i >= 0) a.splice(i, 1); else a.push(valor); mesaCambio(); }
+function mesaDiente(num){ const a = mesa.d.dientes; const i = a.indexOf(num); if(i >= 0) a.splice(i, 1); else a.push(num); mesaCambio(); }
+function mesaCambio(){ renderMesaDecisiones(); if(!mesa.editado) mesaRegenerar(true); }
+function renderMesaDecisiones(){
+    const p = pacientes[mesa.nombre] || {};
+    const est = (p.estudios || []);
+    const d = mesa.d;
+    const dientes = (arr) => arr.map(n => `<button class="${d.dientes.includes(n) ? 'on' : ''}" onclick="mesaDiente(${n})">${n}</button>`).join('');
+    document.getElementById('mesaBody').innerHTML = `
+        <div class="esc-sub" style="margin-bottom:8px;">📱 ${escHtml(p.telefono || 'sin teléfono')} · Toca una radiografía para ampliarla</div>
+        <div class="mesa-estudios">${est.length ? est.map(e => `<img src="${escAttr(e.url)}" alt="${escAttr(e.nombre || '')}" onclick="mesaZoom(this.src)">`).join('') : '<div class="esc-vacio">Sin estudios subidos.</div>'}</div>
+
+        <div class="mesa-sec"><label>Relación entre tu maxilar superior y la mandíbula</label><div class="mesa-chips">${MESA_REL.map(x => mesaChip('rel', x[0], x[1])).join('')}</div></div>
+        <div class="mesa-sec"><label>Incisivos superiores</label><div class="mesa-chips">${MESA_INC.map(x => mesaChip('incSup', x[0], x[1])).join('')}</div></div>
+        <div class="mesa-sec"><label>Incisivos inferiores</label><div class="mesa-chips">${MESA_INC.map(x => mesaChip('incInf', x[0], x[1])).join('')}</div></div>
+        <div class="mesa-sec"><label>Hallazgos (puedes elegir varios)</label><div class="mesa-chips">${MESA_HALL.map(x => mesaChip('hall', x[0], x[1], true)).join('')}</div>
+            <input type="text" class="inset-3d" style="margin-top:6px; width:100%;" placeholder="Otro hallazgo (opcional)" value="${escAttr(d.otro)}" oninput="mesa.d.otro=this.value; if(!mesa.editado) mesaRegenerar(true);"></div>
+        <div class="mesa-sec"><label>¿Requiere extracciones?</label><div class="mesa-chips">${mesaChip('extr', 'no', 'No')}${mesaChip('extr', 'si', 'Sí')}</div>
+            ${d.extr === 'si' ? `<div class="esc-sub" style="margin-top:6px;">Toca los dientes a extraer (numeración FDI):</div>
+            <div class="mesa-dientes">${dientes(MESA_DIENTES_SUP)}</div><div class="mesa-dientes">${dientes(MESA_DIENTES_INF)}</div>` : ''}</div>
+        <div class="mesa-sec"><label>Tipo de bracket indicado</label><div class="mesa-chips">${MESA_BRACKET.map(x => mesaChip('bracket', x, x)).join('')}</div></div>
+        <div class="mesa-sec"><label>Consideraciones especiales</label>
+            <textarea class="inset-3d" rows="2" style="width:100%;" placeholder="Ej. precaución por raíces cortas, cuidar higiene…" oninput="mesa.d.nota=this.value; if(!mesa.editado) mesaRegenerar(true);">${escHtml(d.nota)}</textarea></div>
+
+        <div class="mesa-sec"><label>💬 Mensaje para el paciente <span style="font-weight:normal; color:var(--text-muted);">(se arma solo; puedes editarlo)</span></label>
+            <textarea id="mesaMensaje" class="inset-3d" rows="11" style="width:100%;" oninput="mesa.mensaje=this.value; mesa.editado=true;"></textarea>
+            <button class="esc-mini" style="margin-top:6px;" onclick="mesaRegenerar(false)">↻ Volver a armar el mensaje</button></div>
+
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button class="btn-3d" style="flex:1; min-width:130px;" onclick="mesaGuardar('borrador')">💾 Guardar borrador</button>
+            <button class="btn-3d" style="flex:1; min-width:130px;" onclick="mesaGuardar('listo')">✅ Aprobar</button>
+            <button class="btn-3d btn-submit" style="flex:1; min-width:130px;" onclick="mesaEnviar()">📲 Enviar por WhatsApp</button>
+        </div>
+        <p class="esc-sub" style="margin-top:8px;">Son observaciones preliminares de tu lectura, sujetas a valoración clínica.</p>`;
+    mesaPintarMensaje();
+}
+function mesaPintarMensaje(){ const t = document.getElementById('mesaMensaje'); if(t) t.value = mesa.mensaje || ''; }
+function mesaRegenerar(silencioso){
+    if(!silencioso && mesa.editado && !confirm('Vas a reemplazar el mensaje que editaste. ¿Continuar?')) return;
+    mesa.mensaje = mesaArmarMensaje(mesa.nombre, mesa.d);
+    mesa.editado = false;
+    mesaPintarMensaje();
+}
+function mesaArmarMensaje(nombre, d){
+    const doc = (typeof config !== 'undefined' && config.doctor) ? config.doctor : 'Dr. Miguel Alvarado';
+    const docTxt = /^dra?\.?\s/i.test(doc) ? doc : 'Dr. ' + doc;
+    const clinica = (typeof config !== 'undefined' && config.clinica) ? config.clinica : 'DENTILIKE';
+    const L = [];
+    L.push(`Hola ${nombrePreferido(nombre)}, soy el ${docTxt} de ${clinica}. Ya revisé tus estudios y esto es lo que observé:`);
+    L.push('');
+    const rel = { 'I': 'Tienes una buena relación entre tu maxilar superior y tu mandíbula.', 'II': 'Tu mandíbula está en una posición más atrás respecto a tu maxilar superior (relación de Clase II).', 'III': 'Tu mandíbula está más adelante respecto a tu maxilar superior (relación de Clase III).', '?': 'La relación entre tu maxilar y tu mandíbula la vamos a confirmar en tu valoración.' }[d.rel];
+    if(rel) L.push('🦷 ' + rel);
+    const inc = { normal: 'con una inclinación adecuada', pro: 'inclinados hacia adelante (proinclinados)', retro: 'inclinados hacia atrás (retroinclinados)' };
+    if(d.incSup || d.incInf){
+        const partes = [];
+        if(d.incSup) partes.push(`los superiores están ${inc[d.incSup]}`);
+        if(d.incInf) partes.push(`los inferiores están ${inc[d.incInf]}`);
+        L.push('🦷 En tus dientes frontales, ' + partes.join(' y ') + '.');
+    }
+    const hall = { caries: 'caries que debemos tratar', terceros: 'terceros molares (muelas del juicio) a considerar', raices: 'raíces cortas, por lo que debemos tener precaución durante el tratamiento', retenidos: 'dientes retenidos o incluidos', ausencias: 'ausencias dentales', apinamiento: 'apiñamiento dental', diastemas: 'espacios entre algunos dientes', osea: 'pérdida de soporte óseo que debemos vigilar', patologia: 'un hallazgo que debemos vigilar de cerca' };
+    const hs = d.hall.map(h => hall[h]).filter(Boolean);
+    if(d.otro && d.otro.trim()) hs.push(d.otro.trim());
+    if(hs.length){ L.push(''); L.push('🔎 También observé: ' + hs.join('; ') + '.'); }
+    if(d.extr === 'no') { L.push(''); L.push('📋 Por ahora no se contemplan extracciones para tu tratamiento.'); }
+    else if(d.extr === 'si'){ L.push(''); L.push('📋 Para lograr un buen resultado se contemplan extracciones' + (d.dientes.length ? ` (dientes ${d.dientes.slice().sort((a, b) => a - b).join(', ')})` : '') + '.'); }
+    if(d.bracket) L.push((d.extr ? '' : '\n') + `✨ El tipo de aparatología que te recomiendo: ${d.bracket}.`);
+    if(d.nota && d.nota.trim()){ L.push(''); L.push('⚠️ A considerar: ' + d.nota.trim()); }
+    L.push('');
+    L.push('Son observaciones preliminares y están sujetas a valoración clínica. Cuando gustes lo platicamos para resolver tus dudas y programar el inicio de tu tratamiento. 😊');
+    return L.join('\n');
+}
+function mesaGuardar(etapa, silencioso){
+    const n = mesa.nombre, p = pacientes[n]; if(!p) return;
+    p.diag = { etapa: etapa, d: mesa.d, mensaje: mesa.mensaje, editado: mesa.editado, actualizado: Date.now(), enviadoEn: (p.diag && p.diag.enviadoEn) || null };
+    if(etapa === 'listo' || etapa === 'enviado'){ delete p.estudiosNoAplica; p.estudiosRevisados = Date.now(); }
+    guardarPacienteDiag(n);
+    if(!silencioso) cerrarMesa();
+}
+function mesaEnviar(){
+    const n = mesa.nombre, p = pacientes[n]; if(!p) return;
+    if(!p.telefono){ alert('Este paciente no tiene teléfono guardado.'); return; }
+    const texto = mesa.mensaje;
+    mesaGuardar('enviado', true);
+    p.diag.enviadoEn = Date.now();
+    guardarPacienteDiag(n);
+    abrirWa(p.telefono, texto);
+    cerrarMesa();
+}
+</script>
+
 </body>
 </html>
