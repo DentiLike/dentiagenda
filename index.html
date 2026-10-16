@@ -2528,7 +2528,14 @@
                     <option value="pendiente"${sel === 'pendiente' ? ' selected' : ''}>Estudios pendientes de revisar</option>
                     <option value="ok"${sel === 'ok' ? ' selected' : ''}>✓ Ya revisé los estudios</option>
                     <option value="noaplica"${sel === 'noaplica' ? ' selected' : ''}>No requiere estudios</option>
-                </select>`;
+                </select>` + (function(){
+                    try{
+                        const donde = escDondeEsta(nombre);
+                        return donde
+                            ? `<div style="font-size:0.78rem; color:#2f855a; margin-top:8px; font-weight:bold;">🖥️ En Mi consultorio: ${donde}</div>`
+                            : `<button type="button" class="btn-3d" style="width:100%; margin-top:8px; font-size:0.82rem; color:var(--accent);" onclick="escActivarDesdeFicha()">🖥️ Mandar a Mi consultorio</button>`;
+                    }catch(e){ return ''; }
+                })();
         }
         function cambiarRevisionEstudios(valor){
             const nombre = dirNombreActual; const pac = pacientes[nombre]; if(!pac) return;
@@ -2598,7 +2605,7 @@
             return d <= 0 ? 'hoy' : (d === 1 ? 'ayer' : 'hace ' + d + ' d');
         }
         function usaSmile(nombre){ const u = usoSmile[nombre]; return !!(u && u.ts); }
-        const DA_VERSION = 'v49';
+        const DA_VERSION = 'v51';
         window.addEventListener('load', () => document.querySelectorAll('.da-ver-txt').forEach(e => e.textContent = 'DentiAgenda ' + DA_VERSION));
         // Texto del estado de SmileLike para un paciente (usa lo guardado; abajo se refresca solo ese paciente)
         function textoEstadoSmile(nombre){
@@ -3061,7 +3068,7 @@
             if(!nombrePac) return;
             try{
                 // comprimir a 1200px, calidad 75%
-                const dataUrl = await comprimirImagen(file, 1200, 0.75);
+                const dataUrl = await comprimirImagen(file, 2000, 0.85);   // más resolución: la IA y tú ven mejor los detalles
                 // subir a Storage (carpeta estudios)
                 if(!storage){ await cargarExtrasFirebase(); if(!storage) throw new Error('Storage no disponible'); }
                 const idEstudio = 'e' + Date.now();
@@ -4341,6 +4348,16 @@
   </div>
 </div>
 <div id="escToast" style="display:none; position:fixed; left:50%; bottom:18px; transform:translateX(-50%); z-index:6500; background:#2d3748; color:#fff; padding:10px 14px; border-radius:12px; font-size:0.82rem; max-width:90%; box-shadow:0 4px 14px rgba(0,0,0,0.35);"></div>
+<!-- Laboratorio IA -->
+<div class="modal-overlay" id="iaLabModal" style="z-index:1100;">
+  <div class="modal" style="max-width:640px;">
+    <div class="modal-header">
+      <h2 style="margin:0; color:var(--primary); font-size:1.1rem;">🧪 Laboratorio IA</h2>
+      <button class="close-btn" onclick="closeModal('iaLabModal')">X</button>
+    </div>
+    <div id="iaLabBody"></div>
+  </div>
+</div>
 <div id="mesaZoomBox"><button class="btn-3d" onclick="mesaZoomCerrar()">✕ Cerrar</button><img id="mesaZoomImg" onclick="this.classList.toggle('z')" alt=""></div>
 
 <script>
@@ -4431,9 +4448,10 @@ function escCategorias(){
         if(et === 'borrador') bor.push(n);
         else if(et === 'listo') lis.push(n);
         else if(et === 'enviado') env.push(n);
-        else if(estadoEstudios(p) === 'pendiente') por.push(n);
+        else if(estadoEstudios(p) === 'pendiente' || p.enEscritorio) por.push(n);
     });
-    por.sort((a, b) => ultimoEstudioTs(pacientes[a]) - ultimoEstudioTs(pacientes[b]));   // el que más espera, primero
+    const tsEsp = (n) => ultimoEstudioTs(pacientes[n]) || Number(pacientes[n].enEscritorio) || 0;
+    por.sort((a, b) => tsEsp(a) - tsEsp(b));   // el que más espera, primero
     return { por, bor, lis, env };
 }
 function actualizarBadgeEscritorio(){
@@ -4452,7 +4470,7 @@ function escTarjeta(n, bot){
     const p = pacientes[n] || {};
     const es = (p.estudios || []);
     const thumb = es.length ? `<img src="${escAttr(es[es.length - 1].url)}" alt="">` : '<div class="esc-ph">🦷</div>';
-    const ts = ultimoEstudioTs(p);
+    const ts = ultimoEstudioTs(p) || Number(p.enEscritorio) || 0;
     const d = diasDesdeTs(ts);
     const espera = ts ? `<span class="esc-chip" style="background:${d >= 2 ? '#c53030' : (d >= 1 ? '#d69e2e' : '#718096')}; color:#fff;">⏳ ${d === 0 ? 'hoy' : 'hace ' + d + ' d'}</span>` : '';
     const pot = p.esPotencial ? '<span class="esc-chip" style="background:var(--accent); color:#fff;">🎯 potencial</span>' : '';
@@ -4491,6 +4509,11 @@ function renderEscritorio(){
             ${tile('trayEnv', '⏳', c.env.length, 'Esperando respuesta')}
             ${tile('trayPap', '🗑️', papelera.length, 'Papelera')}
         </div>
+        <div style="display:flex; gap:6px; margin-bottom:12px;">
+            <input id="escAgregarInput" list="escListaPac" class="inset-3d" style="flex:1; min-width:0;" placeholder="➕ Agregar un paciente a Por analizar…" onkeydown="if(event.key==='Enter') escAgregarManual()">
+            <button class="esc-mini" onclick="escAgregarManual()">Agregar</button>
+            <datalist id="escListaPac">${Object.keys(pacientes).filter(n => pacientes[n] && !pacientes[n].archivado).sort().map(n => `<option value="${escAttr(n)}">`).join('')}</datalist>
+        </div>
         ${bandeja('trayPor', '📥 Por analizar', 'Estudios subidos que aún no revisas. Los que más llevan esperando, primero. Con ✅ marcas los casos que ya diagnosticaste.', c.por, conBoton(c.por, '✅', 'escYaHecho'))}
         ${bandeja('trayBor', '🧠 En diagnóstico', 'Borradores que dejaste a medias.', c.bor, conBoton(c.bor, '✅', 'escYaHecho'))}
         ${bandeja('trayLis', '📤 Listos para enviar', 'Diagnóstico aprobado; falta mandarlo por WhatsApp.', c.lis, conBoton(c.lis, '📲 Enviar', 'escEnviarDirecto'))}
@@ -4500,14 +4523,54 @@ function renderEscritorio(){
             <div class="esc-sub" style="margin:-4px 0 8px;">Potenciales que no acudieron. Se limpia sola a los ${PAPELERA_DIAS} días.</div>
             ${papelera.length ? papCards : '<div class="esc-vacio">Vacía 👌</div>'}
         </div>
+        <button class="btn-3d" style="width:100%; margin-bottom:10px; font-size:0.85rem; color:var(--accent);" onclick="abrirIaLab()">🧪 Laboratorio IA · modelos y tablero de aciertos</button>
         <p class="esc-sub" style="text-align:center;">Los potenciales sin estudios siguen en 🎯 Px Potencial. Al subir sus estudios aparecen aquí.</p>`;
+}
+// Dónde está hoy un paciente dentro del escritorio ('' si no está)
+function escDondeEsta(n){
+    const c = escCategorias();
+    if(c.por.includes(n)) return '📥 Por analizar';
+    if(c.bor.includes(n)) return '🧠 En diagnóstico';
+    if(c.lis.includes(n)) return '📤 Listos para enviar';
+    if(c.env.includes(n)) return '⏳ Esperando respuesta';
+    return '';
+}
+// Mete a un paciente a "Por analizar" a mano (aunque no tenga estudios pendientes o ya estén "revisados")
+function escActivar(n){
+    const p = pacientes[n]; if(!p) return false;
+    if(p.diag && p.diag.etapa === 'cerrado') delete p.diag;
+    const et = p.diag && p.diag.etapa;
+    if(et !== 'borrador' && et !== 'listo' && et !== 'enviado') p.enEscritorio = Date.now();
+    guardarPacienteDiag(n);
+    return true;
+}
+function escAgregarManual(){
+    const inp = document.getElementById('escAgregarInput'); if(!inp) return;
+    const q = inp.value.trim().toLowerCase(); if(!q) return;
+    const nombres = Object.keys(pacientes).filter(n => pacientes[n] && !pacientes[n].archivado);
+    let n = nombres.find(x => x.toLowerCase() === q);
+    if(!n){ const parc = nombres.filter(x => x.toLowerCase().includes(q)); if(parc.length === 1) n = parc[0]; else if(parc.length > 1){ alert('Hay varios pacientes con ese nombre. Escribe el nombre completo o elígelo de la lista.'); return; } }
+    if(!n){ alert('No encontré a ese paciente en tu directorio.'); return; }
+    const donde = escDondeEsta(n);
+    if(donde){ alert(`${n} ya está en Mi consultorio (${donde}).`); inp.value = ''; return; }
+    escActivar(n);
+    renderEscritorio();
+    const t = document.getElementById('escToast');
+    t.innerHTML = `✅ ${escHtml(n)} agregado a "Por analizar".`; t.style.display = 'block';
+    clearTimeout(escUndoTimer); escUndoTimer = setTimeout(() => { t.style.display = 'none'; }, 4000);
+}
+function escActivarDesdeFicha(){
+    const n = dirNombreActual; if(!n || !pacientes[n]) return;
+    escActivar(n);
+    try{ renderRevisionEstudios(n); }catch(e){}
+    alert(`${n} ya aparece en Mi consultorio → Por analizar.`);
 }
 // ✅ Caso que ya diagnosticaste por tu cuenta: sale de las charolas y de los avisos
 let escUndo = null, escUndoTimer = null;
 function escYaHecho(n){
     const p = pacientes[n]; if(!p) return;
-    escUndo = { n: n, estudiosRevisados: p.estudiosRevisados, estudiosNoAplica: p.estudiosNoAplica, diag: p.diag };
-    delete p.estudiosNoAplica;
+    escUndo = { n: n, estudiosRevisados: p.estudiosRevisados, estudiosNoAplica: p.estudiosNoAplica, diag: p.diag, enEscritorio: p.enEscritorio };
+    delete p.estudiosNoAplica; delete p.enEscritorio;
     p.estudiosRevisados = Date.now();
     p.diag = { etapa: 'cerrado', cerradoEn: Date.now(), manual: true };
     guardarPacienteDiag(n);
@@ -4525,6 +4588,7 @@ function escDeshacer(){
         if(escUndo.estudiosRevisados === undefined) delete p.estudiosRevisados; else p.estudiosRevisados = escUndo.estudiosRevisados;
         if(escUndo.estudiosNoAplica === undefined) delete p.estudiosNoAplica; else p.estudiosNoAplica = escUndo.estudiosNoAplica;
         if(escUndo.diag === undefined) delete p.diag; else p.diag = escUndo.diag;
+        if(escUndo.enEscritorio === undefined) delete p.enEscritorio; else p.enEscritorio = escUndo.enEscritorio;
         guardarPacienteDiag(escUndo.n);
     }
     escUndo = null;
@@ -4534,6 +4598,7 @@ function escDeshacer(){
 function escMarcarResuelto(n){
     const p = pacientes[n]; if(!p) return;
     p.diag = Object.assign({}, p.diag, { etapa: 'cerrado', cerradoEn: Date.now() });
+    delete p.enEscritorio;
     guardarPacienteDiag(n);
     renderEscritorio();
 }
@@ -4561,7 +4626,7 @@ let mesa = null;
 function escAbrirMesa(n){
     const p = pacientes[n]; if(!p) return;
     const dg = p.diag || {};
-    mesa = { nombre: n, d: Object.assign({ rel: '', incSup: '', incInf: '', hall: [], otro: '', extr: '', dientes: [], aparatos: [], aparatoOtro: '', nota: '' }, dg.d || {}), mensaje: dg.mensaje || '', editado: !!dg.editado };
+    mesa = { ia: Object.assign({ prov: 'claude', cargando: [], res: {}, casoId: null }, dg.ia || {}, { cargando: [] }), nombre: n, d: Object.assign({ rel: '', incSup: '', incInf: '', hall: [], otro: '', extr: '', dientes: [], aparatos: [], aparatoOtro: '', nota: '' }, dg.d || {}), mensaje: dg.mensaje || '', editado: !!dg.editado };
     if(!Array.isArray(mesa.d.aparatos)) mesa.d.aparatos = [];
     if(mesa.d.bracket){ if(!mesa.d.aparatos.includes(mesa.d.bracket)) mesa.d.aparatos.push(mesa.d.bracket); delete mesa.d.bracket; }   // borradores viejos
     editandoAhora = true;
@@ -4572,7 +4637,7 @@ function escAbrirMesa(n){
 }
 function mesaHayCambios(){
     const d = mesa.d;
-    return !!(d.rel || d.incSup || d.incInf || d.hall.length || d.otro || d.extr || d.aparatos.length || d.aparatoOtro || d.nota);
+    return !!(d.rel || d.incSup || d.incInf || d.hall.length || d.otro || d.extr || d.aparatos.length || d.aparatoOtro || d.nota || Object.keys(mesa.ia.res).length);
 }
 function cerrarMesa(){
     // Si dejaste algo marcado, se guarda solo como borrador para no perder tu trabajo
@@ -4605,6 +4670,7 @@ function renderMesaDecisiones(){
     document.getElementById('mesaBody').innerHTML = `
         <div class="esc-sub" style="margin-bottom:8px;">📱 ${escHtml(p.telefono || 'sin teléfono')} · Toca una radiografía para ampliarla</div>
         <div class="mesa-estudios">${est.length ? est.map(e => `<img src="${escAttr(e.url)}" alt="${escAttr(e.nombre || '')}" onclick="mesaZoom(this.src)">`).join('') : '<div class="esc-vacio">Sin estudios subidos.</div>'}</div>
+        <div id="iaBloque">${iaBloqueInner()}</div>
 
         <div class="mesa-sec"><label>Relación entre tu maxilar superior y la mandíbula</label><div class="mesa-chips">${MESA_REL.map(x => mesaChip('rel', x[0], x[1])).join('')}</div></div>
         <div class="mesa-sec"><label>Incisivos superiores</label><div class="mesa-chips">${MESA_INC.map(x => mesaChip('incSup', x[0], x[1])).join('')}</div></div>
@@ -4674,7 +4740,12 @@ function mesaArmarMensaje(nombre, d){
 }
 function mesaGuardar(etapa, silencioso){
     const n = mesa.nombre, p = pacientes[n]; if(!p) return;
-    p.diag = { etapa: etapa, d: mesa.d, mensaje: mesa.mensaje, editado: mesa.editado, actualizado: Date.now(), enviadoEn: (p.diag && p.diag.enviadoEn) || null };
+    const iaGuardar = { prov: mesa.ia.prov, casoId: mesa.ia.casoId, res: {} };
+    Object.keys(mesa.ia.res).forEach(k => { if(mesa.ia.res[k] && mesa.ia.res[k].resultado) iaGuardar.res[k] = mesa.ia.res[k]; });
+    if(etapa === 'listo' || etapa === 'enviado') iaRegistrarCaso();   // compara lo que sugirió la IA contra tu decisión final
+    iaGuardar.casoId = mesa.ia.casoId;
+    p.diag = { etapa: etapa, d: mesa.d, mensaje: mesa.mensaje, editado: mesa.editado, ia: iaGuardar, actualizado: Date.now(), enviadoEn: (p.diag && p.diag.enviadoEn) || null };
+    delete p.enEscritorio;
     if(etapa === 'listo' || etapa === 'enviado'){ delete p.estudiosNoAplica; p.estudiosRevisados = Date.now(); }
     guardarPacienteDiag(n);
     if(!silencioso) cerrarMesa();
@@ -4688,6 +4759,184 @@ function mesaEnviar(){
     guardarPacienteDiag(n);
     abrirWa(p.telefono, texto);
     cerrarMesa();
+}
+
+// ============ IA: asistente de lectura de estudios ============
+const IA_NOMBRE = { claude: 'Claude', gemini: 'Gemini', grok: 'Grok' };
+const IA_REL = { 'I': 'Clase I', 'II': 'Clase II', 'III': 'Clase III', '?': 'Por confirmar' };
+const IA_INC = { normal: 'normal', pro: 'proinclinados', retro: 'retroinclinados' };
+let iaFn = null;
+function iaEdadDe(p){
+    if(!p || !p.nacimiento) return 0;
+    const f = new Date(p.nacimiento); if(isNaN(f)) return 0;
+    return Math.max(0, Math.floor((Date.now() - f.getTime()) / 31557600000));
+}
+async function iaLlamarServidor(prov, p){
+    if(!iaFn){
+        if(!(window.firebase && firebase.functions)) await cargarLibreriaFirebase('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions-compat.js');
+        if(!(window.firebase && firebase.functions)) throw new Error('No se pudo cargar el módulo de IA. ¿Hay internet?');
+        iaFn = firebase.functions().httpsCallable('analizarEstudios', { timeout: 170000 });
+    }
+    const r = await iaFn({ proveedor: prov, estudios: (p.estudios || []).map(e => ({ url: e.url, nombre: e.nombre || '' })), edad: iaEdadDe(p) });
+    return r.data;
+}
+function iaMensajeError(e){
+    const code = (e && e.code) || '', msg = (e && e.message) || String(e);
+    if(code.includes('not-found') && /function/i.test(msg)) return 'La función de IA aún no está desplegada en el servidor.';
+    if(code.includes('unauthenticated')) return 'Inicia sesión de nuevo en DentiAgenda.';
+    if(/API key|api_key|401|403|permission|invalid x-api-key|Secret/i.test(msg)) return 'La llave de este proveedor no está configurada o no es válida (' + msg.slice(0, 120) + ').';
+    return msg.slice(0, 260);
+}
+function iaConsentimiento(){
+    if(localStorage.getItem('da_ia_consent') === '1') return true;
+    if(confirm('Las radiografías de este paciente se enviarán al servicio de IA que elijas para analizarlas. No se envía su nombre, pero la imagen podría traer datos impresos.\n\n¿Cuentas con su consentimiento o aviso de privacidad que lo permita?\n\nAceptar = continuar (no se vuelve a preguntar).')){
+        localStorage.setItem('da_ia_consent', '1'); return true;
+    }
+    return false;
+}
+function iaBloqueInner(){
+    const ia = mesa.ia, cargando = ia.cargando.length > 0;
+    const opt = (v, t) => `<option value="${v}"${ia.prov === v ? ' selected' : ''}>${t}</option>`;
+    const tarjetas = ['claude', 'gemini', 'grok'].filter(k => ia.res[k]).map(k => {
+        const x = ia.res[k];
+        if(x.error) return `<div class="esc-card" style="cursor:default; display:block;"><b>🤖 ${IA_NOMBRE[k]}</b><div class="esc-sub" style="color:#c53030;">⚠️ ${escHtml(x.error)}</div></div>`;
+        const r = x.resultado, c = r.confianza || {};
+        const cf = (v) => v ? ` <span class="esc-sub">(confianza ${v})</span>` : '';
+        const hall = { caries: 'caries', terceros: 'terceros molares', raices: 'raíces cortas', retenidos: 'retenidos/incluidos', ausencias: 'ausencias', apinamiento: 'apiñamiento', diastemas: 'diastemas', osea: 'pérdida ósea', patologia: 'patología a vigilar' };
+        const filas = [
+            ['Relación', r.rel ? IA_REL[r.rel] + cf(c.rel) : '—'],
+            ['Incisivos', (r.incSup || r.incInf) ? `sup. ${IA_INC[r.incSup] || '—'} · inf. ${IA_INC[r.incInf] || '—'}${cf(c.inc)}` : '—'],
+            ['Hallazgos', (r.hall.length || r.otro) ? r.hall.map(h => hall[h]).concat(r.otro ? [escHtml(r.otro)] : []).join(', ') + cf(c.hall) : '—'],
+            ['Extracciones', r.extr === 'si' ? 'sí' + (r.dientes.length ? ' (' + r.dientes.join(', ') + ')' : '') + cf(c.extr) : (r.extr === 'no' ? 'no' + cf(c.extr) : '—')],
+            ['Aparatología', r.aparatos.length ? r.aparatos.join(', ') : '—']
+        ].map(f => `<div style="font-size:0.78rem; margin:2px 0;"><b>${f[0]}:</b> ${f[1]}</div>`).join('');
+        const preg = r.preguntas.length ? `<div style="font-size:0.78rem; margin-top:6px;"><b>❓ Preguntas para ti:</b><ul style="margin:2px 0 0 16px; padding:0;">${r.preguntas.map(q => `<li>${escHtml(q)}</li>`).join('')}</ul></div>` : '';
+        return `<div class="esc-card" style="cursor:default; display:block; margin-top:8px;">
+            <div style="display:flex; justify-content:space-between;"><b>🤖 ${IA_NOMBRE[k]}</b><span class="esc-sub">${escHtml(x.modelo || '')} · ${x.segundos || '?'} s</span></div>
+            ${filas}
+            ${r.observaciones ? `<div class="esc-sub" style="margin-top:6px;">💭 ${escHtml(r.observaciones)}</div>` : ''}
+            ${preg}
+            <button class="esc-mini" style="margin-top:8px; width:100%;" onclick="mesaAplicarIA('${k}')">✔ Aplicar sugerencias de ${IA_NOMBRE[k]}${ia.aplicada === k ? ' (aplicadas)' : ''}</button>
+        </div>`;
+    }).join('');
+    return `<div class="mesa-sec" style="border:1.5px dashed var(--accent); border-radius:12px; padding:10px;">
+        <label>🤖 Asistente IA <span style="font-weight:normal; color:var(--text-muted);">sugiere; tú decides</span></label>
+        <div style="display:flex; gap:6px;">
+            <select class="inset-3d" style="flex:1; min-width:0;" onchange="mesa.ia.prov=this.value">${opt('claude', 'Claude')}${opt('gemini', 'Gemini')}${opt('grok', 'Grok')}${opt('todos', 'Los 3 (comparar)')}</select>
+            <button class="esc-mini" ${cargando ? 'disabled' : ''} onclick="iaAnalizar()">${cargando ? '⏳ Analizando…' : '🔍 Analizar estudios'}</button>
+        </div>
+        ${cargando ? `<div class="esc-sub" style="margin-top:6px;">Esperando a ${ia.cargando.map(k => IA_NOMBRE[k]).join(', ')}… puede tardar hasta un minuto.</div>` : ''}
+        ${tarjetas}
+        <div class="esc-sub" style="margin-top:6px;">Lectura preliminar: no sustituye tu análisis. Confírmala en la imagen antes de aplicarla.</div>
+    </div>`;
+}
+function iaRepintar(){ const e = document.getElementById('iaBloque'); if(e && mesa) e.innerHTML = iaBloqueInner(); }
+async function iaAnalizar(){
+    const m = mesa; if(!m) return;
+    const p = pacientes[m.nombre];
+    if(!p || !(p.estudios || []).length){ alert('Este paciente no tiene estudios subidos.'); return; }
+    if(!iaConsentimiento()) return;
+    const provs = m.ia.prov === 'todos' ? ['claude', 'gemini', 'grok'] : [m.ia.prov];
+    m.ia.cargando = provs.slice();
+    iaRepintar();
+    await Promise.all(provs.map(async pv => {
+        try{ m.ia.res[pv] = await iaLlamarServidor(pv, p); }
+        catch(e){ console.error('IA', pv, e); m.ia.res[pv] = { error: iaMensajeError(e) }; }
+        m.ia.cargando = m.ia.cargando.filter(x => x !== pv);
+        if(mesa === m) iaRepintar();
+    }));
+}
+function mesaAplicarIA(pv){
+    const x = mesa.ia.res[pv]; if(!x || !x.resultado) return;
+    const r = x.resultado, d = mesa.d;
+    if(r.rel) d.rel = r.rel;
+    if(r.incSup) d.incSup = r.incSup;
+    if(r.incInf) d.incInf = r.incInf;
+    r.hall.forEach(h => { if(!d.hall.includes(h)) d.hall.push(h); });
+    if(r.otro && !d.otro) d.otro = r.otro;
+    if(r.extr){ d.extr = r.extr; d.dientes = r.extr === 'si' ? r.dientes.slice() : []; }
+    r.aparatos.forEach(a => { if(!d.aparatos.includes(a)) d.aparatos.push(a); });
+    if(r.nota && !d.nota) d.nota = r.nota;
+    mesa.ia.aplicada = pv;
+    mesaCambio();
+}
+async function iaRegistrarCaso(){
+    try{
+        const sug = {};
+        Object.keys(mesa.ia.res).forEach(k => { const x = mesa.ia.res[k]; if(x && x.resultado) sug[k] = { modelo: x.modelo || '', r: x.resultado }; });
+        if(!Object.keys(sug).length) return;
+        if(!mesa.ia.casoId) mesa.ia.casoId = 'iacaso_' + Date.now();
+        const d = mesa.d, id = mesa.ia.casoId, nombre = mesa.nombre;
+        const fin = { rel: d.rel, incSup: d.incSup, incInf: d.incInf, hall: d.hall.slice(), extr: d.extr, dientes: d.dientes.slice(), aparatos: d.aparatos.slice() };
+        await db.collection('agenda').doc(id).set({ tipo: 'iacaso', ts: Date.now(), paciente: nombre, sugerencias: sug, final: fin });
+    }catch(e){ console.error('iaRegistrarCaso', e); }
+}
+
+// ----- Laboratorio -----
+function iaJaccard(a, b){
+    const A = new Set(a || []), B = new Set(b || []);
+    if(!A.size && !B.size) return null;
+    let i = 0; A.forEach(x => { if(B.has(x)) i++; });
+    return i / (A.size + B.size - i);
+}
+function iaCalcularStats(casos){
+    const st = {};
+    ['claude', 'gemini', 'grok'].forEach(k => st[k] = { n: 0, rel: [0, 0], incSup: [0, 0], incInf: [0, 0], extr: [0, 0], hall: [0, 0], dientes: [0, 0] });
+    casos.forEach(c => {
+        const f = c.final || {};
+        Object.keys(c.sugerencias || {}).forEach(k => {
+            const s = (c.sugerencias[k] || {}).r, t = st[k]; if(!s || !t) return;
+            t.n++;
+            const cmp = (campo, fv, sv, excl) => { if(fv && fv !== excl){ t[campo][1]++; if(sv === fv) t[campo][0]++; } };
+            cmp('rel', f.rel, s.rel, '?'); cmp('incSup', f.incSup, s.incSup); cmp('incInf', f.incInf, s.incInf); cmp('extr', f.extr, s.extr);
+            const jh = iaJaccard(f.hall, s.hall); if(jh !== null){ t.hall[0] += jh; t.hall[1]++; }
+            if(f.extr === 'si'){ const jd = iaJaccard(f.dientes, s.dientes); if(jd !== null){ t.dientes[0] += jd; t.dientes[1]++; } }
+        });
+    });
+    return st;
+}
+async function abrirIaLab(){
+    document.getElementById('iaLabModal').style.display = 'flex';
+    const cont = document.getElementById('iaLabBody');
+    cont.innerHTML = '<div class="esc-vacio">Cargando…</div>';
+    let cfg = {}, casos = [], errMsg = '';
+    try{
+        const sn = await db.collection('agenda').doc('ia_config').get();
+        cfg = sn.exists ? sn.data() : {};
+        const q = await db.collection('agenda').where('tipo', '==', 'iacaso').get();
+        q.forEach(d2 => casos.push(d2.data()));
+    }catch(e){ errMsg = String(e.message || e); }
+    const mod = Object.assign({ claude: 'claude-opus-5-5', gemini: 'gemini-3.8-flash', grok: 'grok-4' }, cfg.modelos || {});
+    const lim = cfg.limiteDiario || 40;
+    const st = iaCalcularStats(casos);
+    const pct = (a) => a[1] ? Math.round(100 * a[0] / a[1]) + '% <span class="esc-sub">(' + a[1] + ')</span>' : '—';
+    const fila = (txt, campo) => `<tr><td style="padding:4px 6px;">${txt}</td>${['claude', 'gemini', 'grok'].map(k => `<td style="text-align:center; padding:4px 6px;">${pct(st[k][campo])}</td>`).join('')}</tr>`;
+    cont.innerHTML = `
+        <div class="esc-tray"><h3><span>⚙️ Modelos y tope diario</span></h3>
+            ${['claude', 'gemini', 'grok'].map(k => `<div class="form-group" style="margin-bottom:6px;"><label style="font-size:0.78rem;">${IA_NOMBRE[k]} · modelo</label><input id="iaMod_${k}" class="inset-3d" value="${escAttr(mod[k])}"></div>`).join('')}
+            <div class="form-group" style="margin-bottom:6px;"><label style="font-size:0.78rem;">Tope de análisis por día (protege tu gasto)</label><input id="iaLimite" type="number" min="1" class="inset-3d" value="${escAttr(lim)}"></div>
+            <button class="btn-3d" style="width:100%;" onclick="iaGuardarConfig()">💾 Guardar</button>
+            <div class="esc-sub" style="margin-top:6px;">Los nombres de modelo cambian con el tiempo: si un proveedor marca error de modelo, pon aquí el nombre vigente de su documentación. Las llaves NO se guardan aquí: viven en el servidor.</div>
+        </div>
+        <div class="esc-tray"><h3><span>📊 Tablero de aciertos</span><small>${casos.length} caso(s)</small></h3>
+            ${errMsg ? `<div class="esc-sub" style="color:#c53030;">No pude leer los casos: ${escHtml(errMsg)}</div>` : ''}
+            ${casos.length ? `<table style="width:100%; border-collapse:collapse; font-size:0.8rem;">
+                <tr style="color:var(--primary);"><th style="text-align:left; padding:4px 6px;"></th><th>Claude</th><th>Gemini</th><th>Grok</th></tr>
+                <tr><td style="padding:4px 6px;">Casos comparados</td>${['claude', 'gemini', 'grok'].map(k => `<td style="text-align:center;">${st[k].n}</td>`).join('')}</tr>
+                ${fila('Clase esqueletal', 'rel')}${fila('Incisivos superiores', 'incSup')}${fila('Incisivos inferiores', 'incInf')}${fila('¿Extracciones?', 'extr')}
+                <tr><td style="padding:4px 6px;">Hallazgos (coincidencia)</td>${['claude', 'gemini', 'grok'].map(k => `<td style="text-align:center;">${st[k].hall[1] ? Math.round(100 * st[k].hall[0] / st[k].hall[1]) + '% <span class="esc-sub">(' + st[k].hall[1] + ')</span>' : '—'}</td>`).join('')}</tr>
+                <tr><td style="padding:4px 6px;">Dientes a extraer</td>${['claude', 'gemini', 'grok'].map(k => `<td style="text-align:center;">${st[k].dientes[1] ? Math.round(100 * st[k].dientes[0] / st[k].dientes[1]) + '% <span class="esc-sub">(' + st[k].dientes[1] + ')</span>' : '—'}</td>`).join('')}</tr>
+            </table>
+            <div class="esc-sub" style="margin-top:8px;">Compara lo que sugirió cada IA contra tu decisión final al aprobar o enviar. Si la IA dejó un campo vacío cuenta como fallo. Entre paréntesis, cuántos casos entraron en ese cálculo. Con menos de 10 casos son solo una pista.</div>`
+            : '<div class="esc-vacio">Aún no hay casos. Se llenan solos: analiza un paciente con IA, ajusta tus decisiones y aprueba o envía el diagnóstico.</div>'}
+        </div>`;
+}
+async function iaGuardarConfig(){
+    const modelos = {};
+    ['claude', 'gemini', 'grok'].forEach(k => { const v = document.getElementById('iaMod_' + k).value.trim(); if(v) modelos[k] = v; });
+    const lim = parseInt(document.getElementById('iaLimite').value, 10) || 40;
+    try{ await db.collection('agenda').doc('ia_config').set({ modelos: modelos, limiteDiario: lim }, { merge: true }); alert('Guardado.'); }
+    catch(e){ alert('No se pudo guardar: ' + (e.message || e)); }
 }
 </script>
 
