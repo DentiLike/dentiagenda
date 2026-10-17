@@ -2605,7 +2605,7 @@
             return d <= 0 ? 'hoy' : (d === 1 ? 'ayer' : 'hace ' + d + ' d');
         }
         function usaSmile(nombre){ const u = usoSmile[nombre]; return !!(u && u.ts); }
-        const DA_VERSION = 'v51';
+        const DA_VERSION = 'v52';
         window.addEventListener('load', () => document.querySelectorAll('.da-ver-txt').forEach(e => e.textContent = 'DentiAgenda ' + DA_VERSION));
         // Texto del estado de SmileLike para un paciente (usa lo guardado; abajo se refresca solo ese paciente)
         function textoEstadoSmile(nombre){
@@ -4772,6 +4772,7 @@ function iaEdadDe(p){
     return Math.max(0, Math.floor((Date.now() - f.getTime()) / 31557600000));
 }
 async function iaLlamarServidor(prov, p){
+    if(iaLlaveLocal(prov)) return iaLlamarLocal(prov, p);
     if(!iaFn){
         if(!(window.firebase && firebase.functions)) await cargarLibreriaFirebase('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions-compat.js');
         if(!(window.firebase && firebase.functions)) throw new Error('No se pudo cargar el módulo de IA. ¿Hay internet?');
@@ -4780,8 +4781,156 @@ async function iaLlamarServidor(prov, p){
     const r = await iaFn({ proveedor: prov, estudios: (p.estudios || []).map(e => ({ url: e.url, nombre: e.nombre || '' })), edad: iaEdadDe(p) });
     return r.data;
 }
+
+// ---- Modo LOCAL: la llave vive solo en este dispositivo (localStorage) y se llama al proveedor directo ----
+const IA_LLAVES_LS = 'da_ia_llaves';
+function iaLlavesLocales(){ try{ return JSON.parse(localStorage.getItem(IA_LLAVES_LS) || '{}') || {}; }catch(e){ return {}; } }
+function iaLlaveLocal(prov){ return String(iaLlavesLocales()[prov] || '').trim(); }
+const IA_HALLAZGOS_L = ["caries", "terceros", "raices", "retenidos", "ausencias", "apinamiento", "diastemas", "osea", "patologia"];
+const IA_APARATOS_L = ["Estándar metálico", "Metálico flex", "Autoligado", "Alineadores", "Ortopedia"];
+const IA_DIENTES_FDI_L = new Set([18, 17, 16, 15, 14, 13, 12, 11, 21, 22, 23, 24, 25, 26, 27, 28, 48, 47, 46, 45, 44, 43, 42, 41, 31, 32, 33, 34, 35, 36, 37, 38]);
+
+function iaPromptLocal(edad, nombresImagenes) {
+  const lista = nombresImagenes.map((n, i) => `  Imagen ${i + 1}: ${n || "estudio sin nombre"}`).join("\n");
+  return `Eres un asistente de pre-lectura para un ortodoncista. Analizas radiografías (telerradiografía lateral de cráneo y/o panorámica) y propones hallazgos para que el DOCTOR los confirme. No emites diagnósticos definitivos.
+
+Estudios recibidos (en este orden):
+${lista}
+${edad ? `Edad aproximada del paciente: ${edad} años.` : "Edad del paciente: no disponible."}
+
+Responde ÚNICAMENTE con un objeto JSON válido (sin texto antes ni después, sin markdown) con exactamente estas claves:
+{
+  "rel": "I" | "II" | "III" | "?" | "",
+  "incSup": "normal" | "pro" | "retro" | "",
+  "incInf": "normal" | "pro" | "retro" | "",
+  "hall": [ valores de: "caries","terceros","raices","retenidos","ausencias","apinamiento","diastemas","osea","patologia" ],
+  "otro": "otro hallazgo relevante en una frase, o vacío",
+  "extr": "si" | "no" | "",
+  "dientes": [ números FDI de dientes con posible extracción, si extr es "si" ],
+  "aparatos": [ valores de: "Estándar metálico","Metálico flex","Autoligado","Alineadores","Ortopedia" ],
+  "nota": "consideración especial en una frase, o vacío",
+  "confianza": { "rel": "alta"|"media"|"baja", "inc": "alta"|"media"|"baja", "hall": "alta"|"media"|"baja", "extr": "alta"|"media"|"baja" },
+  "preguntas": [ preguntas cortas para el doctor sobre lo que no puedes decidir con estas imágenes ],
+  "observaciones": "razonamiento breve (máximo 5 frases) de lo que ves y por qué"
+}
+
+Reglas:
+- "rel" es la clase esqueletal (relación maxilar–mandíbula) vista en la lateral: I, II o III. Si no hay lateral o no se puede valorar, deja "" o "?".
+- "incSup"/"incInf" describen la inclinación de los incisivos (pro = proinclinados, retro = retroinclinados) vistos en la lateral.
+- "hall" y "otro" salen principalmente de la panorámica. Incluye caries, lesiones periapicales, terceros molares, dientes retenidos o supernumerarios, ausencias y raíces cortas SOLO si realmente los ves. Las raíces cortas y las caries incipientes son difíciles de ver en panorámica: si dudas, no las marques y mejor haz una pregunta.
+- Si algo no se puede valorar por calidad, ángulo o porque falta el estudio, deja el campo vacío ("" o []) y dilo en "preguntas" u "observaciones". No inventes. Es preferible dejar vacío que equivocarte.
+- Extracciones y aparatología son sugerencias de bajo peso: el doctor decide. Si no hay base suficiente, deja "extr" vacío.
+- No incluyas nombres ni datos personales.`;
+}
+
+function iaLimpiarLocal(texto) {
+  const i = texto.indexOf("{");
+  const f = texto.lastIndexOf("}");
+  if (i < 0 || f < i) throw new Error("La IA no devolvió un resultado legible.");
+  let o;
+  try {
+    o = JSON.parse(texto.slice(i, f + 1));
+  } catch (e) {
+    throw new Error("La IA devolvió un formato inválido. Intenta de nuevo.");
+  }
+  const enum_ = (v, opc) => (opc.includes(v) ? v : "");
+  const arr = (v, opc) => (Array.isArray(v) ? [...new Set(v.filter((x) => opc.includes(x)))] : []);
+  const conf = (v) => (["alta", "media", "baja"].includes(v) ? v : "");
+  const c = o.confianza && typeof o.confianza === "object" ? o.confianza : {};
+  const str = (v, n) => (typeof v === "string" ? v.trim().slice(0, n) : "");
+  const dientes = (Array.isArray(o.dientes) ? o.dientes : []).map(Number).filter((n) => IA_DIENTES_FDI_L.has(n));
+  const extr = enum_(o.extr, ["si", "no"]);
+  return {
+    rel: enum_(o.rel, ["I", "II", "III", "?"]),
+    incSup: enum_(o.incSup, ["normal", "pro", "retro"]),
+    incInf: enum_(o.incInf, ["normal", "pro", "retro"]),
+    hall: arr(o.hall, IA_HALLAZGOS_L),
+    otro: str(o.otro, 160),
+    extr: extr,
+    dientes: extr === "si" ? [...new Set(dientes)] : [],
+    aparatos: arr(o.aparatos, IA_APARATOS_L),
+    nota: str(o.nota, 240),
+    confianza: {rel: conf(c.rel), inc: conf(c.inc), hall: conf(c.hall), extr: conf(c.extr)},
+    preguntas: (Array.isArray(o.preguntas) ? o.preguntas : []).map((x) => str(x, 200)).filter(Boolean).slice(0, 6),
+    observaciones: str(o.observaciones, 900),
+  };
+}
+
+
+function iaBlobB64(blob){
+    return new Promise((ok, ko) => { const fr = new FileReader(); fr.onload = () => ok(String(fr.result).split(',')[1] || ''); fr.onerror = () => ko(new Error('No se pudo leer la imagen.')); fr.readAsDataURL(blob); });
+}
+async function iaDescargarLocal(url){
+    let u; try{ u = new URL(url); }catch(e){ throw new Error('URL de imagen no válida.'); }
+    if(u.protocol !== 'https:' || u.hostname !== 'firebasestorage.googleapis.com') throw new Error('Solo se analizan estudios guardados en tu Storage.');
+    let r;
+    try{ r = await fetch(url); }
+    catch(e){ throw new Error('CORS_STORAGE'); }
+    if(!r.ok) throw new Error('No se pudo leer la imagen (' + r.status + ').');
+    const blob = await r.blob();
+    if(blob.size > 9 * 1024 * 1024) throw new Error('Una imagen pesa demasiado (máx. 9 MB).');
+    let mime = (blob.type || 'image/jpeg').toLowerCase();
+    if(!['image/jpeg', 'image/png', 'image/webp'].includes(mime)) mime = 'image/jpeg';
+    return { mime: mime, b64: await iaBlobB64(blob) };
+}
+async function iaTopeLocal(lim){
+    let u = {}; try{ u = JSON.parse(localStorage.getItem('da_ia_uso') || '{}') || {}; }catch(e){}
+    const hoy = new Date().toISOString().slice(0, 10);
+    if(u.f !== hoy) u = { f: hoy, n: 0 };
+    if(u.n >= lim) throw new Error('Llegaste al tope diario de ' + lim + ' análisis. Súbelo en Laboratorio IA si lo necesitas.');
+    u.n++; try{ localStorage.setItem('da_ia_uso', JSON.stringify(u)); }catch(e){}
+}
+async function iaLlamarLocal(prov, p){
+    const key = iaLlaveLocal(prov);
+    let cfg = {}; try{ const sn = await db.collection('agenda').doc('ia_config').get(); cfg = sn.exists ? sn.data() : {}; }catch(e){}
+    const modelos = Object.assign({ claude: 'claude-opus-5-5', gemini: 'gemini-3.8-flash', grok: 'grok-4' }, cfg.modelos || {});
+    await iaTopeLocal(Number(cfg.limiteDiario) > 0 ? Number(cfg.limiteDiario) : 40);
+    const estudios = (p.estudios || []).slice(-4);
+    const imagenes = []; const nombres = [];
+    for(const e of estudios){ imagenes.push(await iaDescargarLocal(String(e.url || ''))); nombres.push(String(e.nombre || '').slice(0, 60)); }
+    const prompt = iaPromptLocal(iaEdadDe(p), nombres), modelo = String(modelos[prov]);
+    const t0 = Date.now();
+    let resp;
+    try{
+        if(prov === 'claude'){
+            const content = imagenes.map(im => ({ type: 'image', source: { type: 'base64', media_type: im.mime, data: im.b64 } }));
+            content.push({ type: 'text', text: prompt });
+            resp = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST',
+                headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true', 'content-type': 'application/json' },
+                body: JSON.stringify({ model: modelo, max_tokens: 2500, messages: [{ role: 'user', content: content }] }) });
+        }else if(prov === 'gemini'){
+            const parts = imagenes.map(im => ({ inline_data: { mime_type: im.mime, data: im.b64 } }));
+            parts.push({ text: prompt });
+            resp = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(modelo) + ':generateContent', { method: 'POST',
+                headers: { 'x-goog-api-key': key, 'content-type': 'application/json' },
+                body: JSON.stringify({ contents: [{ role: 'user', parts: parts }], generationConfig: { responseMimeType: 'application/json', maxOutputTokens: 8192 } }) });
+        }else{
+            const content = imagenes.map(im => ({ type: 'image_url', image_url: { url: 'data:' + im.mime + ';base64,' + im.b64, detail: 'high' } }));
+            content.push({ type: 'text', text: prompt });
+            resp = await fetch('https://api.x.ai/v1/chat/completions', { method: 'POST',
+                headers: { 'Authorization': 'Bearer ' + key, 'content-type': 'application/json' },
+                body: JSON.stringify({ model: modelo, messages: [{ role: 'user', content: content }] }) });
+        }
+    }catch(e){ throw new Error('RED_' + prov); }
+    const texto = await resp.text();
+    if(!resp.ok){
+        let det = ''; try{ const j = JSON.parse(texto); det = (j.error && (j.error.message || j.error)) || ''; }catch(e){}
+        throw new Error(IA_NOMBRE[prov] + ' respondió ' + resp.status + (det ? ': ' + String(det).slice(0, 200) : ''));
+    }
+    const j = JSON.parse(texto);
+    let out;
+    if(prov === 'claude') out = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
+    else if(prov === 'gemini') out = ((((j.candidates || [])[0] || {}).content || {}).parts || []).map(x => x.text || '').join('');
+    else out = ((((j.choices || [])[0] || {}).message || {}).content) || '';
+    return { proveedor: prov, modelo: modelo, resultado: iaLimpiarLocal(out), segundos: Math.round((Date.now() - t0) / 100) / 10 };
+}
+function iaAyudaCors(){
+    alert('Tu almacenamiento (Storage) aún no permite que DentiAgenda lea las radiografías desde el navegador. Es un permiso que se da una sola vez:\n\n1) Abre https://console.cloud.google.com/ con tu cuenta, proyecto misonrisa-citas.\n2) Arriba a la derecha toca el icono >_ (Activar Cloud Shell).\n3) Pega estas dos líneas (Enter después de cada una):\n\necho \'[{"origin":["*"],"method":["GET"],"maxAgeSeconds":3600}]\' > cors.json\n\ngsutil cors set cors.json gs://misonrisa-citas.firebasestorage.app\n\n4) Vuelve aquí y analiza otra vez.');
+}
 function iaMensajeError(e){
     const code = (e && e.code) || '', msg = (e && e.message) || String(e);
+    if(msg === 'CORS_STORAGE'){ setTimeout(iaAyudaCors, 50); return 'No pude leer las radiografías desde el navegador (falta un permiso único en Storage; te salió una ayuda con los pasos).'; }
+    if(msg.indexOf('RED_') === 0) return (IA_NOMBRE[msg.slice(4)] || 'El proveedor') + ' no respondió desde el navegador (sin internet, o ese servicio no permite llamadas directas desde aquí).';
     if(code.includes('not-found') && /function/i.test(msg)) return 'La función de IA aún no está desplegada en el servidor.';
     if(code.includes('unauthenticated')) return 'Inicia sesión de nuevo en DentiAgenda.';
     if(/API key|api_key|401|403|permission|invalid x-api-key|Secret/i.test(msg)) return 'La llave de este proveedor no está configurada o no es válida (' + msg.slice(0, 120) + ').';
@@ -4912,11 +5061,16 @@ async function abrirIaLab(){
     const pct = (a) => a[1] ? Math.round(100 * a[0] / a[1]) + '% <span class="esc-sub">(' + a[1] + ')</span>' : '—';
     const fila = (txt, campo) => `<tr><td style="padding:4px 6px;">${txt}</td>${['claude', 'gemini', 'grok'].map(k => `<td style="text-align:center; padding:4px 6px;">${pct(st[k][campo])}</td>`).join('')}</tr>`;
     cont.innerHTML = `
+        <div class="esc-tray"><h3><span>🔑 Llaves en este dispositivo</span></h3>
+            ${['claude', 'gemini', 'grok'].map(k => `<div class="form-group" style="margin-bottom:6px;"><label style="font-size:0.78rem;">${IA_NOMBRE[k]} ${iaLlaveLocal(k) ? '· ✅ guardada aquí' : '· sin llave local'}</label><input id="iaKey_${k}" type="password" autocomplete="off" class="inset-3d" placeholder="${iaLlaveLocal(k) ? '•••••• (deja vacío para no cambiar)' : 'Pega aquí tu llave'}"></div>`).join('')}
+            <div style="display:flex; gap:6px;"><button class="btn-3d" style="flex:1;" onclick="iaGuardarLlaves()">💾 Guardar llaves</button><button class="esc-mini" onclick="iaBorrarLlaves()">🗑️ Borrar</button></div>
+            <div class="esc-sub" style="margin-top:6px;">Se guardan solo en este navegador/dispositivo, no en la nube ni en el código. Si hay llave aquí, se usa esta; si no, se intenta con el servidor. Hazlo solo en tu equipo personal y pon un límite de gasto en el proveedor.</div>
+        </div>
         <div class="esc-tray"><h3><span>⚙️ Modelos y tope diario</span></h3>
             ${['claude', 'gemini', 'grok'].map(k => `<div class="form-group" style="margin-bottom:6px;"><label style="font-size:0.78rem;">${IA_NOMBRE[k]} · modelo</label><input id="iaMod_${k}" class="inset-3d" value="${escAttr(mod[k])}"></div>`).join('')}
             <div class="form-group" style="margin-bottom:6px;"><label style="font-size:0.78rem;">Tope de análisis por día (protege tu gasto)</label><input id="iaLimite" type="number" min="1" class="inset-3d" value="${escAttr(lim)}"></div>
             <button class="btn-3d" style="width:100%;" onclick="iaGuardarConfig()">💾 Guardar</button>
-            <div class="esc-sub" style="margin-top:6px;">Los nombres de modelo cambian con el tiempo: si un proveedor marca error de modelo, pon aquí el nombre vigente de su documentación. Las llaves NO se guardan aquí: viven en el servidor.</div>
+            <div class="esc-sub" style="margin-top:6px;">Los nombres de modelo cambian con el tiempo: si un proveedor marca error de modelo, pon aquí el nombre vigente de su documentación. Las llaves se guardan en la sección de arriba (solo en este dispositivo).</div>
         </div>
         <div class="esc-tray"><h3><span>📊 Tablero de aciertos</span><small>${casos.length} caso(s)</small></h3>
             ${errMsg ? `<div class="esc-sub" style="color:#c53030;">No pude leer los casos: ${escHtml(errMsg)}</div>` : ''}
@@ -4931,6 +5085,13 @@ async function abrirIaLab(){
             : '<div class="esc-vacio">Aún no hay casos. Se llenan solos: analiza un paciente con IA, ajusta tus decisiones y aprueba o envía el diagnóstico.</div>'}
         </div>`;
 }
+function iaGuardarLlaves(){
+    const l = iaLlavesLocales(); let n = 0;
+    ['claude', 'gemini', 'grok'].forEach(k => { const v = (document.getElementById('iaKey_' + k).value || '').replace(/\s+/g, ''); if(v){ l[k] = v; n++; } });
+    try{ localStorage.setItem(IA_LLAVES_LS, JSON.stringify(l)); }catch(e){ alert('Este navegador no permite guardar datos locales.'); return; }
+    alert(n ? 'Llave(s) guardada(s) en este dispositivo.' : 'No escribiste ninguna llave nueva.'); abrirIaLab();
+}
+function iaBorrarLlaves(){ if(confirm('¿Borrar las llaves guardadas en este dispositivo?')){ try{ localStorage.removeItem(IA_LLAVES_LS); }catch(e){} abrirIaLab(); } }
 async function iaGuardarConfig(){
     const modelos = {};
     ['claude', 'gemini', 'grok'].forEach(k => { const v = document.getElementById('iaMod_' + k).value.trim(); if(v) modelos[k] = v; });
