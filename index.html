@@ -549,6 +549,11 @@
                 </div>
 
                 <div class="plan-box">
+                    <h5>📐 Trazado cefalométrico (solo tú lo ves)</h5>
+                    <div id="trazadoPerfil"></div>
+                </div>
+
+                <div class="plan-box">
                     <h5>📖 Historial de citas</h5>
                     <div id="historialCitas"></div>
                 </div>
@@ -2605,7 +2610,7 @@
             return d <= 0 ? 'hoy' : (d === 1 ? 'ayer' : 'hace ' + d + ' d');
         }
         function usaSmile(nombre){ const u = usoSmile[nombre]; return !!(u && u.ts); }
-        const DA_VERSION = 'v58';
+        const DA_VERSION = 'v60';
         window.addEventListener('load', () => document.querySelectorAll('.da-ver-txt').forEach(e => e.textContent = 'DentiAgenda ' + DA_VERSION));
         // Texto del estado de SmileLike para un paciente (usa lo guardado; abajo se refresca solo ese paciente)
         function textoEstadoSmile(nombre){
@@ -3093,6 +3098,7 @@
             const pac = pacientes[nombre] || {};
             const estudios = pac.estudios || [];
             renderRevisionEstudios(nombre);
+            try{ renderTrazadoPerfil(nombre); }catch(e){}
             try{ actualizarBadgeEscritorio(); }catch(e){}
             const cont = document.getElementById('estudiosLista');
             if(!cont) return;
@@ -4647,13 +4653,14 @@ let mesa = null;
 function escAbrirMesa(n){
     const p = pacientes[n]; if(!p) return;
     const dg = p.diag || {};
-    mesa = { ia: Object.assign({ prov: 'gemini', cargando: [], res: {}, casoId: null }, dg.ia || {}, { cargando: [] }), nombre: n, d: Object.assign({ rel: '', incSup: '', incInf: '', hall: [], otro: '', extr: '', dientes: [], aparatos: [], aparatoOtro: '', nota: '' }, dg.d || {}), mensaje: dg.mensaje || '', editado: !!dg.editado };
+    mesa = { ia: Object.assign({ prov: 'gemini', cargando: [], res: {}, casoId: null }, dg.ia || {}, { cargando: [] }), nombre: n, d: Object.assign({ rel: '', incSup: '', incInf: '', hall: [], otro: '', extr: '', dientes: [], aparatos: [], aparatoOtro: '', nota: '' }, dg.d || {}), mensaje: dg.mensaje || '', editado: !!dg.editado, informe: dg.informe || '', informeEditado: !!dg.informeEditado };
     if(!Array.isArray(mesa.d.aparatos)) mesa.d.aparatos = [];
     if(mesa.d.bracket){ if(!mesa.d.aparatos.includes(mesa.d.bracket)) mesa.d.aparatos.push(mesa.d.bracket); delete mesa.d.bracket; }   // borradores viejos
     editandoAhora = true;
     document.getElementById('mesaTitulo').textContent = '🧠 ' + n;
     renderMesaDecisiones();
-    if(!mesa.mensaje) mesaRegenerar(true); else mesaPintarMensaje();
+    if(!mesa.mensaje || !mesa.editado) mesaRegenerar(true); else mesaPintarMensaje();
+    if(!mesa.informe || !mesa.informeEditado) mesaRegenerarInforme(true); else mesaPintarMensaje();
     document.getElementById('mesaModal').style.display = 'flex';
 }
 function mesaHayCambios(){
@@ -4666,7 +4673,7 @@ function cerrarMesa(){
         const p = pacientes[mesa.nombre];
         const et = p && p.diag && p.diag.etapa;
         if(p && et !== 'listo' && et !== 'enviado') mesaGuardar('borrador', true);
-        else if(p && p.diag){ p.diag = Object.assign({}, p.diag, { d: mesa.d, mensaje: mesa.mensaje, editado: mesa.editado, actualizado: Date.now() }); guardarPacienteDiag(mesa.nombre); }
+        else if(p && p.diag){ p.diag = Object.assign({}, p.diag, { d: mesa.d, mensaje: mesa.mensaje, editado: mesa.editado, informe: mesa.informe, informeEditado: mesa.informeEditado, actualizado: Date.now() }); guardarPacienteDiag(mesa.nombre); }
     }
     document.getElementById('mesaModal').style.display = 'none';
     mesa = null;
@@ -4682,7 +4689,8 @@ function mesaChip(campo, valor, txt, multi){
 function mesaSet(campo, valor){ mesa.d[campo] = (mesa.d[campo] === valor ? '' : valor); if(campo === 'extr' && valor !== 'si') mesa.d.dientes = []; mesaCambio(); }
 function mesaToggle(campo, valor){ const a = mesa.d[campo]; const i = a.indexOf(valor); if(i >= 0) a.splice(i, 1); else a.push(valor); mesaCambio(); }
 function mesaDiente(num){ const a = mesa.d.dientes; const i = a.indexOf(num); if(i >= 0) a.splice(i, 1); else a.push(num); mesaCambio(); }
-function mesaCambio(){ renderMesaDecisiones(); if(!mesa.editado) mesaRegenerar(true); }
+function mesaAutoTextos(){ if(!mesa.editado) mesaRegenerar(true); if(!mesa.informeEditado) mesaRegenerarInforme(true); }
+function mesaCambio(){ renderMesaDecisiones(); mesaAutoTextos(); }
 function trazadoSeccion(p){
     const tzd = p.trazado;
     return `<div class="mesa-sec" style="border:1.5px dashed var(--primary); border-radius:12px; padding:10px;">
@@ -4696,6 +4704,37 @@ function trazadoSeccion(p){
         <textarea class="inset-3d" rows="3" style="width:100%; font-size:0.8rem;" placeholder="Valores del trazado (opcional): SNA 82, SNB 78, ANB 4, SN-GoGn 34, 1-NA 26° 5 mm, 1-NB 30° 6 mm, interincisal 120°…" oninput="mesaValoresInput(this.value)" onchange="mesaValoresGuardar()">${escHtml(p.trazadoValores || '')}</textarea>
         <div class="esc-sub" style="margin-top:4px;">Si los hay, la IA los usa con prioridad sobre su propia lectura de la lateral. La imagen se ajusta sola de tamaño (sin deformarla).</div>
     </div>`;
+}
+function renderTrazadoPerfil(nombre){
+    const box = document.getElementById('trazadoPerfil'); if(!box) return;
+    const p = pacientes[nombre] || {}, tzd = p.trazado, tp = p.trazadoPuntos, vals = String(p.trazadoValores || '').trim();
+    const nq = String(nombre).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    if(!tzd && !vals && !tp){
+        box.innerHTML = `<p style="font-size:0.8rem; color:var(--text-muted); text-align:center; margin:6px 0;">Aún no hay trazado.</p>
+            <button class="plan-add-btn" onclick="trazoAbrir('${nq}')">📐 Hacer trazado (Steiner)</button>`;
+        return;
+    }
+    const fecha = (tp && tp.fecha) || (tzd && tzd.fecha);
+    box.innerHTML = `<div style="display:flex; gap:10px; align-items:flex-start;">
+            ${tzd ? `<img src="${escAttr(tzd.url)}" style="width:84px; height:84px; border-radius:8px; object-fit:cover; cursor:pointer;" onclick="window.open('${escAttr(tzd.url)}','_blank')">` : ''}
+            <div style="flex:1; font-size:0.8rem; color:var(--text-main); line-height:1.45;">${vals ? escHtml(vals) : '<i>Sin valores escritos.</i>'}
+                ${fecha ? `<div style="color:var(--text-muted); margin-top:4px;">${new Date(fecha).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })}</div>` : ''}</div>
+        </div>
+        <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;">
+            <button class="plan-add-btn" style="width:auto; flex:1;" onclick="trazoAbrir('${nq}')">📐 ${tp ? 'Abrir / editar trazado' : 'Hacer trazado'}</button>
+            ${tzd ? `<button class="plan-add-btn" style="width:auto;" title="Descargar" onclick="descargarEstudio('${escAttr(tzd.url)}','Trazado ${nq}')">⬇️</button>` : ''}
+            <button class="plan-add-btn" style="width:auto; color:#e53e3e;" title="Quitar" onclick="trazadoQuitarTodo('${nq}')">🗑️</button>
+        </div>`;
+}
+function trazadoQuitarTodo(nombre){
+    const p = pacientes[nombre]; if(!p) return;
+    if(!confirm('¿Quitar el trazado, los puntos y los valores de este paciente?')) return;
+    try{ if(p.trazado && storage) storage.refFromURL(p.trazado.url).delete().catch(() => {}); }catch(e){}
+    delete p.trazado; delete p.trazadoPuntos; delete p.trazadoValores;
+    try{ localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes)); }catch(e){}
+    guardarAgendaEnNube();
+    renderTrazadoPerfil(nombre);
+    if(mesa && mesa.nombre === nombre) renderMesaDecisiones();
 }
 function mesaValoresInput(v){ const p = pacientes[mesa.nombre]; if(p) p.trazadoValores = v; }
 function mesaValoresGuardar(){
@@ -4716,6 +4755,7 @@ function mesaSubirTrazado(){
             const url = await ref.getDownloadURL();
             p.trazado = { id: id, url: url, fecha: Date.now() };
             mesaValoresGuardar();
+            try{ renderTrazadoPerfil(n); }catch(e){}
             if(mesa && mesa.nombre === n) renderMesaDecisiones();
         }catch(err){ console.error('trazado', err); alert('No se pudo subir el trazado. Revisa tu conexión.'); }
     };
@@ -4725,7 +4765,7 @@ function mesaQuitarTrazado(){
     const p = pacientes[mesa.nombre]; if(!p || !p.trazado) return;
     if(!confirm('¿Quitar el trazado de este paciente?')) return;
     try{ if(storage) storage.refFromURL(p.trazado.url).delete().catch(() => {}); }catch(e){}
-    delete p.trazado; mesaValoresGuardar(); renderMesaDecisiones();
+    delete p.trazado; mesaValoresGuardar(); try{ renderTrazadoPerfil(mesa.nombre); }catch(e){} renderMesaDecisiones();
 }
 function renderMesaDecisiones(){
     const p = pacientes[mesa.nombre] || {};
@@ -4742,19 +4782,22 @@ function renderMesaDecisiones(){
         <div class="mesa-sec"><label>Incisivos superiores</label><div class="mesa-chips">${MESA_INC.map(x => mesaChip('incSup', x[0], x[1])).join('')}</div></div>
         <div class="mesa-sec"><label>Incisivos inferiores</label><div class="mesa-chips">${MESA_INC.map(x => mesaChip('incInf', x[0], x[1])).join('')}</div></div>
         <div class="mesa-sec"><label>Hallazgos (puedes elegir varios)</label><div class="mesa-chips">${MESA_HALL.map(x => mesaChip('hall', x[0], x[1], true)).join('')}</div>
-            <input type="text" class="inset-3d" style="margin-top:6px; width:100%;" placeholder="Otro hallazgo (opcional)" value="${escAttr(d.otro)}" oninput="mesa.d.otro=this.value; if(!mesa.editado) mesaRegenerar(true);"></div>
+            <input type="text" class="inset-3d" style="margin-top:6px; width:100%;" placeholder="Otro hallazgo (opcional)" value="${escAttr(d.otro)}" oninput="mesa.d.otro=this.value; mesaAutoTextos();"></div>
         <div class="mesa-sec"><label>¿Extracción de premolares?</label><div class="mesa-chips">${mesaChip('extr', 'no', 'No')}${mesaChip('extr', 'si', 'Sí')}</div>
             ${d.extr === 'si' ? `<div class="esc-sub" style="margin-top:6px;">Toca los premolares a extraer (FDI):</div>
             <div class="mesa-dientes" style="grid-template-columns:repeat(${mesa.todos ? 16 : 4},1fr);">${dientes(mesa.todos ? MESA_DIENTES_SUP : [15, 14, 24, 25])}</div><div class="mesa-dientes" style="grid-template-columns:repeat(${mesa.todos ? 16 : 4},1fr);">${dientes(mesa.todos ? MESA_DIENTES_INF : [45, 44, 34, 35])}</div>
             <a href="#" class="esc-sub" style="color:var(--accent);" onclick="mesa.todos=!mesa.todos; mesaCambio(); return false;">${mesa.todos ? 'Mostrar solo premolares' : 'Otro diente…'}</a>` : ''}</div>
         <div class="mesa-sec"><label>Aparatología indicada (puedes elegir varias)</label><div class="mesa-chips">${MESA_APARATOS.map(x => mesaChip('aparatos', x, x, true)).join('')}</div>
-            <input type="text" class="inset-3d" style="margin-top:6px; width:100%;" placeholder="Otro tipo (opcional)" value="${escAttr(d.aparatoOtro)}" oninput="mesa.d.aparatoOtro=this.value; if(!mesa.editado) mesaRegenerar(true);"></div>
+            <input type="text" class="inset-3d" style="margin-top:6px; width:100%;" placeholder="Otro tipo (opcional)" value="${escAttr(d.aparatoOtro)}" oninput="mesa.d.aparatoOtro=this.value; mesaAutoTextos();"></div>
         <div class="mesa-sec"><label>Consideraciones especiales</label>
-            <textarea class="inset-3d" rows="2" style="width:100%;" placeholder="Ej. precaución por raíces cortas, cuidar higiene…" oninput="mesa.d.nota=this.value; if(!mesa.editado) mesaRegenerar(true);">${escHtml(d.nota)}</textarea></div>
+            <textarea class="inset-3d" rows="2" style="width:100%;" placeholder="Ej. precaución por raíces cortas, cuidar higiene…" oninput="mesa.d.nota=this.value; mesaAutoTextos();">${escHtml(d.nota)}</textarea></div>
 
-        <div class="mesa-sec"><label>💬 Mensaje para el paciente <span style="font-weight:normal; color:var(--text-muted);">(se arma solo; puedes editarlo)</span></label>
+        <div class="mesa-sec"><label>Informe clínico <span style="font-weight:normal; color:var(--text-muted);">(para el expediente; se arma solo y puedes editarlo)</span></label>
+            <textarea id="mesaInforme" class="inset-3d" rows="14" style="width:100%;" oninput="mesa.informe=this.value; mesa.informeEditado=true;"></textarea>
+            <div style="display:flex; gap:6px; margin-top:6px; flex-wrap:wrap;"><button class="esc-mini" onclick="mesaCopiarInforme()">Copiar informe</button><button class="esc-mini" onclick="mesaRegenerarInforme(false)">Volver a armar el informe</button></div></div>
+        <div class="mesa-sec"><label>Mensaje para el paciente <span style="font-weight:normal; color:var(--text-muted);">(se arma solo; puedes editarlo)</span></label>
             <textarea id="mesaMensaje" class="inset-3d" rows="11" style="width:100%;" oninput="mesa.mensaje=this.value; mesa.editado=true;"></textarea>
-            <button class="esc-mini" style="margin-top:6px;" onclick="mesaRegenerar(false)">↻ Volver a armar el mensaje</button></div>
+            <button class="esc-mini" style="margin-top:6px;" onclick="mesaRegenerar(false)">Volver a armar el mensaje</button></div>
 
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
             <button class="btn-3d" style="flex:1; min-width:130px;" onclick="mesaGuardar('borrador')">💾 Guardar borrador</button>
@@ -4764,45 +4807,89 @@ function renderMesaDecisiones(){
         <p class="esc-sub" style="margin-top:8px;">Son observaciones preliminares de tu lectura, sujetas a valoración clínica.</p>`;
     mesaPintarMensaje();
 }
-function mesaPintarMensaje(){ const t = document.getElementById('mesaMensaje'); if(t) t.value = mesa.mensaje || ''; }
+function mesaPintarMensaje(){ const t = document.getElementById('mesaMensaje'); if(t) t.value = mesa.mensaje || ''; const i = document.getElementById('mesaInforme'); if(i) i.value = mesa.informe || ''; }
+function mesaRegenerarInforme(silencioso){
+    if(!silencioso && mesa.informeEditado && !confirm('Vas a reemplazar el informe que editaste. ¿Continuar?')) return;
+    mesa.informe = mesaArmarInforme(mesa.nombre, mesa.d); mesa.informeEditado = false; mesaPintarMensaje();
+}
+function mesaCopiarInforme(){
+    const t = mesa.informe || '';
+    if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(() => alert('Informe copiado.'), () => alert('No se pudo copiar.'));
+    else { const i = document.getElementById('mesaInforme'); if(i){ i.select(); document.execCommand('copy'); alert('Informe copiado.'); } }
+}
 function mesaRegenerar(silencioso){
     if(!silencioso && mesa.editado && !confirm('Vas a reemplazar el mensaje que editaste. ¿Continuar?')) return;
     mesa.mensaje = mesaArmarMensaje(mesa.nombre, mesa.d);
     mesa.editado = false;
     mesaPintarMensaje();
 }
-function mesaArmarMensaje(nombre, d){
+function mesaDocClinica(){
     const doc = (typeof config !== 'undefined' && config.doctor) ? config.doctor : 'Dr. Miguel Alvarado';
-    const docTxt = /^dra?\.?\s/i.test(doc) ? doc : 'Dr. ' + doc;
-    const clinica = (typeof config !== 'undefined' && config.clinica) ? config.clinica : 'DENTILIKE';
-    const L = [];
-    L.push(`Hola ${nombrePreferido(nombre)}, soy el ${docTxt} de ${clinica}. Ya revisé tus estudios y esto es lo que observé:`);
+    return { doc: /^dra?\.?\s/i.test(doc) ? doc : 'Dr. ' + doc, clinica: (typeof config !== 'undefined' && config.clinica) ? config.clinica : 'Dentilike' };
+}
+const MESA_NOM_APAR = { 'Estándar metálico': 'brackets metálicos estándar', 'Metálico flex': 'brackets metálicos flex', 'Autoligado': 'brackets autoligado', 'Alineadores': 'alineadores', 'Ortopedia': 'ortopedia maxilar', 'Férula de desprogramación': 'férula de desprogramación' };
+function mesaListaTexto(arr){ return arr.length > 1 ? arr.slice(0, -1).join(', ') + ' y ' + arr[arr.length - 1] : (arr[0] || ''); }
+// Texto para el paciente: claro, sobrio, sin adornos
+function mesaArmarMensaje(nombre, d){
+    const dc = mesaDocClinica(), L = [];
+    L.push(`Buen día, ${nombrePreferido(nombre)}. Le escribe el ${dc.doc} de ${dc.clinica}. Con base en la revisión de sus estudios, le comparto las siguientes observaciones:`);
     L.push('');
-    const rel = { 'I': 'Tienes una buena relación entre tu maxilar superior y tu mandíbula.', 'II': 'Tu mandíbula está en una posición más atrás respecto a tu maxilar superior (relación de Clase II).', 'III': 'Tu mandíbula está más adelante respecto a tu maxilar superior (relación de Clase III).', '?': 'La relación entre tu maxilar y tu mandíbula la vamos a confirmar en tu valoración.' }[d.rel];
-    if(rel) L.push('🦷 ' + rel);
-    const inc = { normal: 'con una inclinación adecuada', pro: 'inclinados hacia adelante (proinclinados)', retro: 'inclinados hacia atrás (retroinclinados)' };
+    const rel = { 'I': 'existe una relación adecuada entre el maxilar superior y la mandíbula (Clase I).', 'II': 'la mandíbula se encuentra en una posición posterior respecto al maxilar superior (Clase II).', 'III': 'la mandíbula se encuentra en una posición anterior respecto al maxilar superior (Clase III).', '?': 'la relación entre el maxilar y la mandíbula se confirmará en la valoración clínica.' }[d.rel];
+    if(rel) L.push('Relación entre maxilar y mandíbula: ' + rel);
+    const inc = { normal: 'con inclinación adecuada', pro: 'proinclinados (inclinados hacia adelante)', retro: 'retroinclinados (inclinados hacia atrás)' };
     if(d.incSup || d.incInf){
         const partes = [];
-        if(d.incSup) partes.push(`los superiores están ${inc[d.incSup]}`);
-        if(d.incInf) partes.push(`los inferiores están ${inc[d.incInf]}`);
-        L.push('🦷 En tus dientes frontales, ' + partes.join(' y ') + '.');
+        if(d.incSup) partes.push(`los superiores se encuentran ${inc[d.incSup]}`);
+        if(d.incInf) partes.push(`los inferiores se encuentran ${inc[d.incInf]}`);
+        L.push('Dientes anteriores: ' + partes.join(' y ') + '.');
     }
-    const hall = { caries: 'caries que debemos tratar', terceros: 'terceros molares (muelas del juicio) a considerar', raices: 'raíces cortas, por lo que debemos tener precaución durante el tratamiento', retenidos: 'dientes retenidos o incluidos', ausencias: 'ausencias dentales', apinamiento: 'apiñamiento dental', diastemas: 'espacios entre algunos dientes', osea: 'pérdida de soporte óseo que debemos vigilar', patologia: 'un hallazgo que debemos vigilar de cerca', atm: 'datos que sugieren una posible alteración de la articulación de la mandíbula (ATM), que debemos valorar' };
+    const hall = { caries: 'caries por tratar', terceros: 'terceros molares (muelas del juicio) por valorar', raices: 'raíces cortas, por lo que se tendrá precaución durante el tratamiento', retenidos: 'dientes retenidos o incluidos', ausencias: 'ausencias dentales', apinamiento: 'apiñamiento dental', diastemas: 'espacios entre algunos dientes', osea: 'pérdida de soporte óseo, que se vigilará', patologia: 'un hallazgo que se vigilará de cerca', atm: 'datos que sugieren una posible alteración de la articulación de la mandíbula (ATM), que será valorada' };
     const hs = d.hall.map(h => hall[h]).filter(Boolean);
     if(d.otro && d.otro.trim()) hs.push(d.otro.trim());
-    if(hs.length){ L.push(''); L.push('🔎 También observé: ' + hs.join('; ') + '.'); }
-    if(d.extr === 'no') { L.push(''); L.push('📋 Por ahora no se contemplan extracciones de premolares para tu tratamiento.'); }
-    else if(d.extr === 'si'){ L.push(''); L.push('📋 Para lograr un buen resultado se contempla la extracción de ' + (d.dientes.length && d.dientes.every(n => [14, 15, 24, 25, 34, 35, 44, 45].includes(n)) ? 'premolares' : 'algunos dientes') + (d.dientes.length ? ` (dientes ${d.dientes.slice().sort((a, b) => a - b).join(', ')})` : '') + '.'); }
-    const nomApar = { 'Estándar metálico': 'brackets metálicos estándar', 'Metálico flex': 'brackets metálicos flex', 'Autoligado': 'brackets autoligado', 'Alineadores': 'alineadores', 'Ortopedia': 'ortopedia maxilar', 'Férula de desprogramación': 'férula de desprogramación (para relajar la articulación antes o junto con el tratamiento)' };
-    const aps = d.aparatos.map(a => nomApar[a] || a.toLowerCase());
+    if(hs.length) L.push('Otros hallazgos: ' + hs.join('; ') + '.');
+    if(d.extr === 'no') L.push('Extracciones: por el momento no se contempla la extracción de premolares.');
+    else if(d.extr === 'si') L.push('Extracciones: se contempla la extracción de ' + (d.dientes.length && d.dientes.every(n => [14, 15, 24, 25, 34, 35, 44, 45].includes(n)) ? 'premolares' : 'algunos dientes') + (d.dientes.length ? ` (dientes ${d.dientes.slice().sort((a, b) => a - b).join(', ')})` : '') + ' para lograr un resultado estable.');
+    const aps = d.aparatos.map(a => MESA_NOM_APAR[a] || a.toLowerCase());
     if(d.aparatoOtro && d.aparatoOtro.trim()) aps.push(d.aparatoOtro.trim());
-    if(aps.length){
-        const txt = aps.length > 1 ? aps.slice(0, -1).join(', ') + ' y ' + aps[aps.length - 1] : aps[0];
-        L.push((d.extr ? '' : '\n') + `✨ El tratamiento que te recomiendo: ${txt}.`);
-    }
-    if(d.nota && d.nota.trim()){ L.push(''); L.push('⚠️ A considerar: ' + d.nota.trim()); }
+    if(aps.length) L.push('Tratamiento recomendado: ' + mesaListaTexto(aps) + (d.aparatos.includes('Férula de desprogramación') ? ' (la férula busca relajar la articulación antes o junto con el tratamiento)' : '') + '.');
+    if(d.nota && d.nota.trim()) L.push('A considerar: ' + d.nota.trim());
     L.push('');
-    L.push('Son observaciones preliminares y están sujetas a valoración clínica. Cuando gustes lo platicamos para resolver tus dudas y programar el inicio de tu tratamiento. 😊');
+    L.push('Estas observaciones son preliminares y están sujetas a valoración clínica. Con gusto las comentamos en consulta para resolver sus dudas y programar el inicio del tratamiento.');
+    return L.join('\n');
+}
+// Informe técnico: para el expediente, con lenguaje clínico
+function mesaArmarInforme(nombre, d){
+    const p = pacientes[nombre] || {}, dc = mesaDocClinica(), L = [];
+    const m = (p.trazadoPuntos && p.trazadoPuntos.m) || null;
+    const edad = iaEdadDe(p);
+    L.push('INFORME DE VALORACIÓN ORTODÓNCICA'); L.push('');
+    L.push('Paciente: ' + nombre);
+    if(edad) L.push('Edad: ' + edad + ' años');
+    L.push('Fecha: ' + new Date().toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' }));
+    const est = (p.estudios || []).map(e => e.nombre).filter(Boolean);
+    if(est.length) L.push('Estudios valorados: ' + est.join(', '));
+    if(p.trazadoValores && String(p.trazadoValores).trim()){
+        L.push(''); L.push('ANÁLISIS CEFALOMÉTRICO (STEINER)');
+        String(p.trazadoValores).replace(/^Trazado Steiner \(DentiAgenda\):\s*/, '').replace(/\.\s*$/, '').split(' · ').forEach(x => L.push(x));
+    }
+    L.push(''); L.push('DIAGNÓSTICO');
+    const rel = { 'I': 'Clase I esquelética', 'II': 'Clase II esquelética', 'III': 'Clase III esquelética', '?': 'Relación esquelética por confirmar' }[d.rel];
+    if(rel) L.push('Relación esquelética sagital: ' + rel + (m && m.anb != null && d.rel && d.rel !== '?' ? ' (ANB ' + m.anb + '°)' : '') + '.');
+    const inc = { normal: 'inclinación normal', pro: 'proinclinados', retro: 'retroinclinados' };
+    if(d.incSup) L.push('Incisivos superiores: ' + inc[d.incSup] + (m && m.u1na != null ? ' (U1-NA ' + m.u1na + '°' + (m.u1nam != null ? ', ' + m.u1nam + ' mm' : '') + ')' : '') + '.');
+    if(d.incInf) L.push('Incisivos inferiores: ' + inc[d.incInf] + (m && m.l1nb != null ? ' (L1-NB ' + m.l1nb + '°' + (m.l1nbm != null ? ', ' + m.l1nbm + ' mm' : '') + ')' : '') + '.');
+    const hall = { caries: 'lesiones cariosas', terceros: 'terceros molares', raices: 'acortamiento radicular', retenidos: 'dientes retenidos o incluidos', ausencias: 'ausencias dentales', apinamiento: 'apiñamiento dental', diastemas: 'diastemas', osea: 'pérdida de soporte óseo', patologia: 'imagen a vigilar, sin diagnóstico definitivo', atm: 'datos radiográficos sugestivos de alteración de la ATM (cóndilos)' };
+    const hs = d.hall.map(h => hall[h]).filter(Boolean);
+    if(d.otro && d.otro.trim()) hs.push(d.otro.trim());
+    if(hs.length) L.push('Hallazgos radiográficos: ' + hs.join('; ') + '.');
+    L.push(''); L.push('PLAN DE TRATAMIENTO');
+    if(d.extr === 'si') L.push('Extracciones: ' + (d.dientes.length ? 'premolares ' + d.dientes.slice().sort((a, b) => a - b).join(', ') : 'indicadas, dientes por definir') + '.');
+    else if(d.extr === 'no') L.push('Extracciones: sin extracción de premolares.');
+    const aps = d.aparatos.map(a => MESA_NOM_APAR[a] || a.toLowerCase());
+    if(d.aparatoOtro && d.aparatoOtro.trim()) aps.push(d.aparatoOtro.trim());
+    if(aps.length) L.push('Aparatología: ' + aps.join('; ') + '.');
+    if(d.nota && d.nota.trim()){ L.push(''); L.push('OBSERVACIONES'); L.push(d.nota.trim()); }
+    L.push(''); L.push('Valoración preliminar, sujeta a confirmación clínica.'); L.push(''); L.push(dc.doc); L.push(dc.clinica);
     return L.join('\n');
 }
 function mesaGuardar(etapa, silencioso){
@@ -4811,7 +4898,7 @@ function mesaGuardar(etapa, silencioso){
     Object.keys(mesa.ia.res).forEach(k => { if(mesa.ia.res[k] && mesa.ia.res[k].resultado) iaGuardar.res[k] = mesa.ia.res[k]; });
     if(etapa === 'listo' || etapa === 'enviado') iaRegistrarCaso();   // compara lo que sugirió la IA contra tu decisión final
     iaGuardar.casoId = mesa.ia.casoId;
-    p.diag = { etapa: etapa, d: mesa.d, mensaje: mesa.mensaje, editado: mesa.editado, ia: iaGuardar, actualizado: Date.now(), enviadoEn: (p.diag && p.diag.enviadoEn) || null };
+    p.diag = { etapa: etapa, d: mesa.d, mensaje: mesa.mensaje, editado: mesa.editado, informe: mesa.informe, informeEditado: mesa.informeEditado, ia: iaGuardar, actualizado: Date.now(), enviadoEn: (p.diag && p.diag.enviadoEn) || null };
     delete p.enEscritorio;
     if(etapa === 'listo' || etapa === 'enviado'){ delete p.estudiosNoAplica; p.estudiosRevisados = Date.now(); }
     guardarPacienteDiag(n);
@@ -5324,12 +5411,12 @@ function trazoTexto(m, mmpx){
 }
 
 let tz = null;
-function trazoAbrir(){
-    if(!mesa) return;
-    const p = pacientes[mesa.nombre]; if(!p) return;
+function trazoAbrir(nombre){
+    const n0 = nombre || (mesa && mesa.nombre); if(!n0) return;
+    const p = pacientes[n0]; if(!p) return;
     const est = (p.estudios || []);
     const pre = p.trazadoPuntos || null;
-    tz = { nombre: mesa.nombre, img: null, w: 0, h: 0, pts: {}, hist: [], idx: 0, zoom: 1, mmpx: null, calib: null, fuente: '' };
+    tz = { nombre: n0, img: null, w: 0, h: 0, pts: {}, hist: [], idx: 0, zoom: 1, mmpx: null, calib: null, fuente: '' };
     let inicial = est.length ? est[est.length - 1] : null;
     const lat = est.filter(e => /later|tele|ceph|cefal/i.test(e.nombre || ''));
     if(lat.length) inicial = lat[lat.length - 1];
@@ -5504,6 +5591,7 @@ async function trazoGuardar(){
     const nombre = tz.nombre;
     const cl = trazoClase(m), iS = trazoIncl(m.u1na, 26, 18), iI = trazoIncl(m.l1nb, 29, 21);
     trazoCerrar();
+    try{ renderTrazadoPerfil(nombre); }catch(e){}
     if(mesa && mesa.nombre === nombre){
         renderMesaDecisiones();
         if((cl || iS || iI) && confirm('Trazado guardado' + (subida ? '' : ' (los valores sí; la imagen trazada no se pudo subir)') + '.\n\n¿Aplicar a la mesa la clase esqueletal e inclinación de incisivos que salen del trazado?\n(Tú puedes cambiarlas después)')){
