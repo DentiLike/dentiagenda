@@ -2605,7 +2605,7 @@
             return d <= 0 ? 'hoy' : (d === 1 ? 'ayer' : 'hace ' + d + ' d');
         }
         function usaSmile(nombre){ const u = usoSmile[nombre]; return !!(u && u.ts); }
-        const DA_VERSION = 'v53';
+        const DA_VERSION = 'v55';
         window.addEventListener('load', () => document.querySelectorAll('.da-ver-txt').forEach(e => e.textContent = 'DentiAgenda ' + DA_VERSION));
         // Texto del estado de SmileLike para un paciente (usa lo guardado; abajo se refresca solo ese paciente)
         function textoEstadoSmile(nombre){
@@ -4698,9 +4698,10 @@ function renderMesaDecisiones(){
         <div class="mesa-sec"><label>Incisivos inferiores</label><div class="mesa-chips">${MESA_INC.map(x => mesaChip('incInf', x[0], x[1])).join('')}</div></div>
         <div class="mesa-sec"><label>Hallazgos (puedes elegir varios)</label><div class="mesa-chips">${MESA_HALL.map(x => mesaChip('hall', x[0], x[1], true)).join('')}</div>
             <input type="text" class="inset-3d" style="margin-top:6px; width:100%;" placeholder="Otro hallazgo (opcional)" value="${escAttr(d.otro)}" oninput="mesa.d.otro=this.value; if(!mesa.editado) mesaRegenerar(true);"></div>
-        <div class="mesa-sec"><label>¿Requiere extracciones?</label><div class="mesa-chips">${mesaChip('extr', 'no', 'No')}${mesaChip('extr', 'si', 'Sí')}</div>
-            ${d.extr === 'si' ? `<div class="esc-sub" style="margin-top:6px;">Toca los dientes a extraer (numeración FDI):</div>
-            <div class="mesa-dientes">${dientes(MESA_DIENTES_SUP)}</div><div class="mesa-dientes">${dientes(MESA_DIENTES_INF)}</div>` : ''}</div>
+        <div class="mesa-sec"><label>¿Extracción de premolares?</label><div class="mesa-chips">${mesaChip('extr', 'no', 'No')}${mesaChip('extr', 'si', 'Sí')}</div>
+            ${d.extr === 'si' ? `<div class="esc-sub" style="margin-top:6px;">Toca los premolares a extraer (FDI):</div>
+            <div class="mesa-dientes" style="grid-template-columns:repeat(${mesa.todos ? 16 : 4},1fr);">${dientes(mesa.todos ? MESA_DIENTES_SUP : [15, 14, 24, 25])}</div><div class="mesa-dientes" style="grid-template-columns:repeat(${mesa.todos ? 16 : 4},1fr);">${dientes(mesa.todos ? MESA_DIENTES_INF : [45, 44, 34, 35])}</div>
+            <a href="#" class="esc-sub" style="color:var(--accent);" onclick="mesa.todos=!mesa.todos; mesaCambio(); return false;">${mesa.todos ? 'Mostrar solo premolares' : 'Otro diente…'}</a>` : ''}</div>
         <div class="mesa-sec"><label>Aparatología indicada (puedes elegir varias)</label><div class="mesa-chips">${MESA_APARATOS.map(x => mesaChip('aparatos', x, x, true)).join('')}</div>
             <input type="text" class="inset-3d" style="margin-top:6px; width:100%;" placeholder="Otro tipo (opcional)" value="${escAttr(d.aparatoOtro)}" oninput="mesa.d.aparatoOtro=this.value; if(!mesa.editado) mesaRegenerar(true);"></div>
         <div class="mesa-sec"><label>Consideraciones especiales</label>
@@ -4745,8 +4746,8 @@ function mesaArmarMensaje(nombre, d){
     const hs = d.hall.map(h => hall[h]).filter(Boolean);
     if(d.otro && d.otro.trim()) hs.push(d.otro.trim());
     if(hs.length){ L.push(''); L.push('🔎 También observé: ' + hs.join('; ') + '.'); }
-    if(d.extr === 'no') { L.push(''); L.push('📋 Por ahora no se contemplan extracciones para tu tratamiento.'); }
-    else if(d.extr === 'si'){ L.push(''); L.push('📋 Para lograr un buen resultado se contemplan extracciones' + (d.dientes.length ? ` (dientes ${d.dientes.slice().sort((a, b) => a - b).join(', ')})` : '') + '.'); }
+    if(d.extr === 'no') { L.push(''); L.push('📋 Por ahora no se contemplan extracciones de premolares para tu tratamiento.'); }
+    else if(d.extr === 'si'){ L.push(''); L.push('📋 Para lograr un buen resultado se contempla la extracción de ' + (d.dientes.length && d.dientes.every(n => [14, 15, 24, 25, 34, 35, 44, 45].includes(n)) ? 'premolares' : 'algunos dientes') + (d.dientes.length ? ` (dientes ${d.dientes.slice().sort((a, b) => a - b).join(', ')})` : '') + '.'); }
     const nomApar = { 'Estándar metálico': 'brackets metálicos estándar', 'Metálico flex': 'brackets metálicos flex', 'Autoligado': 'brackets autoligado', 'Alineadores': 'alineadores', 'Ortopedia': 'ortopedia maxilar' };
     const aps = d.aparatos.map(a => nomApar[a] || a.toLowerCase());
     if(d.aparatoOtro && d.aparatoOtro.trim()) aps.push(d.aparatoOtro.trim());
@@ -4809,7 +4810,7 @@ function iaLlavesLocales(){ try{ return JSON.parse(localStorage.getItem(IA_LLAVE
 function iaLlaveLocal(prov){ return String(iaLlavesLocales()[prov] || '').trim(); }
 const IA_HALLAZGOS_L = ["caries", "terceros", "raices", "retenidos", "ausencias", "apinamiento", "diastemas", "osea", "patologia"];
 const IA_APARATOS_L = ["Estándar metálico", "Metálico flex", "Autoligado", "Alineadores", "Ortopedia"];
-const IA_DIENTES_FDI_L = new Set([18, 17, 16, 15, 14, 13, 12, 11, 21, 22, 23, 24, 25, 26, 27, 28, 48, 47, 46, 45, 44, 43, 42, 41, 31, 32, 33, 34, 35, 36, 37, 38]);
+const IA_DIENTES_FDI_L = new Set([14, 15, 24, 25, 34, 35, 44, 45]);   // solo premolares
 
 function iaPromptLocal(edad, nombresImagenes) {
   const lista = nombresImagenes.map((n, i) => `  Imagen ${i + 1}: ${n || "estudio sin nombre"}`).join("\n");
@@ -4826,12 +4827,12 @@ Responde ÚNICAMENTE con un objeto JSON válido (sin texto antes ni después, si
   "incInf": "normal" | "pro" | "retro" | "",
   "hall": [ valores de: "caries","terceros","raices","retenidos","ausencias","apinamiento","diastemas","osea","patologia" ],
   "otro": "otro hallazgo relevante en una frase, o vacío",
-  "extr": "si" | "no" | "",
-  "dientes": [ números FDI de dientes con posible extracción, si extr es "si" ],
+  "extr": "si" | "no" | "",   // SOLO extracción de PREMOLARES con fines ortodónticos
+  "dientes": [ números FDI de los PREMOLARES a extraer (solo 14,15,24,25,34,35,44,45), si extr es "si" ],
   "aparatos": [ valores de: "Estándar metálico","Metálico flex","Autoligado","Alineadores","Ortopedia" ],
   "nota": "consideración especial en una frase, o vacío",
   "confianza": { "rel": "alta"|"media"|"baja", "inc": "alta"|"media"|"baja", "hall": "alta"|"media"|"baja", "extr": "alta"|"media"|"baja" },
-  "preguntas": [ preguntas cortas para el doctor sobre lo que no puedes decidir con estas imágenes ],
+  "preguntas": [ { "pregunta": "pregunta corta para el doctor sobre lo que no puedes decidir con certeza", "suposicion": "tu respuesta preliminar o mejor suposición con base en las imágenes, indicando cuánta seguridad tienes y qué la confirmaría" } ],
   "observaciones": "razonamiento breve (máximo 5 frases) de lo que ves y por qué"
 }
 
@@ -4840,7 +4841,8 @@ Reglas:
 - "incSup"/"incInf" describen la inclinación de los incisivos (pro = proinclinados, retro = retroinclinados) vistos en la lateral.
 - "hall" y "otro" salen principalmente de la panorámica. Incluye caries, lesiones periapicales, terceros molares, dientes retenidos o supernumerarios, ausencias y raíces cortas SOLO si realmente los ves. Las raíces cortas y las caries incipientes son difíciles de ver en panorámica: si dudas, no las marques y mejor haz una pregunta.
 - Si algo no se puede valorar por calidad, ángulo o porque falta el estudio, deja el campo vacío ("" o []) y dilo en "preguntas" u "observaciones". No inventes. Es preferible dejar vacío que equivocarte.
-- Extracciones y aparatología son sugerencias de bajo peso: el doctor decide. Si no hay base suficiente, deja "extr" vacío.
+- "extr" se refiere ÚNICAMENTE a la extracción de premolares por ortodoncia (para resolver apiñamiento, protrusión o discrepancia de espacio). NO consideres las muelas del juicio/terceros molares aquí (esas van en "hall" como "terceros"). Si sugieres extracción, indica en "dientes" qué premolares (solo 14,15,24,25,34,35,44,45) y justifica en "observaciones" con el apiñamiento estimado, la protrusión de incisivos y el perfil; si el caso se puede resolver sin extraer, pon "no".
+- Extracciones y aparatología son sugerencias de bajo peso: el doctor decide. Si no hay base suficiente, deja "extr" vacío y haz una pregunta (por ejemplo sobre el perfil facial o el apiñamiento).
 - No incluyas nombres ni datos personales.`;
 }
 
@@ -4872,7 +4874,8 @@ function iaLimpiarLocal(texto) {
     aparatos: arr(o.aparatos, IA_APARATOS_L),
     nota: str(o.nota, 240),
     confianza: {rel: conf(c.rel), inc: conf(c.inc), hall: conf(c.hall), extr: conf(c.extr)},
-    preguntas: (Array.isArray(o.preguntas) ? o.preguntas : []).map((x) => str(x, 200)).filter(Boolean).slice(0, 6),
+    preguntas: (Array.isArray(o.preguntas) ? o.preguntas : []).map((x) => str(x && typeof x === "object" ? x.pregunta : x, 200)).filter(Boolean).slice(0, 6),
+    suposiciones: (Array.isArray(o.preguntas) ? o.preguntas : []).filter((x) => str(x && typeof x === "object" ? x.pregunta : x, 200)).map((x) => str(x && typeof x === "object" ? x.suposicion : "", 300)).slice(0, 6),
     observaciones: str(o.observaciones, 900),
   };
 }
@@ -4905,45 +4908,62 @@ async function iaLlamarLocal(prov, p, extra){
     const key = iaLlaveLocal(prov);
     let cfg = {}; try{ const sn = await db.collection('agenda').doc('ia_config').get(); cfg = sn.exists ? sn.data() : {}; }catch(e){}
     const modelos = Object.assign({ claude: 'claude-opus-5-5', gemini: 'gemini-3.8-flash', grok: 'grok-4' }, cfg.modelos || {});
+    const respaldos = Object.assign({ gemini: 'gemini-3.1-pro-preview' }, cfg.respaldo || {});
     await iaTopeLocal(Number(cfg.limiteDiario) > 0 ? Number(cfg.limiteDiario) : 40);
     const estudios = (p.estudios || []).slice(-4);
     const imagenes = []; const nombres = [];
     for(const e of estudios){ imagenes.push(await iaDescargarLocal(String(e.url || ''))); nombres.push(String(e.nombre || '').slice(0, 60)); }
-    const prompt = iaPromptLocal(iaEdadDe(p), nombres) + (extra ? '\n\nCONTEXTO ADICIONAL DEL DOCTOR (son datos reales, tómalos como ciertos y vuelve a valorar el caso con ellos; responde con el mismo JSON):\n' + extra : ''), modelo = String(modelos[prov]);
-    const t0 = Date.now();
-    let resp;
-    try{
-        if(prov === 'claude'){
-            const content = imagenes.map(im => ({ type: 'image', source: { type: 'base64', media_type: im.mime, data: im.b64 } }));
-            content.push({ type: 'text', text: prompt });
-            resp = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST',
-                headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true', 'content-type': 'application/json' },
-                body: JSON.stringify({ model: modelo, max_tokens: 2500, messages: [{ role: 'user', content: content }] }) });
-        }else if(prov === 'gemini'){
-            const parts = imagenes.map(im => ({ inline_data: { mime_type: im.mime, data: im.b64 } }));
-            parts.push({ text: prompt });
-            resp = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(modelo) + ':generateContent', { method: 'POST',
-                headers: { 'x-goog-api-key': key, 'content-type': 'application/json' },
-                body: JSON.stringify({ contents: [{ role: 'user', parts: parts }], generationConfig: { responseMimeType: 'application/json', maxOutputTokens: 8192 } }) });
-        }else{
+    const prompt = iaPromptLocal(iaEdadDe(p), nombres) + (extra ? '\n\nCONTEXTO ADICIONAL DEL DOCTOR (son datos reales, tómalos como ciertos y vuelve a valorar el caso con ellos; responde con el mismo JSON):\n' + extra : '');
+    const llamar = async (modelo) => {
+        try{
+            if(prov === 'claude'){
+                const content = imagenes.map(im => ({ type: 'image', source: { type: 'base64', media_type: im.mime, data: im.b64 } }));
+                content.push({ type: 'text', text: prompt });
+                return await fetch('https://api.anthropic.com/v1/messages', { method: 'POST',
+                    headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true', 'content-type': 'application/json' },
+                    body: JSON.stringify({ model: modelo, max_tokens: 2500, messages: [{ role: 'user', content: content }] }) });
+            }
+            if(prov === 'gemini'){
+                const parts = imagenes.map(im => ({ inline_data: { mime_type: im.mime, data: im.b64 } }));
+                parts.push({ text: prompt });
+                return await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(modelo) + ':generateContent', { method: 'POST',
+                    headers: { 'x-goog-api-key': key, 'content-type': 'application/json' },
+                    body: JSON.stringify({ contents: [{ role: 'user', parts: parts }], generationConfig: { responseMimeType: 'application/json', maxOutputTokens: 8192 } }) });
+            }
             const content = imagenes.map(im => ({ type: 'image_url', image_url: { url: 'data:' + im.mime + ';base64,' + im.b64, detail: 'high' } }));
             content.push({ type: 'text', text: prompt });
-            resp = await fetch('https://api.x.ai/v1/chat/completions', { method: 'POST',
+            return await fetch('https://api.x.ai/v1/chat/completions', { method: 'POST',
                 headers: { 'Authorization': 'Bearer ' + key, 'content-type': 'application/json' },
                 body: JSON.stringify({ model: modelo, messages: [{ role: 'user', content: content }] }) });
-        }
-    }catch(e){ throw new Error('RED_' + prov); }
-    const texto = await resp.text();
+        }catch(e){ throw new Error('RED_' + prov); }
+    };
+    // Reintentos automáticos ante saturación (429/500/502/503/504) y, al final, modelo de respaldo
+    const principal = String(modelos[prov]), resp0 = String(respaldos[prov] || '');
+    const plan = [principal, principal, principal];
+    if(resp0 && resp0 !== principal) plan.push(resp0);
+    const esperas = [3000, 7000, 1000];
+    const t0 = Date.now();
+    let resp = null, texto = '', usado = principal, intentos = 0, ultimoErr = null;
+    for(let i = 0; i < plan.length; i++){
+        usado = plan[i]; intentos = i + 1;
+        try{ resp = await llamar(usado); }catch(e){ ultimoErr = e; resp = null; if(i < plan.length - 1){ await new Promise(ok => setTimeout(ok, esperas[i] || 1000)); continue; } break; }
+        texto = await resp.text();
+        if(resp.ok) break;
+        if([429, 500, 502, 503, 504].indexOf(resp.status) >= 0 && i < plan.length - 1){ await new Promise(ok => setTimeout(ok, esperas[i] || 1000)); continue; }
+        break;
+    }
+    if(!resp) throw ultimoErr || new Error('RED_' + prov);
     if(!resp.ok){
         let det = ''; try{ const j = JSON.parse(texto); det = (j.error && (j.error.message || j.error)) || ''; }catch(e){}
-        throw new Error(IA_NOMBRE[prov] + ' respondió ' + resp.status + (det ? ': ' + String(det).slice(0, 200) : ''));
+        const sat = [429, 500, 502, 503, 504].indexOf(resp.status) >= 0;
+        throw new Error(IA_NOMBRE[prov] + (sat ? ' sigue saturado tras ' + intentos + ' intentos (código ' + resp.status + '). Prueba en unos minutos o configura un modelo de respaldo en Laboratorio IA.' : ' respondió ' + resp.status + (det ? ': ' + String(det).slice(0, 200) : '')));
     }
     const j = JSON.parse(texto);
     let out;
     if(prov === 'claude') out = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
     else if(prov === 'gemini') out = ((((j.candidates || [])[0] || {}).content || {}).parts || []).map(x => x.text || '').join('');
     else out = ((((j.choices || [])[0] || {}).message || {}).content) || '';
-    return { proveedor: prov, modelo: modelo, resultado: iaLimpiarLocal(out), segundos: Math.round((Date.now() - t0) / 100) / 10 };
+    return { proveedor: prov, modelo: usado + (usado !== principal ? ' (respaldo)' : '') + (intentos > 1 ? ' · ' + intentos + ' intentos' : ''), resultado: iaLimpiarLocal(out), segundos: Math.round((Date.now() - t0) / 100) / 10 };
 }
 function iaAyudaCors(){
     alert('Tu almacenamiento (Storage) aún no permite que DentiAgenda lea las radiografías desde el navegador. Es un permiso que se da una sola vez:\n\n1) Abre https://console.cloud.google.com/ con tu cuenta, proyecto misonrisa-citas.\n2) Arriba a la derecha toca el icono >_ (Activar Cloud Shell).\n3) Pega estas dos líneas (Enter después de cada una):\n\necho \'[{"origin":["*"],"method":["GET"],"maxAgeSeconds":3600}]\' > cors.json\n\ngsutil cors set cors.json gs://misonrisa-citas.firebasestorage.app\n\n4) Vuelve aquí y analiza otra vez.');
@@ -4977,12 +4997,12 @@ function iaBloqueInner(){
             ['Relación', r.rel ? IA_REL[r.rel] + cf(c.rel) : '—'],
             ['Incisivos', (r.incSup || r.incInf) ? `sup. ${IA_INC[r.incSup] || '—'} · inf. ${IA_INC[r.incInf] || '—'}${cf(c.inc)}` : '—'],
             ['Hallazgos', (r.hall.length || r.otro) ? r.hall.map(h => hall[h]).concat(r.otro ? [escHtml(r.otro)] : []).join(', ') + cf(c.hall) : '—'],
-            ['Extracciones', r.extr === 'si' ? 'sí' + (r.dientes.length ? ' (' + r.dientes.join(', ') + ')' : '') + cf(c.extr) : (r.extr === 'no' ? 'no' + cf(c.extr) : '—')],
+            ['Extracción de premolares', r.extr === 'si' ? 'sí' + (r.dientes.length ? ' (' + r.dientes.join(', ') + ')' : '') + cf(c.extr) : (r.extr === 'no' ? 'no' + cf(c.extr) : '—')],
             ['Aparatología', r.aparatos.length ? r.aparatos.join(', ') : '—']
         ].map(f => `<div style="font-size:0.78rem; margin:2px 0;"><b>${f[0]}:</b> ${f[1]}</div>`).join('');
         const resp = (ia.resp && ia.resp[k]) || [];
         const preg = r.preguntas.length ? `<div style="font-size:0.78rem; margin-top:6px;"><b>❓ Preguntas para ti</b> <span class="esc-sub">(responde las que quieras y reanaliza)</span>
-            ${r.preguntas.map((q, i) => `<div style="margin-top:5px;">${escHtml(q)}<input class="inset-3d" style="width:100%; margin-top:2px; font-size:0.8rem;" placeholder="Tu respuesta…" value="${escAttr(resp[i] || '')}" oninput="iaGuardarResp('${k}',${i},this.value)"></div>`).join('')}
+            ${r.preguntas.map((q, i) => `<div style="margin-top:5px;">${escHtml(q)}${(r.suposiciones || [])[i] ? `<div class="esc-sub" style="margin:2px 0;">💡 <i>Mi suposición:</i> ${escHtml(r.suposiciones[i])} <a href="#" style="color:var(--accent);" onclick="iaUsarSuposicion('${k}',${i});return false;">usar</a></div>` : ''}<input id="iaResp_${k}_${i}" class="inset-3d" style="width:100%; margin-top:2px; font-size:0.8rem;" placeholder="Tu respuesta…" value="${escAttr(resp[i] || '')}" oninput="iaGuardarResp('${k}',${i},this.value)"></div>`).join('')}
             <textarea class="inset-3d" rows="2" style="width:100%; margin-top:6px; font-size:0.8rem;" placeholder="Algo más que la IA deba saber (opcional): edad dental, antecedentes, lo que ves tú…" oninput="mesa.ia.ctx=this.value">${escHtml(ia.ctx || '')}</textarea>
             <button class="esc-mini" style="margin-top:6px; width:100%;" ${cargando ? 'disabled' : ''} onclick="iaAnalizar(true)">🔁 Reanalizar con mis respuestas</button></div>` : '';
         return `<div class="esc-card" style="cursor:default; display:block; margin-top:8px;">
@@ -5003,6 +5023,11 @@ function iaBloqueInner(){
         ${tarjetas}
         <div class="esc-sub" style="margin-top:6px;">Lectura preliminar: no sustituye tu análisis. Confírmala en la imagen antes de aplicarla.</div>
     </div>`;
+}
+function iaUsarSuposicion(k, i){
+    const x = mesa.ia.res[k]; if(!x || !x.resultado) return;
+    const t = (x.resultado.suposiciones || [])[i] || ''; iaGuardarResp(k, i, t);
+    const el = document.getElementById('iaResp_' + k + '_' + i); if(el) el.value = t;
 }
 function iaGuardarResp(k, i, v){ const ia = mesa.ia; ia.resp = ia.resp || {}; ia.resp[k] = ia.resp[k] || []; ia.resp[k][i] = v; }
 function iaExtraDe(pv){
@@ -5105,6 +5130,7 @@ async function abrirIaLab(){
         </div>
         <div class="esc-tray"><h3><span>⚙️ Modelos y tope diario</span></h3>
             ${['claude', 'gemini', 'grok'].map(k => `<div class="form-group" style="margin-bottom:6px;"><label style="font-size:0.78rem;">${IA_NOMBRE[k]} · modelo</label><input id="iaMod_${k}" class="inset-3d" value="${escAttr(mod[k])}"></div>`).join('')}
+            <div class="form-group" style="margin-bottom:6px;"><label style="font-size:0.78rem;">Gemini · modelo de respaldo (se usa si el principal sigue saturado)</label><input id="iaResp_gemini_cfg" class="inset-3d" value="${escAttr((cfg.respaldo || {}).gemini !== undefined ? cfg.respaldo.gemini : 'gemini-3.1-pro-preview')}"></div>
             <div class="form-group" style="margin-bottom:6px;"><label style="font-size:0.78rem;">Tope de análisis por día (protege tu gasto)</label><input id="iaLimite" type="number" min="1" class="inset-3d" value="${escAttr(lim)}"></div>
             <button class="btn-3d" style="width:100%;" onclick="iaGuardarConfig()">💾 Guardar</button>
             <div class="esc-sub" style="margin-top:6px;">Los nombres de modelo cambian con el tiempo: si un proveedor marca error de modelo, pon aquí el nombre vigente de su documentación. Las llaves se guardan en la sección de arriba (solo en este dispositivo).</div>
@@ -5114,7 +5140,7 @@ async function abrirIaLab(){
             ${casos.length ? `<table style="width:100%; border-collapse:collapse; font-size:0.8rem;">
                 <tr style="color:var(--primary);"><th style="text-align:left; padding:4px 6px;"></th><th>Claude</th><th>Gemini</th><th>Grok</th></tr>
                 <tr><td style="padding:4px 6px;">Casos comparados</td>${['claude', 'gemini', 'grok'].map(k => `<td style="text-align:center;">${st[k].n}</td>`).join('')}</tr>
-                ${fila('Clase esqueletal', 'rel')}${fila('Incisivos superiores', 'incSup')}${fila('Incisivos inferiores', 'incInf')}${fila('¿Extracciones?', 'extr')}
+                ${fila('Clase esqueletal', 'rel')}${fila('Incisivos superiores', 'incSup')}${fila('Incisivos inferiores', 'incInf')}${fila('¿Extracción de premolares?', 'extr')}
                 <tr><td style="padding:4px 6px;">Hallazgos (coincidencia)</td>${['claude', 'gemini', 'grok'].map(k => `<td style="text-align:center;">${st[k].hall[1] ? Math.round(100 * st[k].hall[0] / st[k].hall[1]) + '% <span class="esc-sub">(' + st[k].hall[1] + ')</span>' : '—'}</td>`).join('')}</tr>
                 <tr><td style="padding:4px 6px;">Dientes a extraer</td>${['claude', 'gemini', 'grok'].map(k => `<td style="text-align:center;">${st[k].dientes[1] ? Math.round(100 * st[k].dientes[0] / st[k].dientes[1]) + '% <span class="esc-sub">(' + st[k].dientes[1] + ')</span>' : '—'}</td>`).join('')}</tr>
             </table>
@@ -5133,7 +5159,7 @@ async function iaGuardarConfig(){
     const modelos = {};
     ['claude', 'gemini', 'grok'].forEach(k => { const v = document.getElementById('iaMod_' + k).value.trim(); if(v) modelos[k] = v; });
     const lim = parseInt(document.getElementById('iaLimite').value, 10) || 40;
-    try{ await db.collection('agenda').doc('ia_config').set({ modelos: modelos, limiteDiario: lim }, { merge: true }); alert('Guardado.'); }
+    try{ await db.collection('agenda').doc('ia_config').set({ modelos: modelos, limiteDiario: lim, respaldo: { gemini: (document.getElementById('iaResp_gemini_cfg').value || '').trim() } }, { merge: true }); alert('Guardado.'); }
     catch(e){ alert('No se pudo guardar: ' + (e.message || e)); }
 }
 </script>
