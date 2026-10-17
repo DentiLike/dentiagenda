@@ -2605,7 +2605,7 @@
             return d <= 0 ? 'hoy' : (d === 1 ? 'ayer' : 'hace ' + d + ' d');
         }
         function usaSmile(nombre){ const u = usoSmile[nombre]; return !!(u && u.ts); }
-        const DA_VERSION = 'v52';
+        const DA_VERSION = 'v53';
         window.addEventListener('load', () => document.querySelectorAll('.da-ver-txt').forEach(e => e.textContent = 'DentiAgenda ' + DA_VERSION));
         // Texto del estado de SmileLike para un paciente (usa lo guardado; abajo se refresca solo ese paciente)
         function textoEstadoSmile(nombre){
@@ -3777,6 +3777,7 @@
             let nombreDoctor = (config.doctor || 'Dr. Miguel Alvarado').trim();
             if(!/^dr/i.test(nombreDoctor)) nombreDoctor = 'Dr. ' + nombreDoctor;
             chatBox.innerHTML = `<div class="chat-msg chat-ia">Hola ${nombreDoctor}, ¿quiere ver los pacientes de hoy, confirmar los pacientes de pasado mañana, o revisar quiénes llevan más de 2 meses sin cita?</div>`;
+            try{ const av = avisoEstudiosPendientes(); if(av) chatBox.innerHTML += `<div class="chat-msg chat-ia">${av}</div>`; }catch(e){}
             chatBox.scrollTop = chatBox.scrollHeight;
         }
         function enviarMensajeChat(texto) {
@@ -4454,7 +4455,27 @@ function escCategorias(){
     por.sort((a, b) => tsEsp(a) - tsEsp(b));   // el que más espera, primero
     return { por, bor, lis, env };
 }
+function avisoEstudiosPendientes(){
+    const c = escCategorias(), n = [];
+    if(c.por.length) n.push(`<b>${c.por.length}</b> por analizar`);
+    if(c.bor.length) n.push(`<b>${c.bor.length}</b> en diagnóstico (borrador)`);
+    if(c.lis.length) n.push(`<b>${c.lis.length}</b> listo(s) para enviar`);
+    if(c.env.length) n.push(`<b>${c.env.length}</b> esperando respuesta`);
+    if(!n.length) return '';
+    let nom = '';
+    if(c.por.length){ const x = c.por[0]; nom = `<br>El que más lleva esperando: <b>${escHtml(x)}</b>.`; }
+    return `📌 Estudios en <b>Mi consultorio</b>: ${n.join(', ')}.${nom}<br><span class="chip" style="display:inline-block; margin-top:6px;" onclick="closeModal('chatBotModal'); abrirEscritorio()">🖥️ Abrir Mi consultorio</span>`;
+}
+function actualizarPuntoAvatar(){
+    const av = document.querySelector('.floating-assistant'); if(!av) return;
+    let d = document.getElementById('avatarPunto');
+    const c = escCategorias(), n = c.por.length + c.lis.length;
+    if(!n){ if(d) d.remove(); return; }
+    if(!d){ d = document.createElement('span'); d.id = 'avatarPunto'; d.style.cssText = 'position:absolute; top:-6px; right:-6px; min-width:22px; height:22px; padding:0 5px; border-radius:11px; background:#e53e3e; color:#fff; font-size:0.72rem; font-weight:bold; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 6px rgba(0,0,0,.3);'; av.appendChild(d); }
+    d.textContent = n;
+}
 function actualizarBadgeEscritorio(){
+    try{ actualizarPuntoAvatar(); }catch(e){}
     const b = document.getElementById('btnEscritorio'); if(!b) return;
     const c = escCategorias();
     const n = c.por.length + c.lis.length;
@@ -4626,7 +4647,7 @@ let mesa = null;
 function escAbrirMesa(n){
     const p = pacientes[n]; if(!p) return;
     const dg = p.diag || {};
-    mesa = { ia: Object.assign({ prov: 'claude', cargando: [], res: {}, casoId: null }, dg.ia || {}, { cargando: [] }), nombre: n, d: Object.assign({ rel: '', incSup: '', incInf: '', hall: [], otro: '', extr: '', dientes: [], aparatos: [], aparatoOtro: '', nota: '' }, dg.d || {}), mensaje: dg.mensaje || '', editado: !!dg.editado };
+    mesa = { ia: Object.assign({ prov: 'gemini', cargando: [], res: {}, casoId: null }, dg.ia || {}, { cargando: [] }), nombre: n, d: Object.assign({ rel: '', incSup: '', incInf: '', hall: [], otro: '', extr: '', dientes: [], aparatos: [], aparatoOtro: '', nota: '' }, dg.d || {}), mensaje: dg.mensaje || '', editado: !!dg.editado };
     if(!Array.isArray(mesa.d.aparatos)) mesa.d.aparatos = [];
     if(mesa.d.bracket){ if(!mesa.d.aparatos.includes(mesa.d.bracket)) mesa.d.aparatos.push(mesa.d.bracket); delete mesa.d.bracket; }   // borradores viejos
     editandoAhora = true;
@@ -4771,8 +4792,8 @@ function iaEdadDe(p){
     const f = new Date(p.nacimiento); if(isNaN(f)) return 0;
     return Math.max(0, Math.floor((Date.now() - f.getTime()) / 31557600000));
 }
-async function iaLlamarServidor(prov, p){
-    if(iaLlaveLocal(prov)) return iaLlamarLocal(prov, p);
+async function iaLlamarServidor(prov, p, extra){
+    if(iaLlaveLocal(prov)) return iaLlamarLocal(prov, p, extra);
     if(!iaFn){
         if(!(window.firebase && firebase.functions)) await cargarLibreriaFirebase('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions-compat.js');
         if(!(window.firebase && firebase.functions)) throw new Error('No se pudo cargar el módulo de IA. ¿Hay internet?');
@@ -4880,7 +4901,7 @@ async function iaTopeLocal(lim){
     if(u.n >= lim) throw new Error('Llegaste al tope diario de ' + lim + ' análisis. Súbelo en Laboratorio IA si lo necesitas.');
     u.n++; try{ localStorage.setItem('da_ia_uso', JSON.stringify(u)); }catch(e){}
 }
-async function iaLlamarLocal(prov, p){
+async function iaLlamarLocal(prov, p, extra){
     const key = iaLlaveLocal(prov);
     let cfg = {}; try{ const sn = await db.collection('agenda').doc('ia_config').get(); cfg = sn.exists ? sn.data() : {}; }catch(e){}
     const modelos = Object.assign({ claude: 'claude-opus-5-5', gemini: 'gemini-3.8-flash', grok: 'grok-4' }, cfg.modelos || {});
@@ -4888,7 +4909,7 @@ async function iaLlamarLocal(prov, p){
     const estudios = (p.estudios || []).slice(-4);
     const imagenes = []; const nombres = [];
     for(const e of estudios){ imagenes.push(await iaDescargarLocal(String(e.url || ''))); nombres.push(String(e.nombre || '').slice(0, 60)); }
-    const prompt = iaPromptLocal(iaEdadDe(p), nombres), modelo = String(modelos[prov]);
+    const prompt = iaPromptLocal(iaEdadDe(p), nombres) + (extra ? '\n\nCONTEXTO ADICIONAL DEL DOCTOR (son datos reales, tómalos como ciertos y vuelve a valorar el caso con ellos; responde con el mismo JSON):\n' + extra : ''), modelo = String(modelos[prov]);
     const t0 = Date.now();
     let resp;
     try{
@@ -4959,7 +4980,11 @@ function iaBloqueInner(){
             ['Extracciones', r.extr === 'si' ? 'sí' + (r.dientes.length ? ' (' + r.dientes.join(', ') + ')' : '') + cf(c.extr) : (r.extr === 'no' ? 'no' + cf(c.extr) : '—')],
             ['Aparatología', r.aparatos.length ? r.aparatos.join(', ') : '—']
         ].map(f => `<div style="font-size:0.78rem; margin:2px 0;"><b>${f[0]}:</b> ${f[1]}</div>`).join('');
-        const preg = r.preguntas.length ? `<div style="font-size:0.78rem; margin-top:6px;"><b>❓ Preguntas para ti:</b><ul style="margin:2px 0 0 16px; padding:0;">${r.preguntas.map(q => `<li>${escHtml(q)}</li>`).join('')}</ul></div>` : '';
+        const resp = (ia.resp && ia.resp[k]) || [];
+        const preg = r.preguntas.length ? `<div style="font-size:0.78rem; margin-top:6px;"><b>❓ Preguntas para ti</b> <span class="esc-sub">(responde las que quieras y reanaliza)</span>
+            ${r.preguntas.map((q, i) => `<div style="margin-top:5px;">${escHtml(q)}<input class="inset-3d" style="width:100%; margin-top:2px; font-size:0.8rem;" placeholder="Tu respuesta…" value="${escAttr(resp[i] || '')}" oninput="iaGuardarResp('${k}',${i},this.value)"></div>`).join('')}
+            <textarea class="inset-3d" rows="2" style="width:100%; margin-top:6px; font-size:0.8rem;" placeholder="Algo más que la IA deba saber (opcional): edad dental, antecedentes, lo que ves tú…" oninput="mesa.ia.ctx=this.value">${escHtml(ia.ctx || '')}</textarea>
+            <button class="esc-mini" style="margin-top:6px; width:100%;" ${cargando ? 'disabled' : ''} onclick="iaAnalizar(true)">🔁 Reanalizar con mis respuestas</button></div>` : '';
         return `<div class="esc-card" style="cursor:default; display:block; margin-top:8px;">
             <div style="display:flex; justify-content:space-between;"><b>🤖 ${IA_NOMBRE[k]}</b><span class="esc-sub">${escHtml(x.modelo || '')} · ${x.segundos || '?'} s</span></div>
             ${filas}
@@ -4979,8 +5004,15 @@ function iaBloqueInner(){
         <div class="esc-sub" style="margin-top:6px;">Lectura preliminar: no sustituye tu análisis. Confírmala en la imagen antes de aplicarla.</div>
     </div>`;
 }
+function iaGuardarResp(k, i, v){ const ia = mesa.ia; ia.resp = ia.resp || {}; ia.resp[k] = ia.resp[k] || []; ia.resp[k][i] = v; }
+function iaExtraDe(pv){
+    const ia = mesa.ia, x = ia.res[pv], resp = (ia.resp && ia.resp[pv]) || [], l = [];
+    if(x && x.resultado) x.resultado.preguntas.forEach((q, i) => { if((resp[i] || '').trim()) l.push('- Pregunta: ' + q + '\n  Respuesta del doctor: ' + resp[i].trim()); });
+    if((ia.ctx || '').trim()) l.push('- Nota del doctor: ' + ia.ctx.trim());
+    return l.join('\n');
+}
 function iaRepintar(){ const e = document.getElementById('iaBloque'); if(e && mesa) e.innerHTML = iaBloqueInner(); }
-async function iaAnalizar(){
+async function iaAnalizar(reanalizar){
     const m = mesa; if(!m) return;
     const p = pacientes[m.nombre];
     if(!p || !(p.estudios || []).length){ alert('Este paciente no tiene estudios subidos.'); return; }
@@ -4989,7 +5021,12 @@ async function iaAnalizar(){
     m.ia.cargando = provs.slice();
     iaRepintar();
     await Promise.all(provs.map(async pv => {
-        try{ m.ia.res[pv] = await iaLlamarServidor(pv, p); }
+        try{
+            const extra = reanalizar ? iaExtraDe(pv) : (m.ia.ctx || '').trim() ? '- Nota del doctor: ' + m.ia.ctx.trim() : '';
+            if(extra && !iaLlaveLocal(pv)) throw new Error('Para usar tus respuestas necesitas la llave de ' + IA_NOMBRE[pv] + ' guardada en este dispositivo (Laboratorio IA).');
+            m.ia.res[pv] = await iaLlamarServidor(pv, p, extra);
+            if(m.ia.resp) m.ia.resp[pv] = [];
+        }
         catch(e){ console.error('IA', pv, e); m.ia.res[pv] = { error: iaMensajeError(e) }; }
         m.ia.cargando = m.ia.cargando.filter(x => x !== pv);
         if(mesa === m) iaRepintar();
