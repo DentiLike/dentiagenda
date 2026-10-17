@@ -162,6 +162,20 @@
         .codigo-box .code { font-size: 1.6rem; font-weight: bold; letter-spacing: 0.15em; }
 
         /* Plan de tratamiento */
+        .ft-resumen { display:flex; align-items:center; gap:12px; margin:4px 0 10px; }
+        .ft-resumen img { width:52px; height:52px; border-radius:12px; object-fit:cover; flex-shrink:0; }
+        .ft-resumen .ft-nom { font-weight:bold; color:var(--primary); font-size:1rem; }
+        .ft-resumen .ft-sub { font-size:0.78rem; color:var(--text-muted); }
+        .ft-tag { display:inline-block; font-size:0.68rem; font-weight:bold; padding:2px 8px; border-radius:999px; margin:3px 4px 0 0; background:rgba(0,180,180,0.14); color:var(--accent); }
+        .ft-tabs { display:flex; gap:6px; position:sticky; top:-1.3rem; z-index:5; background:var(--bg-color); padding:6px 0 8px; margin-bottom:6px; }
+        .ft-tab { flex:1; border:none; cursor:pointer; padding:9px 2px; font-size:0.8rem; font-weight:bold; border-radius:10px; color:var(--text-muted); background:var(--bg-color); box-shadow:3px 3px 6px var(--shadow-dark), -3px -3px 6px var(--shadow-light); }
+        .ft-tab.on { color:white; background:var(--primary); box-shadow:inset 2px 2px 5px rgba(0,0,0,0.25); }
+        .ft-plegable { margin:10px 0; padding:8px 10px; border-radius:10px; border:1px solid var(--shadow-dark); }
+        .ft-plegable > summary { cursor:pointer; font-weight:bold; font-size:0.85rem; color:var(--primary); }
+        .ft-guardar { position:sticky; bottom:-1.3rem; z-index:5; background:var(--bg-color); padding:10px 0 4px; margin-top:12px; border-top:1px solid var(--shadow-dark); }
+        .ft-guardar { display:grid; grid-template-columns:2fr 1fr; gap:8px; }
+        .ft-guardar .btn-submit { height:100%; margin-top:0 !important; padding:0.9rem 0.5rem; font-size:0.92rem; }
+        .ft-pane .plan-add-btn { grid-column:auto; }
         .plan-box { margin: 15px 0; padding: 12px; background: rgba(255,255,255,0.35); border-radius: 12px; }
         .plan-box h5 { margin: 0 0 10px 0; color: var(--primary); font-size: 0.95rem; }
         .plan-item { background: var(--bg-color); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; box-shadow: 3px 3px 6px var(--shadow-dark), -3px -3px 6px var(--shadow-light); display:flex; align-items:center; gap:10px; }
@@ -443,6 +457,14 @@
 
             <div id="editorContacto" style="display:none; padding-top:1rem; border-top:1px solid var(--shadow-dark);">
                 <h4 style="color: var(--accent); margin-top:0;">Editar Expediente</h4>
+                <div id="fichaResumen" class="ft-resumen"></div>
+                <div class="ft-tabs" id="fichaTabs">
+                    <button type="button" class="ft-tab on" data-t="datos" onclick="fichaTab('datos')">Datos</button>
+                    <button type="button" class="ft-tab" data-t="trat" onclick="fichaTab('trat')">Tratamiento</button>
+                    <button type="button" class="ft-tab" data-t="est" onclick="fichaTab('est')">Estudios</button>
+                    <button type="button" class="ft-tab" data-t="hist" onclick="fichaTab('hist')">Historial</button>
+                </div>
+                <div class="ft-pane" data-t="datos">
                 <div id="bannerPotencialFicha" style="display:none; background:rgba(0,180,180,0.08); border:1px solid var(--accent); border-radius:10px; padding:10px; margin-bottom:1rem;">
                     <div style="font-size:0.85rem; color:var(--primary); margin-bottom:6px;">🎯 Este paciente sigue marcado como <strong>potencial</strong>.</div>
                     <button class="btn-3d" style="width:100%; background:var(--accent); color:white;" onclick="marcarComoCautivoDesdeFicha()">✅ Convertido (ya pagó sus radiografías)</button>
@@ -452,11 +474,19 @@
                 <div class="form-group"><label>¿Cómo le gusta que le digan?</label><input type="text" id="editDirApodo" class="inset-3d" placeholder="Ej. Male (si lo dejas vacío, se usa su primer nombre)"></div>
                 <div class="form-group"><label>Telefono</label><input type="tel" id="editDirTel" class="inset-3d"></div>
                 <div class="form-group"><label>🎂 Fecha de nacimiento</label><input type="date" id="editDirNacimiento" class="inset-3d"></div>
+                <div class="form-group" style="background:rgba(214,158,46,0.12); border:1.5px solid #d69e2e; border-radius:10px; padding:10px;">
+                    <label style="display:flex; align-items:center; gap:10px; margin:0; cursor:pointer; font-weight:bold; color:var(--primary);">
+                        <input type="checkbox" id="editDirFactura" style="width:22px; height:22px; flex-shrink:0;">
+                        🧾 Requiere factura
+                    </label>
+                    <div style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">Te aparecerá un aviso en su cita cada vez que venga.</div>
+                </div>
+                <div id="editDirSmile" style="font-size:0.85rem; font-weight:bold; margin:-4px 0 12px; padding:8px 10px; border-radius:10px; background:rgba(0,0,0,0.04);">📱 SmileLike: <span id="editDirSmileTxt">…</span></div>
+                <details class="ft-plegable"><summary>Código de acceso y foto</summary>
                                 <div class="codigo-box">
                     <div class="label">Código de acceso del paciente (para Mi Sonrisa)</div>
                     <div class="code" id="editDirCodigo">----</div>
                 </div>
-
                 <div class="form-group">
                     <label>Foto del Paciente</label>
                     <div style="display:flex; align-items:center; gap:15px;">
@@ -466,14 +496,22 @@
                         <button type="button" class="btn-3d" style="color:var(--status-red); padding:6px 10px; font-size:0.8rem;" onclick="quitarFotoDir()">🗑️ Quitar</button>
                     </div>
                 </div>
-                <div class="form-group" style="background:rgba(214,158,46,0.12); border:1.5px solid #d69e2e; border-radius:10px; padding:10px;">
-                    <label style="display:flex; align-items:center; gap:10px; margin:0; cursor:pointer; font-weight:bold; color:var(--primary);">
-                        <input type="checkbox" id="editDirFactura" style="width:22px; height:22px; flex-shrink:0;">
-                        🧾 Requiere factura
-                    </label>
-                    <div style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">Te aparecerá un aviso en su cita cada vez que venga.</div>
+                </details>
+                <details class="ft-plegable"><summary>Mensajes por WhatsApp</summary>
+                <button class="btn-3d btn-submit" style="color:#25D366;" onclick="enviarCodigoWhatsApp()">Enviar código al paciente por WhatsApp</button>
+                <button class="btn-3d btn-submit" style="color:var(--accent);" onclick="enviarMensajePromocion()">🎁 Enviar mensaje de promociones</button>
+                </details>
+                <details class="ft-plegable" style="border-color:#e53e3e;"><summary style="color:#c53030;">Zona delicada</summary>
+                <div class="plan-box" style="margin-top:22px; border:1.5px dashed #e53e3e;">
+                    <h5 style="color:#c53030;">⚠️ Zona delicada</h5>
+                    <button class="btn-3d btn-submit" id="btnArchivarPac" onclick="archivarPaciente()">📦 Archivar paciente</button>
+                    <div style="font-size:0.75rem; color:var(--text-muted); margin:4px 0 12px;">Lo oculta de las listas, la búsqueda y los avisos, pero conserva todo su expediente. Se puede restaurar.</div>
+                    <button class="btn-3d btn-submit" style="color:#e53e3e;" onclick="eliminarPaciente()">🗑️ Eliminar paciente definitivamente</button>
+                    <div style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">Borra su expediente, su carnet de SmileLike y sus estudios. No se puede deshacer.</div>
                 </div>
-                <div id="editDirSmile" style="font-size:0.85rem; font-weight:bold; margin:-4px 0 12px; padding:8px 10px; border-radius:10px; background:rgba(0,0,0,0.04);">📱 SmileLike: <span id="editDirSmileTxt">…</span></div>
+                </details>
+                </div>
+                <div class="ft-pane" data-t="trat" style="display:none;">
                 <div class="orto-box">
                     <div class="orto-switch-row">
                         <span>😬 Paciente en ortodoncia</span>
@@ -501,10 +539,10 @@
                         </table>
                     </div>
                 </div>
-
                 <div class="plan-box">
                     <h5>🦷 Plan de tratamiento (lo verá el paciente en Mi Sonrisa)</h5>
                     <div id="planLista"></div>
+                    <details class="ft-plegable" style="margin-top:8px;"><summary>+ Agregar tratamiento al plan</summary>
                     <div class="plan-form">
                         <select id="planTipo">
                             <option value="Caries / Resina">Caries / Resina</option>
@@ -531,44 +569,40 @@
                         </select>
                         <button class="plan-add-btn" onclick="agregarTratamientoPlan()">+ Agregar al plan</button>
                     </div>
+                </details>
                 </div>
-
+                </div>
+                <div class="ft-pane" data-t="est" style="display:none;">
                 <div class="plan-box">
                     <h5>🩻 Estudios / Radiografías (los verá el paciente en Mi Sonrisa)</h5>
                     <div id="estudiosLista"></div>
                 <div id="estudiosRevisionBox" style="margin-top:8px;"></div>
-                    <div style="margin-top:10px; display:grid; gap:8px;">
-                        <button class="plan-add-btn" onclick="subirEstudio('Radiografía panorámica')">📷 Subir Panorámica</button>
-                        <button class="plan-add-btn" onclick="subirEstudio('Radiografía lateral')">📷 Subir Lateral</button>
-                        <div style="display:flex; gap:6px;">
-                            <input type="text" id="estudioNombrePersonal" placeholder="Nombre del estudio (ej. Periapical 16)" style="flex:1; padding:0.6rem; border-radius:8px; border:1.5px solid #b8cce4; background:#eef4fb; color:var(--primary); font-size:0.82rem;">
+                    <div style="margin-top:10px; display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+                        <button class="plan-add-btn" onclick="subirEstudio('Radiografía panorámica')">📷 Panorámica</button>
+                        <button class="plan-add-btn" onclick="subirEstudio('Radiografía lateral')">📷 Lateral</button>
+                    </div>
+                    <details class="ft-plegable"><summary>Subir otro estudio (periapical, fotos...)</summary>
+                        <div style="display:flex; gap:6px; margin-top:8px;">
+                            <input type="text" id="estudioNombrePersonal" placeholder="Nombre del estudio (ej. Periapical 16)" style="flex:1; padding:8px; border-radius:8px; border:none; background:var(--bg-color); box-shadow: inset 2px 2px 5px var(--shadow-dark), inset -2px -2px 5px var(--shadow-light);">
                             <button class="plan-add-btn" style="width:auto; white-space:nowrap;" onclick="subirEstudioPersonal()">+ Subir</button>
                         </div>
-                    </div>
+                    </details>
                     <input type="file" id="estudioFileInput" accept="image/*" style="display:none;">
                 </div>
-
                 <div class="plan-box">
                     <h5>📐 Trazado cefalométrico (solo tú lo ves)</h5>
                     <div id="trazadoPerfil"></div>
                 </div>
-
+                </div>
+                <div class="ft-pane" data-t="hist" style="display:none;">
                 <div class="plan-box">
                     <h5>📖 Historial de citas</h5>
                     <div id="historialCitas"></div>
                 </div>
-
-                <button class="btn-3d btn-submit" style="color:#25D366;" onclick="enviarCodigoWhatsApp()">Enviar código al paciente por WhatsApp</button>
-                <button class="btn-3d btn-submit" style="color:var(--accent);" onclick="enviarMensajePromocion()">🎁 Enviar mensaje de promociones</button>
+                </div>
+                <div class="ft-guardar">
                 <button class="btn-3d btn-submit" style="background:var(--primary); color:white;" onclick="guardarEdicionDirectorio()">Guardar Cambios</button>
                 <button class="btn-3d btn-submit" style="margin-top:10px;" onclick="cerrarEditorDirectorio()">Cancelar</button>
-
-                <div class="plan-box" style="margin-top:22px; border:1.5px dashed #e53e3e;">
-                    <h5 style="color:#c53030;">⚠️ Zona delicada</h5>
-                    <button class="btn-3d btn-submit" id="btnArchivarPac" onclick="archivarPaciente()">📦 Archivar paciente</button>
-                    <div style="font-size:0.75rem; color:var(--text-muted); margin:4px 0 12px;">Lo oculta de las listas, la búsqueda y los avisos, pero conserva todo su expediente. Se puede restaurar.</div>
-                    <button class="btn-3d btn-submit" style="color:#e53e3e;" onclick="eliminarPaciente()">🗑️ Eliminar paciente definitivamente</button>
-                    <div style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">Borra su expediente, su carnet de SmileLike y sus estudios. No se puede deshacer.</div>
                 </div>
             </div>
         </div>
@@ -2610,7 +2644,7 @@
             return d <= 0 ? 'hoy' : (d === 1 ? 'ayer' : 'hace ' + d + ' d');
         }
         function usaSmile(nombre){ const u = usoSmile[nombre]; return !!(u && u.ts); }
-        const DA_VERSION = 'v62';
+        const DA_VERSION = 'v63';
         window.addEventListener('load', () => document.querySelectorAll('.da-ver-txt').forEach(e => e.textContent = 'DentiAgenda ' + DA_VERSION));
         // Texto del estado de SmileLike para un paciente (usa lo guardado; abajo se refresca solo ese paciente)
         function textoEstadoSmile(nombre){
@@ -2783,6 +2817,23 @@
             }catch(e){ console.error('borrar estudios', e); }
             alert(`${nombre} fue eliminado.${aviso}`);
         }
+        function fichaTab(t){
+            document.querySelectorAll('#editorContacto .ft-pane').forEach(p => p.style.display = p.dataset.t === t ? 'block' : 'none');
+            document.querySelectorAll('#fichaTabs .ft-tab').forEach(b => b.classList.toggle('on', b.dataset.t === t));
+            const m = document.querySelector('#directorioModal .modal'); if(m) m.scrollTop = 0;
+        }
+        function fichaResumen(nombre){
+            const c = document.getElementById('fichaResumen'); if(!c) return;
+            const p = pacientes[nombre] || {}, tags = [];
+            let edad = 0; try{ edad = iaEdadDe(p); }catch(e){}
+            if(p.ortodoncia) tags.push('Ortodoncia');
+            if(p.requiereFactura) tags.push('Factura');
+            if(p.esPotencial) tags.push('Potencial');
+            if((p.estudios || []).length) tags.push((p.estudios || []).length + ' estudio(s)');
+            if(p.trazadoPuntos) tags.push('Con trazado');
+            const foto = p.foto ? '<img src="' + p.foto + '">' : '';
+            c.innerHTML = foto + '<div><div class="ft-nom">' + escHtml(nombre) + '</div><div class="ft-sub">' + (edad ? edad + ' años' : '') + (edad && p.telefono ? ' · ' : '') + escHtml(p.telefono || '') + '</div>' + tags.map(t => '<span class="ft-tag">' + escHtml(t) + '</span>').join('') + '</div>';
+        }
         function abrirEditorDirectorio(nombre) {
             dirNombreActual = nombre;
             editandoAhora = true;   // evita que el snapshot pise mientras edito
@@ -2807,6 +2858,7 @@
             renderOrtodoncia(nombre);
             renderEstudios(nombre);
             renderHistorialCitas(nombre);
+            fichaResumen(nombre); fichaTab('datos');
         }
         function renderHistorialCitas(nombre){
             const cont = document.getElementById('historialCitas');
