@@ -2610,7 +2610,7 @@
             return d <= 0 ? 'hoy' : (d === 1 ? 'ayer' : 'hace ' + d + ' d');
         }
         function usaSmile(nombre){ const u = usoSmile[nombre]; return !!(u && u.ts); }
-        const DA_VERSION = 'v60';
+        const DA_VERSION = 'v62';
         window.addEventListener('load', () => document.querySelectorAll('.da-ver-txt').forEach(e => e.textContent = 'DentiAgenda ' + DA_VERSION));
         // Texto del estado de SmileLike para un paciente (usa lo guardado; abajo se refresca solo ese paciente)
         function textoEstadoSmile(nombre){
@@ -4653,7 +4653,7 @@ let mesa = null;
 function escAbrirMesa(n){
     const p = pacientes[n]; if(!p) return;
     const dg = p.diag || {};
-    mesa = { ia: Object.assign({ prov: 'gemini', cargando: [], res: {}, casoId: null }, dg.ia || {}, { cargando: [] }), nombre: n, d: Object.assign({ rel: '', incSup: '', incInf: '', hall: [], otro: '', extr: '', dientes: [], aparatos: [], aparatoOtro: '', nota: '' }, dg.d || {}), mensaje: dg.mensaje || '', editado: !!dg.editado, informe: dg.informe || '', informeEditado: !!dg.informeEditado };
+    mesa = { ia: Object.assign({ prov: 'gemini', cargando: [], res: {}, casoId: null }, dg.ia || {}, { cargando: [] }), nombre: n, d: Object.assign({ rel: '', incSup: '', incInf: '', hall: [], otro: '', extr: '', dientes: [], aparatos: [], aparatoOtro: '', nota: '', apinSup: '', apinInf: '', perfil: '', crec: '', atmSint: '' }, dg.d || {}), mensaje: dg.mensaje || '', editado: !!dg.editado, informe: dg.informe || '', informeEditado: !!dg.informeEditado };
     if(!Array.isArray(mesa.d.aparatos)) mesa.d.aparatos = [];
     if(mesa.d.bracket){ if(!mesa.d.aparatos.includes(mesa.d.bracket)) mesa.d.aparatos.push(mesa.d.bracket); delete mesa.d.bracket; }   // borradores viejos
     editandoAhora = true;
@@ -4694,11 +4694,11 @@ function mesaCambio(){ renderMesaDecisiones(); mesaAutoTextos(); }
 function trazadoSeccion(p){
     const tzd = p.trazado;
     return `<div class="mesa-sec" style="border:1.5px dashed var(--primary); border-radius:12px; padding:10px;">
-        <label>📐 Trazado y valores <span style="font-weight:normal; color:var(--text-muted);">opcional · solo aquí, el paciente no lo ve</span></label>
+        <label>Trazado y valores <span style="font-weight:normal; color:var(--text-muted);">opcional · solo aquí, el paciente no lo ve</span></label>
         <div style="display:flex; gap:8px; align-items:center; margin-bottom:6px;">
             ${tzd ? `<img src="${escAttr(tzd.url)}" style="width:54px; height:54px; border-radius:8px; object-fit:cover; cursor:pointer;" onclick="mesaZoom(this.src)">` : ''}
-            <button class="esc-mini" onclick="trazoAbrir()">📐 Hacer trazado aquí</button>
-            <button class="esc-mini" onclick="mesaSubirTrazado()">${tzd ? '🔄 Reemplazar imagen' : '➕ Subir trazado (imagen)'}</button>
+            <button class="esc-mini" onclick="trazoAbrir()">Hacer trazado aquí</button>
+            <button class="esc-mini" onclick="mesaSubirTrazado()">${tzd ? 'Reemplazar imagen' : 'Subir trazado (imagen)'}</button>
             ${tzd ? '<button class="esc-mini" onclick="mesaQuitarTrazado()">🗑️</button>' : ''}
         </div>
         <textarea class="inset-3d" rows="3" style="width:100%; font-size:0.8rem;" placeholder="Valores del trazado (opcional): SNA 82, SNB 78, ANB 4, SN-GoGn 34, 1-NA 26° 5 mm, 1-NB 30° 6 mm, interincisal 120°…" oninput="mesaValoresInput(this.value)" onchange="mesaValoresGuardar()">${escHtml(p.trazadoValores || '')}</textarea>
@@ -4776,6 +4776,7 @@ function renderMesaDecisiones(){
         <div class="esc-sub" style="margin-bottom:8px;">📱 ${escHtml(p.telefono || 'sin teléfono')} · Toca una radiografía para ampliarla</div>
         <div class="mesa-estudios">${est.length ? est.map(e => `<img src="${escAttr(e.url)}" alt="${escAttr(e.nombre || '')}" onclick="mesaZoom(this.src)">`).join('') : '<div class="esc-vacio">Sin estudios subidos.</div>'}</div>
         ${trazadoSeccion(p)}
+        ${botSeccion(p)}
         <div id="iaBloque">${iaBloqueInner()}</div>
 
         <div class="mesa-sec"><label>Relación entre tu maxilar superior y la mandíbula</label><div class="mesa-chips">${MESA_REL.map(x => mesaChip('rel', x[0], x[1])).join('')}</div></div>
@@ -5131,7 +5132,7 @@ function iaBloqueInner(){
     const opt = (v, t) => `<option value="${v}"${ia.prov === v ? ' selected' : ''}>${t}</option>`;
     const tarjetas = ['claude', 'gemini', 'grok'].filter(k => ia.res[k]).map(k => {
         const x = ia.res[k];
-        if(x.error) return `<div class="esc-card" style="cursor:default; display:block;"><b>🤖 ${IA_NOMBRE[k]}</b><div class="esc-sub" style="color:#c53030;">⚠️ ${escHtml(x.error)}</div></div>`;
+        if(x.error) return `<div class="esc-card" style="cursor:default; display:block;"><b>${IA_NOMBRE[k]}</b><div class="esc-sub" style="color:#c53030;">${escHtml(x.error)}</div></div>`;
         const r = x.resultado, c = r.confianza || {};
         const cf = (v) => v ? ` <span class="esc-sub">(confianza ${v})</span>` : '';
         const hall = { caries: 'caries', terceros: 'terceros molares', raices: 'raíces cortas', retenidos: 'retenidos/incluidos', ausencias: 'ausencias', apinamiento: 'apiñamiento', diastemas: 'diastemas', osea: 'pérdida ósea', patologia: 'patología a vigilar', atm: 'posible alteración articular (ATM)' };
@@ -5143,24 +5144,24 @@ function iaBloqueInner(){
             ['Aparatología', r.aparatos.length ? r.aparatos.join(', ') : '—']
         ].map(f => `<div style="font-size:0.78rem; margin:2px 0;"><b>${f[0]}:</b> ${f[1]}</div>`).join('');
         const resp = (ia.resp && ia.resp[k]) || [];
-        const preg = r.preguntas.length ? `<div style="font-size:0.78rem; margin-top:6px;"><b>❓ Preguntas para ti</b> <span class="esc-sub">(responde las que quieras y reanaliza)</span>
-            ${r.preguntas.map((q, i) => `<div style="margin-top:5px;">${escHtml(q)}${(r.suposiciones || [])[i] ? `<div class="esc-sub" style="margin:2px 0;">💡 <i>Mi suposición:</i> ${escHtml(r.suposiciones[i])} <a href="#" style="color:var(--accent);" onclick="iaUsarSuposicion('${k}',${i});return false;">usar</a></div>` : ''}<input id="iaResp_${k}_${i}" class="inset-3d" style="width:100%; margin-top:2px; font-size:0.8rem;" placeholder="Tu respuesta…" value="${escAttr(resp[i] || '')}" oninput="iaGuardarResp('${k}',${i},this.value)"></div>`).join('')}
+        const preg = r.preguntas.length ? `<div style="font-size:0.78rem; margin-top:6px;"><b>Preguntas para ti</b> <span class="esc-sub">(responde las que quieras y reanaliza)</span>
+            ${r.preguntas.map((q, i) => `<div style="margin-top:5px;">${escHtml(q)}${(r.suposiciones || [])[i] ? `<div class="esc-sub" style="margin:2px 0;"><i>Suposición:</i> ${escHtml(r.suposiciones[i])} <a href="#" style="color:var(--accent);" onclick="iaUsarSuposicion('${k}',${i});return false;">usar</a></div>` : ''}<input id="iaResp_${k}_${i}" class="inset-3d" style="width:100%; margin-top:2px; font-size:0.8rem;" placeholder="Tu respuesta…" value="${escAttr(resp[i] || '')}" oninput="iaGuardarResp('${k}',${i},this.value)"></div>`).join('')}
             <textarea class="inset-3d" rows="2" style="width:100%; margin-top:6px; font-size:0.8rem;" placeholder="Algo más que la IA deba saber (opcional): edad dental, antecedentes, lo que ves tú…" oninput="mesa.ia.ctx=this.value">${escHtml(ia.ctx || '')}</textarea>
-            <button class="esc-mini" style="margin-top:6px; width:100%;" ${cargando ? 'disabled' : ''} onclick="iaAnalizar(true)">🔁 Reanalizar con mis respuestas</button></div>` : '';
+            <button class="esc-mini" style="margin-top:6px; width:100%;" ${cargando ? 'disabled' : ''} onclick="iaAnalizar(true)">Reanalizar con mis respuestas</button></div>` : '';
         return `<div class="esc-card" style="cursor:default; display:block; margin-top:8px;">
-            <div style="display:flex; justify-content:space-between;"><b>🤖 ${IA_NOMBRE[k]}</b><span class="esc-sub">${escHtml(x.modelo || '')} · ${x.segundos || '?'} s</span></div>
+            <div style="display:flex; justify-content:space-between;"><b>${IA_NOMBRE[k]}</b><span class="esc-sub">${escHtml(x.modelo || '')} · ${x.segundos || '?'} s</span></div>
             ${filas}
-            ${(r.ajustes || []).length ? `<div class="esc-sub" style="margin-top:6px; color:var(--accent);">⚙️ ${r.ajustes.map(escHtml).join(' ')}</div>` : ''}
-            ${r.observaciones ? `<div class="esc-sub" style="margin-top:6px;">💭 ${escHtml(r.observaciones)}</div>` : ''}
+            ${(r.ajustes || []).length ? `<div class="esc-sub" style="margin-top:6px; color:var(--accent);">${r.ajustes.map(escHtml).join(' ')}</div>` : ''}
+            ${r.observaciones ? `<div class="esc-sub" style="margin-top:6px;">${escHtml(r.observaciones)}</div>` : ''}
             ${preg}
-            <button class="esc-mini" style="margin-top:8px; width:100%;" onclick="mesaAplicarIA('${k}')">✔ Aplicar sugerencias de ${IA_NOMBRE[k]}${ia.aplicada === k ? ' (aplicadas)' : ''}</button>
+            <button class="esc-mini" style="margin-top:8px; width:100%;" onclick="mesaAplicarIA('${k}')">Aplicar sugerencias de ${IA_NOMBRE[k]}${ia.aplicada === k ? ' (aplicadas)' : ''}</button>
         </div>`;
     }).join('');
     return `<div class="mesa-sec" style="border:1.5px dashed var(--accent); border-radius:12px; padding:10px;">
-        <label>🤖 Asistente IA <span style="font-weight:normal; color:var(--text-muted);">sugiere; tú decides</span></label>
+        <label>Complementar con IA <span style="font-weight:normal; color:var(--text-muted);">segunda opinión sobre las imágenes; tú decides</span></label>
         <div style="display:flex; gap:6px;">
             <select class="inset-3d" style="flex:1; min-width:0;" onchange="mesa.ia.prov=this.value">${opt('claude', 'Claude')}${opt('gemini', 'Gemini')}${opt('grok', 'Grok')}${opt('todos', 'Los 3 (comparar)')}</select>
-            <button class="esc-mini" ${cargando ? 'disabled' : ''} onclick="iaAnalizar()">${cargando ? '⏳ Analizando…' : '🔍 Analizar estudios'}</button>
+            <button class="esc-mini" ${cargando ? 'disabled' : ''} onclick="iaAnalizar()">${cargando ? 'Analizando…' : 'Complementar con IA'}</button>
         </div>
         ${cargando ? `<div class="esc-sub" style="margin-top:6px;">Esperando a ${ia.cargando.map(k => IA_NOMBRE[k]).join(', ')}… puede tardar hasta un minuto.</div>` : ''}
         ${tarjetas}
@@ -5193,7 +5194,8 @@ async function iaAnalizar(reanalizar){
             const extra = reanalizar ? iaExtraDe(pv) : (m.ia.ctx || '').trim() ? '- Nota del doctor: ' + m.ia.ctx.trim() : '';
             if((p.trazado || String(p.trazadoValores || '').trim()) && !iaLlaveLocal(pv)) throw new Error('Para usar el trazado y los valores necesitas la llave de ' + IA_NOMBRE[pv] + ' guardada en este dispositivo (Laboratorio IA).');
             if(extra && !iaLlaveLocal(pv)) throw new Error('Para usar tus respuestas necesitas la llave de ' + IA_NOMBRE[pv] + ' guardada en este dispositivo (Laboratorio IA).');
-            m.ia.res[pv] = await iaLlamarServidor(pv, p, extra);
+            const eb = (m.bot && iaLlaveLocal(pv)) ? botTextoParaIA(m.bot) : '';
+            m.ia.res[pv] = await iaLlamarServidor(pv, p, [extra, eb].filter(Boolean).join('\n'));
             if(m.ia.resp) m.ia.resp[pv] = [];
         }
         catch(e){ console.error('IA', pv, e); m.ia.res[pv] = { error: iaMensajeError(e) }; }
@@ -5220,11 +5222,14 @@ async function iaRegistrarCaso(){
         const sug = {};
         Object.keys(mesa.ia.res).forEach(k => { const x = mesa.ia.res[k]; if(x && x.resultado) sug[k] = { modelo: x.modelo || '', r: x.resultado }; });
         const pz = pacientes[mesa.nombre], traz = (pz && pz.trazadoPuntos) ? { m: pz.trazadoPuntos.m || null, mmpx: pz.trazadoPuntos.mmpx || null, texto: pz.trazadoValores || '' } : null;
+        const pb = pz ? botValorar(pz, mesa.d, _botCfg) : null;
+        if(pb && (pb.rel || pb.extr)) sug.bot = { modelo: 'bot', r: { rel: pb.rel, incSup: pb.incSup, incInf: pb.incInf, extr: pb.extr, dientes: pb.dientes, aparatos: pb.aparatos, hall: null } };
         if(!Object.keys(sug).length && !traz) return;
         if(!mesa.ia.casoId) mesa.ia.casoId = 'iacaso_' + Date.now();
         const d = mesa.d, id = mesa.ia.casoId, nombre = mesa.nombre;
         const fin = { rel: d.rel, incSup: d.incSup, incInf: d.incInf, hall: d.hall.slice(), extr: d.extr, dientes: d.dientes.slice(), aparatos: d.aparatos.slice() };
-        await db.collection('agenda').doc(id).set({ tipo: 'iacaso', ts: Date.now(), paciente: nombre, sugerencias: sug, final: fin, traz: traz });
+        const entrada = { m: traz ? traz.m : null, apinSup: d.apinSup || '', apinInf: d.apinInf || '', perfil: d.perfil || '', crec: d.crec || '', atmSint: d.atmSint || '', edad: (pz ? iaEdadDe(pz) : 0) || 0, hall: d.hall.slice() };
+        await db.collection('agenda').doc(id).set({ tipo: 'iacaso', ts: Date.now(), paciente: nombre, sugerencias: sug, final: fin, traz: traz, entrada: entrada });
     }catch(e){ console.error('iaRegistrarCaso', e); }
 }
 
@@ -5237,7 +5242,7 @@ function iaJaccard(a, b){
 }
 function iaCalcularStats(casos){
     const st = {};
-    ['claude', 'gemini', 'grok'].forEach(k => st[k] = { n: 0, rel: [0, 0], incSup: [0, 0], incInf: [0, 0], extr: [0, 0], hall: [0, 0], dientes: [0, 0] });
+    ['bot', 'claude', 'gemini', 'grok'].forEach(k => st[k] = { n: 0, rel: [0, 0], incSup: [0, 0], incInf: [0, 0], extr: [0, 0], hall: [0, 0], dientes: [0, 0] });
     casos.forEach(c => {
         const f = c.final || {};
         Object.keys(c.sugerencias || {}).forEach(k => {
@@ -5245,7 +5250,7 @@ function iaCalcularStats(casos){
             t.n++;
             const cmp = (campo, fv, sv, excl) => { if(fv && fv !== excl){ t[campo][1]++; if(sv === fv) t[campo][0]++; } };
             cmp('rel', f.rel, s.rel, '?'); cmp('incSup', f.incSup, s.incSup); cmp('incInf', f.incInf, s.incInf); cmp('extr', f.extr, s.extr);
-            const jh = iaJaccard(f.hall, s.hall); if(jh !== null){ t.hall[0] += jh; t.hall[1]++; }
+            const jh = (k === 'bot') ? null : iaJaccard(f.hall, s.hall); if(jh !== null){ t.hall[0] += jh; t.hall[1]++; }
             if(f.extr === 'si'){ const jd = iaJaccard(f.dientes, s.dientes); if(jd !== null){ t.dientes[0] += jd; t.dientes[1]++; } }
         });
     });
@@ -5266,7 +5271,7 @@ async function abrirIaLab(){
     const lim = cfg.limiteDiario || 40;
     const st = iaCalcularStats(casos);
     const pct = (a) => a[1] ? Math.round(100 * a[0] / a[1]) + '% <span class="esc-sub">(' + a[1] + ')</span>' : '—';
-    const fila = (txt, campo) => `<tr><td style="padding:4px 6px;">${txt}</td>${['claude', 'gemini', 'grok'].map(k => `<td style="text-align:center; padding:4px 6px;">${pct(st[k][campo])}</td>`).join('')}</tr>`;
+    const fila = (txt, campo) => `<tr><td style="padding:4px 6px;">${txt}</td>${['bot', 'claude', 'gemini', 'grok'].map(k => `<td style="text-align:center; padding:4px 6px;">${pct(st[k][campo])}</td>`).join('')}</tr>`;
     cont.innerHTML = `
         <div class="esc-tray"><h3><span>🔑 Llaves en este dispositivo</span></h3>
             ${['claude', 'gemini', 'grok'].map(k => `<div class="form-group" style="margin-bottom:6px;"><label style="font-size:0.78rem;">${IA_NOMBRE[k]} ${iaLlaveLocal(k) ? '· ✅ guardada aquí' : '· sin llave local'}</label><input id="iaKey_${k}" type="password" autocomplete="off" class="inset-3d" placeholder="${iaLlaveLocal(k) ? '•••••• (deja vacío para no cambiar)' : 'Pega aquí tu llave'}"></div>`).join('')}
@@ -5279,6 +5284,13 @@ async function abrirIaLab(){
             <button class="btn-3d" style="width:100%; margin-top:6px;" onclick="iaGuardarConfig()">💾 Guardar</button>
             <div class="esc-sub" style="margin-top:6px;">Escribe una regla por renglón, con tus palabras: la IA las recibe en cada análisis. La IA no aprende sola: aprende lo que tú escribes aquí. Si una regla es crítica, avísame y la vuelvo candado automático como el de autoligado.</div>
         </div>
+        <div class="esc-tray"><h3><span>Criterios del bot</span></h3>
+            ${(() => { const bc = Object.assign({}, BOT_DEF, cfg.bot || {}); const f = (k, t) => `<div class="form-group" style="margin-bottom:6px;"><label style="font-size:0.78rem;">${t}</label><input id="botc_${k}" type="number" step="0.5" class="inset-3d" value="${String(bc[k])}"></div>`;
+                return f('anbII', 'ANB por encima del cual es Clase II (°)') + f('anbIII', 'ANB por debajo del cual es Clase III (°)') + f('u1pro', 'U1-NA mayor a este valor = proinclinado (°)') + f('u1retro', 'U1-NA menor a este valor = retroinclinado (°)') + f('l1pro', 'L1-NB mayor a este valor = proinclinado (°)') + f('l1retro', 'L1-NB menor a este valor = retroinclinado (°)') + f('mmProt', 'Protrusión de incisivos desde (mm)') + f('ptsSi', 'Puntos para sugerir extracción de premolares (o más)') + f('ptsNo', 'Puntos para NO sugerir extracción (o menos)') + f('edadCrec', 'Edad por debajo de la cual se supone crecimiento (años)') + f('edadAlin', 'Edad desde la cual se considera alineadores (años)'); })()}
+            <button class="btn-3d" style="width:100%; margin-top:6px;" onclick="iaGuardarConfig()">Guardar</button>
+            <div class="esc-sub" style="margin-top:6px;">Son valores de partida, no tu criterio: ajústalos. Puntuación: apiñamiento (ninguno -1, leve 0, moderado +1, severo +3) + protrusión de cada arcada (+1) + perfil convexo (+1) o cóncavo (-2) - ortopedia posible (-1).</div>
+        </div>
+        <div class="esc-tray"><h3><span>Lo que ha aprendido el bot</span></h3>${botPanelAprendizaje(casos, cfg.bot)}</div>
         <div class="esc-tray"><h3><span>⚙️ Modelos y tope diario</span></h3>
             ${['claude', 'gemini', 'grok'].map(k => `<div class="form-group" style="margin-bottom:6px;"><label style="font-size:0.78rem;">${IA_NOMBRE[k]} · modelo</label><input id="iaMod_${k}" class="inset-3d" value="${escAttr(mod[k])}"></div>`).join('')}
             <div class="form-group" style="margin-bottom:6px;"><label style="font-size:0.78rem;">Gemini · modelo de respaldo (se usa si el principal sigue saturado)</label><input id="iaResp_gemini_cfg" class="inset-3d" value="${escAttr((cfg.respaldo || {}).gemini !== undefined ? cfg.respaldo.gemini : 'gemini-3.1-pro-preview')}"></div>
@@ -5289,11 +5301,11 @@ async function abrirIaLab(){
         <div class="esc-tray"><h3><span>📊 Tablero de aciertos</span><small>${casos.length} caso(s)</small></h3>
             ${errMsg ? `<div class="esc-sub" style="color:#c53030;">No pude leer los casos: ${escHtml(errMsg)}</div>` : ''}
             ${casos.length ? `<table style="width:100%; border-collapse:collapse; font-size:0.8rem;">
-                <tr style="color:var(--primary);"><th style="text-align:left; padding:4px 6px;"></th><th>Claude</th><th>Gemini</th><th>Grok</th></tr>
-                <tr><td style="padding:4px 6px;">Casos comparados</td>${['claude', 'gemini', 'grok'].map(k => `<td style="text-align:center;">${st[k].n}</td>`).join('')}</tr>
+                <tr style="color:var(--primary);"><th style="text-align:left; padding:4px 6px;"></th><th>Bot</th><th>Claude</th><th>Gemini</th><th>Grok</th></tr>
+                <tr><td style="padding:4px 6px;">Casos comparados</td>${['bot', 'claude', 'gemini', 'grok'].map(k => `<td style="text-align:center;">${st[k].n}</td>`).join('')}</tr>
                 ${fila('Clase esqueletal', 'rel')}${fila('Incisivos superiores', 'incSup')}${fila('Incisivos inferiores', 'incInf')}${fila('¿Extracción de premolares?', 'extr')}
-                <tr><td style="padding:4px 6px;">Hallazgos (coincidencia)</td>${['claude', 'gemini', 'grok'].map(k => `<td style="text-align:center;">${st[k].hall[1] ? Math.round(100 * st[k].hall[0] / st[k].hall[1]) + '% <span class="esc-sub">(' + st[k].hall[1] + ')</span>' : '—'}</td>`).join('')}</tr>
-                <tr><td style="padding:4px 6px;">Dientes a extraer</td>${['claude', 'gemini', 'grok'].map(k => `<td style="text-align:center;">${st[k].dientes[1] ? Math.round(100 * st[k].dientes[0] / st[k].dientes[1]) + '% <span class="esc-sub">(' + st[k].dientes[1] + ')</span>' : '—'}</td>`).join('')}</tr>
+                <tr><td style="padding:4px 6px;">Hallazgos (coincidencia)</td>${['bot', 'claude', 'gemini', 'grok'].map(k => `<td style="text-align:center;">${st[k].hall[1] ? Math.round(100 * st[k].hall[0] / st[k].hall[1]) + '% <span class="esc-sub">(' + st[k].hall[1] + ')</span>' : '—'}</td>`).join('')}</tr>
+                <tr><td style="padding:4px 6px;">Dientes a extraer</td>${['bot', 'claude', 'gemini', 'grok'].map(k => `<td style="text-align:center;">${st[k].dientes[1] ? Math.round(100 * st[k].dientes[0] / st[k].dientes[1]) + '% <span class="esc-sub">(' + st[k].dientes[1] + ')</span>' : '—'}</td>`).join('')}</tr>
             </table>
             <div class="esc-sub" style="margin-top:8px;">Compara lo que sugirió cada IA contra tu decisión final al aprobar o enviar. Si la IA dejó un campo vacío cuenta como fallo. Entre paréntesis, cuántos casos entraron en ese cálculo. Con menos de 10 casos son solo una pista.</div>`
             : '<div class="esc-vacio">Aún no hay casos. Se llenan solos: analiza un paciente con IA, ajusta tus decisiones y aprueba o envía el diagnóstico.</div>'}
@@ -5310,7 +5322,7 @@ async function iaGuardarConfig(){
     const modelos = {};
     ['claude', 'gemini', 'grok'].forEach(k => { const v = document.getElementById('iaMod_' + k).value.trim(); if(v) modelos[k] = v; });
     const lim = parseInt(document.getElementById('iaLimite').value, 10) || 40;
-    try{ await db.collection('agenda').doc('ia_config').set({ modelos: modelos, limiteDiario: lim, reglas: (document.getElementById('iaReglas').value || '').trim(), sinAutoligadoExtr: document.getElementById('iaSinAuto').checked, respaldo: { gemini: (document.getElementById('iaResp_gemini_cfg').value || '').trim() } }, { merge: true }); alert('Guardado.'); }
+    try{ await db.collection('agenda').doc('ia_config').set({ modelos: modelos, limiteDiario: lim, reglas: (document.getElementById('iaReglas').value || '').trim(), bot: (() => { const o = {}; Object.keys(BOT_DEF).forEach(k => { const v = parseFloat(document.getElementById('botc_' + k).value); if(!isNaN(v)) o[k] = v; }); return o; })(), sinAutoligadoExtr: document.getElementById('iaSinAuto').checked, respaldo: { gemini: (document.getElementById('iaResp_gemini_cfg').value || '').trim() } }, { merge: true }); alert('Guardado.'); _botCfgCargada = false; _botCfg = {}; }
     catch(e){ alert('No se pudo guardar: ' + (e.message || e)); }
 }
 </script>
@@ -5603,6 +5615,281 @@ async function trazoGuardar(){
     }
 }
 
+</script>
+
+<script>
+// ============ BOT DENTIAGENDA: valoración por criterios (sin IA externa) ============
+// Los umbrales son un punto de partida razonable, NO tu criterio: se ajustan en Laboratorio IA > Criterios del bot.
+const BOT_DEF = { anbII: 4, anbIII: 0, u1pro: 26, u1retro: 18, l1pro: 29, l1retro: 21, mmProt: 6, ptsSi: 3, ptsNo: 1, edadCrec: 15, edadAlin: 16 };
+let _botCfg = {}, _botCfgCargada = false, _botCasos = null, _botCasosCargando = false;
+const BOT_APIN = { ninguno: -1, leve: 0, moderado: 1, severo: 3 };
+function botValorar(p, d, cfg){
+    const c = Object.assign({}, BOT_DEF, cfg || {});
+    const m = (p && p.trazadoPuntos && p.trazadoPuntos.m) || null;
+    const edad = (p && p.edadFija) || iaEdadDe(p || {});
+    const r = { rel: '', incSup: '', incInf: '', extr: '', dientes: [], aparatos: [], atm: false, razones: [], faltan: [], pts: null, limite: false, confianza: '' };
+    const crec = d.crec === 'si' ? true : (d.crec === 'no' ? false : (edad ? edad < c.edadCrec : null));
+    // 1. Esquelético e incisivos (del trazado)
+    if(!m || m.anb == null) r.faltan.push('Trazado cefalométrico (como mínimo S, N, A y B)');
+    else{
+        r.rel = m.anb > c.anbII ? 'II' : (m.anb < c.anbIII ? 'III' : 'I');
+        r.razones.push('Clase ' + r.rel + ' esquelética (ANB ' + m.anb + '°).');
+    }
+    if(m && m.u1na != null){
+        r.incSup = m.u1na > c.u1pro ? 'pro' : (m.u1na < c.u1retro ? 'retro' : 'normal');
+        r.razones.push('Incisivos superiores ' + { pro: 'proinclinados', retro: 'retroinclinados', normal: 'con inclinación normal' }[r.incSup] + ' (U1-NA ' + m.u1na + '°).');
+    }else if(m) r.faltan.push('Incisivo superior (puntos U1 y U1A)');
+    if(m && m.l1nb != null){
+        r.incInf = m.l1nb > c.l1pro ? 'pro' : (m.l1nb < c.l1retro ? 'retro' : 'normal');
+        r.razones.push('Incisivos inferiores ' + { pro: 'proinclinados', retro: 'retroinclinados', normal: 'con inclinación normal' }[r.incInf] + ' (L1-NB ' + m.l1nb + '°).');
+    }else if(m) r.faltan.push('Incisivo inferior (puntos L1 y L1A)');
+    // 2. Extracción de premolares
+    const aS = BOT_APIN[d.apinSup], aI = BOT_APIN[d.apinInf];
+    if(aS === undefined && aI === undefined) r.faltan.push('Apiñamiento (superior e inferior)');
+    if(!d.perfil) r.faltan.push('Perfil facial');
+    if(m && (aS !== undefined || aI !== undefined)){
+        let pts = Math.max(aS === undefined ? -9 : aS, aI === undefined ? -9 : aI);
+        r.razones.push('Apiñamiento: ' + (d.apinSup ? 'superior ' + d.apinSup : '') + (d.apinSup && d.apinInf ? ', ' : '') + (d.apinInf ? 'inferior ' + d.apinInf : '') + ' (' + (pts >= 3 ? '+3' : (pts >= 1 ? '+1' : (pts === 0 ? '0' : '-1'))) + ').');
+        const protS = m.u1na != null && (m.u1na > c.u1pro || (m.u1nam != null && m.u1nam > c.mmProt));
+        const protI = m.l1nb != null && (m.l1nb > c.l1pro || (m.l1nbm != null && m.l1nbm > c.mmProt));
+        if(protS){ pts += 1; r.razones.push('Protrusión de incisivos superiores (+1).'); }
+        if(protI){ pts += 1; r.razones.push('Protrusión de incisivos inferiores (+1).'); }
+        if(d.perfil === 'convexo'){ pts += 1; r.razones.push('Perfil convexo (+1).'); }
+        if(d.perfil === 'concavo'){ pts -= 2; r.razones.push('Perfil cóncavo (-2).'); }
+        const ortop = crec === true && (r.rel === 'II' || r.rel === 'III');
+        if(ortop){ pts -= 1; r.razones.push('Paciente en crecimiento con discrepancia esquelética: la ortopedia puede resolver parte del problema (-1).'); }
+        r.pts = pts;
+        if(pts >= c.ptsSi){
+            r.extr = 'si';
+            const sup = aS >= 1 || r.incSup === 'pro', inf = aI >= 1 || r.incInf === 'pro';
+            let dd;
+            if(sup && inf) dd = [14, 24, 34, 44];
+            else if(sup) dd = (r.rel === 'III') ? [14, 24, 34, 44] : [14, 24];
+            else if(inf) dd = (r.rel === 'II') ? [14, 24, 34, 44] : [34, 44];
+            else dd = [14, 24, 34, 44];
+            r.dientes = dd;
+            r.razones.push('Puntuación ' + pts + ': se sugiere extracción de premolares (' + dd.join(', ') + ').');
+        }else if(pts <= c.ptsNo){
+            r.extr = 'no';
+            r.razones.push('Puntuación ' + pts + ': no se sugiere extracción de premolares.');
+        }else{
+            r.limite = true;
+            r.razones.push('Puntuación ' + pts + ': caso limítrofe, la decisión sobre premolares depende de tu criterio clínico.');
+        }
+    }
+    // 3. Aparatología
+    if(crec === true && (r.rel === 'II' || r.rel === 'III')){
+        r.aparatos.push('Ortopedia');
+        r.razones.push('En crecimiento con Clase ' + r.rel + ': ortopedia primero; los brackets se definen en una fase posterior.');
+    }else if(r.extr === 'si'){
+        r.aparatos.push('Estándar metálico');
+        r.razones.push('Con extracciones se evita el autoligado: brackets metálicos estándar.');
+    }else if(r.extr === 'no'){
+        const leve = (aS === undefined || aS <= 0) && (aI === undefined || aI <= 0);
+        if(edad && edad >= c.edadAlin && leve && r.rel === 'I' && r.incSup === 'normal' && r.incInf === 'normal'){
+            r.aparatos.push('Alineadores');
+            r.razones.push('Adulto con caso leve y sin extracciones: candidato a alineadores.');
+        }else{
+            r.aparatos.push('Autoligado');
+            r.razones.push('Sin extracciones: se puede aprovechar el autoligado.');
+        }
+    }
+    // 4. ATM
+    if((d.hall || []).includes('atm') || d.atmSint === 'si'){
+        r.atm = true; r.aparatos.push('Férula de desprogramación');
+        r.razones.push('Datos o síntomas de ATM: férula de desprogramación antes o junto con el tratamiento.');
+    }
+    if(m && m.u1nam == null && m.l1nbm == null) r.faltan.push('Calibración en mm (para la protrusión en milímetros)');
+    r.confianza = r.faltan.filter(x => !/Calibración/.test(x)).length === 0 ? 'alta' : (r.faltan.length <= 1 ? 'media' : 'baja');
+    return r;
+}
+
+// ---- Rasgos de un caso (para compararlo con tus casos anteriores) ----
+function botRasgos(m, d, cfg){
+    const c = Object.assign({}, BOT_DEF, cfg || {});
+    const nivel = x => (x === undefined ? null : x);
+    const a = [BOT_APIN[d.apinSup], BOT_APIN[d.apinInf]].filter(x => x !== undefined);
+    const ap = a.length ? Math.max.apply(null, a) : null;
+    return {
+        rel: (m && m.anb != null) ? (m.anb > c.anbII ? 'II' : (m.anb < c.anbIII ? 'III' : 'I')) : null,
+        apin: ap === null ? null : (ap >= 3 ? 'severo' : (ap >= 1 ? 'moderado' : 'leve_o_nada')),
+        perfil: d.perfil || null,
+        protS: m && m.u1na != null ? (m.u1na > c.u1pro || (m.u1nam != null && m.u1nam > c.mmProt)) : null,
+        protI: m && m.l1nb != null ? (m.l1nb > c.l1pro || (m.l1nbm != null && m.l1nbm > c.mmProt)) : null
+    };
+}
+// Casos tuyos parecidos al actual (mismos rasgos en al menos 4 de 5) y qué decidiste en ellos
+function botSimilares(rasgos, casos, cfg){
+    const out = { n: 0, si: 0, aparatos: {} };
+    (casos || []).forEach(cs => {
+        const e = cs.entrada, f = cs.final || {};
+        if(!e || !e.m || (f.extr !== 'si' && f.extr !== 'no')) return;
+        const q = botRasgos(e.m, e, cfg);
+        let ok = 0, tot = 0;
+        ['rel', 'apin', 'perfil', 'protS', 'protI'].forEach(k => { if(rasgos[k] !== null && q[k] !== null){ tot++; if(rasgos[k] === q[k]) ok++; } });
+        if(tot >= 3 && ok >= Math.max(3, tot - 1)){
+            out.n++; if(f.extr === 'si') out.si++;
+            (f.aparatos || []).forEach(a => { out.aparatos[a] = (out.aparatos[a] || 0) + 1; });
+        }
+    });
+    return out;
+}
+// Preguntas del bot: cada una con su sugerencia (si hay base para darla)
+function botSugerencias(p, d, b, sim, cfg){
+    const c = Object.assign({}, BOT_DEF, cfg || {});
+    const m = (p && p.trazadoPuntos && p.trazadoPuntos.m) || null, edad = iaEdadDe(p || {});
+    const s = {};
+    if(!d.perfil && m && m.anb != null){
+        const prot = (m.u1na != null && m.u1na > c.u1pro) || (m.l1nb != null && m.l1nb > c.l1pro);
+        s.perfil = { v: (m.anb > c.anbII && prot) ? 'convexo' : (m.anb < c.anbIII ? 'concavo' : 'recto'), razon: 'según tu ANB (' + m.anb + '°) y la inclinación de incisivos; confírmalo con la foto de perfil' };
+    }
+    if(!d.crec && edad) s.crec = { v: edad < c.edadCrec ? 'si' : 'no', razon: 'por la edad (' + edad + ' años)' };
+    if(!d.atmSint && (d.hall || []).includes('atm')) s.atmSint = { v: 'si', razon: 'tienes marcado el hallazgo de ATM' };
+    const ia = (typeof mesa !== 'undefined' && mesa && mesa.ia && mesa.ia.res) || {};
+    const iaApin = Object.keys(ia).some(k => ia[k] && ia[k].resultado && (ia[k].resultado.hall || []).includes('apinamiento'));
+    if(iaApin){
+        if(!d.apinSup) s.apinSup = { v: 'moderado', razon: 'la IA marcó apiñamiento en las imágenes (no mide milímetros: confírmalo en el modelo o la boca)' };
+        if(!d.apinInf) s.apinInf = { v: 'moderado', razon: 'la IA marcó apiñamiento en las imágenes (no mide milímetros: confírmalo en el modelo o la boca)' };
+    }
+    if(b && b.limite && sim && sim.n >= 3){
+        const q = sim.si / sim.n;
+        if(q >= 0.6) s.extr = { v: 'si', razon: 'en ' + sim.si + ' de ' + sim.n + ' casos parecidos tuyos extrajiste' };
+        else if(q <= 0.4) s.extr = { v: 'no', razon: 'en ' + (sim.n - sim.si) + ' de ' + sim.n + ' casos parecidos tuyos no extrajiste' };
+    }
+    return s;
+}
+// Aprendizaje: con tus casos cerrados, ¿desde qué puntuación extraes realmente?
+function botAprender(casos, cfg){
+    const c = Object.assign({}, BOT_DEF, cfg || {});
+    const datos = [];
+    (casos || []).forEach(cs => {
+        const e = cs.entrada, f = cs.final || {};
+        if(!e || !e.m || e.m.anb == null || (f.extr !== 'si' && f.extr !== 'no')) return;
+        const b = botValorar({ edadFija: e.edad || 0, trazadoPuntos: { m: e.m } }, e, cfg);
+        if(b.pts === null) return;
+        datos.push({ pts: b.pts, si: f.extr === 'si', rel: b.rel, perfil: e.perfil || '', aparatos: f.aparatos || [] });
+    });
+    const res = { n: datos.length, datos: datos, t: null, acc: null, accActual: null, propuesta: null, porRel: {}, porPerfil: {}, autoConExtr: [0, 0] };
+    if(!datos.length) return res;
+    const acierto = t => datos.filter(x => (x.pts >= t) === x.si).length / datos.length;
+    res.accActual = acierto(c.ptsSi);
+    let mejor = null;
+    for(let t = -2; t <= 7; t++){ const a = acierto(t); if(mejor === null || a > mejor.a || (a === mejor.a && Math.abs(t - c.ptsSi) < Math.abs(mejor.t - c.ptsSi))) mejor = { t: t, a: a }; }
+    res.t = mejor.t; res.acc = mejor.a;
+    if(datos.length >= 10 && mejor.t !== c.ptsSi && mejor.a > res.accActual) res.propuesta = { ptsSi: mejor.t, ptsNo: mejor.t - 1 };
+    datos.forEach(x => {
+        const rr = res.porRel[x.rel] = res.porRel[x.rel] || [0, 0]; rr[1]++; if(x.si) rr[0]++;
+        if(x.perfil){ const pp = res.porPerfil[x.perfil] = res.porPerfil[x.perfil] || [0, 0]; pp[1]++; if(x.si) pp[0]++; }
+        if(x.si){ res.autoConExtr[1]++; if(x.aparatos.includes('Autoligado')) res.autoConExtr[0]++; }
+    });
+    return res;
+}
+function botTextoParaIA(b){
+    if(!b) return '';
+    const l = [];
+    if(b.rel) l.push('Clase esquelética: ' + b.rel);
+    if(b.incSup) l.push('Incisivos superiores: ' + b.incSup);
+    if(b.incInf) l.push('Incisivos inferiores: ' + b.incInf);
+    if(b.extr) l.push('Extracción de premolares: ' + b.extr + (b.dientes.length ? ' (' + b.dientes.join(', ') + ')' : ''));
+    if(b.limite) l.push('Extracción de premolares: caso limítrofe, sin decisión');
+    if(b.aparatos.length) l.push('Aparatología: ' + b.aparatos.join(', '));
+    if(!l.length) return '';
+    return '- Valoración previa del sistema del doctor (basada en su trazado y sus criterios): ' + l.join('; ') + '. Tu tarea es COMPLEMENTAR con lo que ves en las imágenes (caries, terceros molares, retenidos, lesiones, ATM, etc.) y señalar con claridad si algo de tu lectura no concuerda con esta valoración.';
+}
+function botCargarCasos(){
+    if(_botCasos !== null || _botCasosCargando) return;
+    _botCasosCargando = true;
+    try{
+        db.collection('agenda').where('tipo', '==', 'iacaso').get().then(q => { const l = []; q.forEach(d2 => l.push(d2.data())); _botCasos = l; _botCasosCargando = false; if(mesa) renderMesaDecisiones(); }).catch(() => { _botCasos = []; _botCasosCargando = false; });
+    }catch(e){ _botCasos = []; _botCasosCargando = false; }
+}
+function botAceptar(campo, v){ mesa.d[campo] = v; mesaCambio(); }
+function botPregunta(campo, titulo, opciones, sug){
+    const d = mesa.d, lab = {};
+    opciones.forEach(o => { lab[o[0]] = o[1]; });
+    const hay = sug && !d[campo] && lab[sug.v];
+    return `<div style="margin:8px 0 4px;"><div class="esc-sub" style="font-weight:bold;">${titulo}</div>
+        ${hay ? `<div class="esc-sub" style="margin:2px 0 4px;">Sugerencia: <b>${escHtml(lab[sug.v])}</b> (${escHtml(sug.razon)}). <a href="#" style="color:var(--accent); font-weight:bold;" onclick="botAceptar('${campo}','${sug.v}'); return false;">Aceptar</a></div>` : ''}
+        <div class="mesa-chips">${opciones.map(x => mesaChip(campo, x[0], x[1])).join('')}</div></div>`;
+}
+function botSeccion(p){
+    if(!_botCfgCargada){
+        _botCfgCargada = true;
+        try{ db.collection('agenda').doc('ia_config').get().then(sn => { _botCfg = (sn.exists && sn.data().bot) || {}; if(mesa) renderMesaDecisiones(); }).catch(() => {}); }catch(e){}
+    }
+    botCargarCasos();
+    const d = mesa.d, b = botValorar(p, d, _botCfg);
+    mesa.bot = b;
+    const m = (p.trazadoPuntos && p.trazadoPuntos.m) || null;
+    const sim = botSimilares(botRasgos(m, d, _botCfg), _botCasos, _botCfg);
+    const sg = botSugerencias(p, d, b, sim, _botCfg);
+    const apin = [['ninguno', 'Ninguno'], ['leve', 'Leve (menos de 4 mm)'], ['moderado', 'Moderado (4 a 8 mm)'], ['severo', 'Severo (más de 8 mm)']];
+    const edad = iaEdadDe(p);
+    const lin = [];
+    if(b.rel) lin.push('Clase ' + b.rel + ' esquelética');
+    if(b.incSup || b.incInf) lin.push('Incisivos: sup. ' + ({ normal: 'normal', pro: 'proinclinados', retro: 'retroinclinados' }[b.incSup] || '-') + ', inf. ' + ({ normal: 'normal', pro: 'proinclinados', retro: 'retroinclinados' }[b.incInf] || '-'));
+    if(b.extr === 'si') lin.push('Extracción de premolares: sí (' + b.dientes.join(', ') + ')');
+    else if(b.extr === 'no') lin.push('Extracción de premolares: no');
+    else if(b.limite) lin.push('Extracción de premolares: caso limítrofe');
+    if(b.aparatos.length) lin.push('Aparatología: ' + b.aparatos.join('; '));
+    const faltaTraz = !m || m.anb == null;
+    const memoria = sim.n >= 3 ? `En ${sim.n} casos tuyos parecidos, extrajiste en ${sim.si} (${Math.round(100 * sim.si / sim.n)}%).` : (_botCasos && _botCasos.length ? 'Todavía no tengo suficientes casos parecidos tuyos para comparar.' : '');
+    return `<div class="mesa-sec" style="border:1.5px solid var(--primary); border-radius:12px; padding:10px;">
+        <label>Valoración Bot DentiAgenda <span style="font-weight:normal; color:var(--text-muted);">te hace preguntas, sugiere y aprende de tus casos; la IA queda como complemento</span></label>
+        ${faltaTraz ? `<div class="esc-sub" style="margin:6px 0; color:#b7791f;">Primero necesito el trazado (S, N, A y B como mínimo). <a href="#" style="color:var(--accent); font-weight:bold;" onclick="trazoAbrir('${String(mesa.nombre).replace(/'/g, "\\'")}'); return false;">Hacer trazado</a></div>` : ''}
+        ${botPregunta('apinSup', 'Apiñamiento superior', apin, sg.apinSup)}
+        ${botPregunta('apinInf', 'Apiñamiento inferior', apin, sg.apinInf)}
+        ${botPregunta('perfil', 'Perfil facial', [['recto', 'Recto'], ['convexo', 'Convexo'], ['concavo', 'Cóncavo']], sg.perfil)}
+        ${botPregunta('crec', 'Crecimiento' + (edad ? ' (' + edad + ' años)' : ''), [['si', 'En crecimiento'], ['no', 'Sin crecimiento']], sg.crec)}
+        ${botPregunta('atmSint', 'Síntomas de ATM (dolor, chasquidos, limitación de apertura)', [['si', 'Sí hay'], ['no', 'No hay']], sg.atmSint)}
+        ${b.limite ? botPregunta('extr', 'Caso limítrofe: ¿extracción de premolares?', [['si', 'Sí'], ['no', 'No']], sg.extr) : ''}
+        <div style="margin-top:10px; padding:8px; border-radius:8px; background:var(--bg-color); box-shadow:inset 2px 2px 5px var(--shadow-dark), inset -2px -2px 5px var(--shadow-light);">
+            ${lin.length ? lin.map(t => '<div style="font-size:0.84rem; margin:2px 0;"><b>' + escHtml(t) + '</b></div>').join('') : '<div class="esc-sub">Sin datos suficientes todavía.</div>'}
+            ${memoria ? '<div class="esc-sub" style="margin-top:6px;">Memoria: ' + escHtml(memoria) + '</div>' : ''}
+            ${b.razones.length ? '<div class="esc-sub" style="margin-top:6px;">Razones:<br>' + b.razones.map(t => '- ' + escHtml(t)).join('<br>') + '</div>' : ''}
+            ${b.faltan.length ? '<div class="esc-sub" style="margin-top:6px; color:#b7791f;">Para afinar falta: ' + b.faltan.map(escHtml).join('; ') + '.</div>' : ''}
+            <div class="esc-sub" style="margin-top:4px;">Confianza de esta valoración: ${b.confianza}. Los umbrales son valores de partida; ajústalos en Laboratorio IA.</div>
+        </div>
+        <button class="esc-mini" style="margin-top:8px; width:100%;" onclick="botAplicar()">Aplicar valoración del bot a la mesa</button>
+    </div>`;
+}
+function botAplicar(){
+    const b = mesa.bot; if(!b) return;
+    const d = mesa.d;
+    if(b.rel) d.rel = b.rel;
+    if(b.incSup) d.incSup = b.incSup;
+    if(b.incInf) d.incInf = b.incInf;
+    if(b.extr){ d.extr = b.extr; d.dientes = b.extr === 'si' ? b.dientes.slice() : []; }
+    if(b.aparatos.length) d.aparatos = b.aparatos.slice();
+    if(b.atm && !d.hall.includes('atm')) d.hall.push('atm');
+    mesaCambio();
+}
+
+async function botAplicarPropuesta(ptsSi, ptsNo){
+    if(!confirm('Cambiar el umbral de extracción: sí desde ' + ptsSi + ' puntos, no desde ' + ptsNo + ' o menos. ¿Continuar?')) return;
+    try{
+        const sn = await db.collection('agenda').doc('ia_config').get();
+        const bc = Object.assign({}, (sn.exists && sn.data().bot) || {}, { ptsSi: ptsSi, ptsNo: ptsNo });
+        await db.collection('agenda').doc('ia_config').set({ bot: bc }, { merge: true });
+        _botCfgCargada = false; _botCfg = {}; alert('Umbral actualizado.'); abrirIaLab();
+    }catch(e){ alert('No pude guardar: ' + (e.message || e)); }
+}
+function botPanelAprendizaje(casos, cfg){
+    const ap = botAprender(casos, cfg), MIN = 30;
+    if(!ap.n) return '<div class="esc-vacio">Aún no hay casos cerrados con trazado para aprender. Se llenan solos al aprobar o enviar un diagnóstico.</div>';
+    const pc = a => a[1] ? Math.round(100 * a[0] / a[1]) + '% (' + a[0] + ' de ' + a[1] + ')' : '-';
+    const L = [];
+    L.push('Casos con trazado y decisión de extracción: <b>' + ap.n + '</b>' + (ap.n < MIN ? '. Con menos de ' + MIN + ' casos mis conclusiones son tentativas.' : '.'));
+    L.push('Acierto del bot con tus umbrales actuales: <b>' + Math.round(100 * ap.accActual) + '%</b>. Mejor umbral según tus casos: extraer desde <b>' + ap.t + '</b> puntos (' + Math.round(100 * ap.acc) + '%).');
+    const rel = Object.keys(ap.porRel).map(k => 'Clase ' + k + ': extraes en ' + pc(ap.porRel[k]));
+    if(rel.length) L.push(rel.join('<br>'));
+    const pf = Object.keys(ap.porPerfil).map(k => 'perfil ' + k + ': extraes en ' + pc(ap.porPerfil[k]));
+    if(pf.length) L.push(pf.join('<br>'));
+    if(ap.autoConExtr[1]) L.push('Con extracción usaste Autoligado en ' + pc(ap.autoConExtr) + ' de los casos.');
+    return '<div class="esc-sub" style="line-height:1.5;">' + L.join('<br><br>') + '</div>'
+        + (ap.propuesta ? '<button class="btn-3d" style="width:100%; margin-top:8px;" onclick="botAplicarPropuesta(' + ap.propuesta.ptsSi + ',' + ap.propuesta.ptsNo + ')">Ajustar el umbral a lo que haces (' + ap.propuesta.ptsSi + ' puntos)</button>' : '')
+        + '<div class="esc-sub" style="margin-top:6px;">El bot aprende frecuencias y umbrales de tus decisiones; no sabe el motivo clínico de cada una. Nada cambia sin que lo aceptes.</div>';
+}
 </script>
 
 </body>
