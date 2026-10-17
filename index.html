@@ -2605,7 +2605,7 @@
             return d <= 0 ? 'hoy' : (d === 1 ? 'ayer' : 'hace ' + d + ' d');
         }
         function usaSmile(nombre){ const u = usoSmile[nombre]; return !!(u && u.ts); }
-        const DA_VERSION = 'v57';
+        const DA_VERSION = 'v58';
         window.addEventListener('load', () => document.querySelectorAll('.da-ver-txt').forEach(e => e.textContent = 'DentiAgenda ' + DA_VERSION));
         // Texto del estado de SmileLike para un paciente (usa lo guardado; abajo se refresca solo ese paciente)
         function textoEstadoSmile(nombre){
@@ -4684,13 +4684,14 @@ function mesaToggle(campo, valor){ const a = mesa.d[campo]; const i = a.indexOf(
 function mesaDiente(num){ const a = mesa.d.dientes; const i = a.indexOf(num); if(i >= 0) a.splice(i, 1); else a.push(num); mesaCambio(); }
 function mesaCambio(){ renderMesaDecisiones(); if(!mesa.editado) mesaRegenerar(true); }
 function trazadoSeccion(p){
-    const tz = p.trazado;
+    const tzd = p.trazado;
     return `<div class="mesa-sec" style="border:1.5px dashed var(--primary); border-radius:12px; padding:10px;">
         <label>📐 Trazado y valores <span style="font-weight:normal; color:var(--text-muted);">opcional · solo aquí, el paciente no lo ve</span></label>
         <div style="display:flex; gap:8px; align-items:center; margin-bottom:6px;">
-            ${tz ? `<img src="${escAttr(tz.url)}" style="width:54px; height:54px; border-radius:8px; object-fit:cover; cursor:pointer;" onclick="mesaZoom(this.src)">` : ''}
-            <button class="esc-mini" onclick="mesaSubirTrazado()">${tz ? '🔄 Reemplazar trazado' : '➕ Agregar trazado (imagen)'}</button>
-            ${tz ? '<button class="esc-mini" onclick="mesaQuitarTrazado()">🗑️</button>' : ''}
+            ${tzd ? `<img src="${escAttr(tzd.url)}" style="width:54px; height:54px; border-radius:8px; object-fit:cover; cursor:pointer;" onclick="mesaZoom(this.src)">` : ''}
+            <button class="esc-mini" onclick="trazoAbrir()">📐 Hacer trazado aquí</button>
+            <button class="esc-mini" onclick="mesaSubirTrazado()">${tzd ? '🔄 Reemplazar imagen' : '➕ Subir trazado (imagen)'}</button>
+            ${tzd ? '<button class="esc-mini" onclick="mesaQuitarTrazado()">🗑️</button>' : ''}
         </div>
         <textarea class="inset-3d" rows="3" style="width:100%; font-size:0.8rem;" placeholder="Valores del trazado (opcional): SNA 82, SNB 78, ANB 4, SN-GoGn 34, 1-NA 26° 5 mm, 1-NB 30° 6 mm, interincisal 120°…" oninput="mesaValoresInput(this.value)" onchange="mesaValoresGuardar()">${escHtml(p.trazadoValores || '')}</textarea>
         <div class="esc-sub" style="margin-top:4px;">Si los hay, la IA los usa con prioridad sobre su propia lectura de la lateral. La imagen se ajusta sola de tamaño (sin deformarla).</div>
@@ -5131,11 +5132,12 @@ async function iaRegistrarCaso(){
     try{
         const sug = {};
         Object.keys(mesa.ia.res).forEach(k => { const x = mesa.ia.res[k]; if(x && x.resultado) sug[k] = { modelo: x.modelo || '', r: x.resultado }; });
-        if(!Object.keys(sug).length) return;
+        const pz = pacientes[mesa.nombre], traz = (pz && pz.trazadoPuntos) ? { m: pz.trazadoPuntos.m || null, mmpx: pz.trazadoPuntos.mmpx || null, texto: pz.trazadoValores || '' } : null;
+        if(!Object.keys(sug).length && !traz) return;
         if(!mesa.ia.casoId) mesa.ia.casoId = 'iacaso_' + Date.now();
         const d = mesa.d, id = mesa.ia.casoId, nombre = mesa.nombre;
         const fin = { rel: d.rel, incSup: d.incSup, incInf: d.incInf, hall: d.hall.slice(), extr: d.extr, dientes: d.dientes.slice(), aparatos: d.aparatos.slice() };
-        await db.collection('agenda').doc(id).set({ tipo: 'iacaso', ts: Date.now(), paciente: nombre, sugerencias: sug, final: fin });
+        await db.collection('agenda').doc(id).set({ tipo: 'iacaso', ts: Date.now(), paciente: nombre, sugerencias: sug, final: fin, traz: traz });
     }catch(e){ console.error('iaRegistrarCaso', e); }
 }
 
@@ -5224,6 +5226,295 @@ async function iaGuardarConfig(){
     try{ await db.collection('agenda').doc('ia_config').set({ modelos: modelos, limiteDiario: lim, reglas: (document.getElementById('iaReglas').value || '').trim(), sinAutoligadoExtr: document.getElementById('iaSinAuto').checked, respaldo: { gemini: (document.getElementById('iaResp_gemini_cfg').value || '').trim() } }, { merge: true }); alert('Guardado.'); }
     catch(e){ alert('No se pudo guardar: ' + (e.message || e)); }
 }
+</script>
+
+<div class="modal-overlay" id="trazoModal" style="z-index:1200;">
+  <div class="modal" style="max-width:980px; padding:1rem;">
+    <div class="modal-header">
+      <h2 style="margin:0; color:var(--primary); font-size:1.1rem;">📐 Trazado cefalométrico (Steiner)</h2>
+      <button class="close-btn" onclick="trazoCerrar()">X</button>
+    </div>
+    <div id="trazoBody"></div>
+  </div>
+</div>
+<script>
+// ============ TRAZADO CEFALOMÉTRICO (Steiner) dentro de la mesa de trabajo ============
+const TRAZO_PUNTOS = [
+    { id: 'S', n: 'Sella', c: '#e74c3c' }, { id: 'N', n: 'Nasion', c: '#3498db' },
+    { id: 'A', n: 'Punto A', c: '#2ecc71' }, { id: 'B', n: 'Punto B', c: '#f39c12' },
+    { id: 'Pog', n: 'Pogonion', c: '#9b59b6' }, { id: 'Me', n: 'Menton', c: '#1abc9c' },
+    { id: 'Go', n: 'Gonion', c: '#e91e63' }, { id: 'ANS', n: 'Espina nasal anterior', c: '#95a5a6' },
+    { id: 'PNS', n: 'Espina nasal posterior', c: '#7f8c8d' }, { id: 'U1', n: 'Incisivo sup. (borde)', c: '#ff6b6b' },
+    { id: 'U1A', n: 'Incisivo sup. (ápice)', c: '#c0392b' }, { id: 'L1', n: 'Incisivo inf. (borde)', c: '#4ecdc4' },
+    { id: 'L1A', n: 'Incisivo inf. (ápice)', c: '#16a085' }
+];
+// [media, tolerancia, etiqueta, unidad]  (referencia de Steiner; ajústala a edad y grupo del paciente)
+const TRAZO_REF = {
+    sna: [82, 2, 'SNA', '°'], snb: [80, 2, 'SNB', '°'], anb: [2, 2, 'ANB', '°'],
+    snmp: [32, 5, 'SN-GoMe', '°'], snpp: [8, 3, 'SN-PP', '°'],
+    u1na: [22, 4, 'U1-NA', '°'], u1nam: [4, 2, 'U1-NA', ' mm'],
+    l1nb: [25, 4, 'L1-NB', '°'], l1nbm: [4, 2, 'L1-NB', ' mm'],
+    ii: [131, 6, 'Interincisal', '°'], pognb: [4, 2, 'Pog-NB', ' mm']
+};
+function trazoR1(v){ return v == null || isNaN(v) ? null : Math.round(v * 10) / 10; }
+function trazoAngVertice(p1, p2, p3){      // ángulo en p2 entre p2→p1 y p2→p3
+    if(!p1 || !p2 || !p3) return null;
+    const a = { x: p1.x - p2.x, y: p1.y - p2.y }, b = { x: p3.x - p2.x, y: p3.y - p2.y };
+    const m = Math.hypot(a.x, a.y) * Math.hypot(b.x, b.y); if(!m) return null;
+    return Math.acos(Math.max(-1, Math.min(1, (a.x * b.x + a.y * b.y) / m))) * 180 / Math.PI;
+}
+function trazoAngVec(a, b){
+    const m = Math.hypot(a.x, a.y) * Math.hypot(b.x, b.y); if(!m) return null;
+    return Math.acos(Math.max(-1, Math.min(1, (a.x * b.x + a.y * b.y) / m))) * 180 / Math.PI;
+}
+// Mide todo lo que se pueda con los puntos puestos. mmpx = milímetros por píxel (null si no se calibró).
+function trazoMedir(P, mmpx){
+    const m = {};
+    const f = (P.S && P.N) ? (P.N.x >= P.S.x ? 1 : -1) : 1;           // hacia dónde mira el paciente
+    m.sna = trazoR1(trazoAngVertice(P.S, P.N, P.A));
+    m.snb = trazoR1(trazoAngVertice(P.S, P.N, P.B));
+    m.anb = (m.sna != null && m.snb != null) ? trazoR1(m.sna - m.snb) : null;
+    if(P.S && P.N && P.Go && P.Me) m.snmp = trazoR1(trazoAngVec({ x: P.N.x - P.S.x, y: P.N.y - P.S.y }, { x: P.Me.x - P.Go.x, y: P.Me.y - P.Go.y }));
+    if(P.S && P.N && P.ANS && P.PNS) m.snpp = trazoR1(trazoAngVec({ x: P.N.x - P.S.x, y: P.N.y - P.S.y }, { x: P.ANS.x - P.PNS.x, y: P.ANS.y - P.PNS.y }));
+    // inclinación de un incisivo respecto a una línea N→X (con signo: + hacia adelante/proinclinado)
+    const incl = (tip, apex, X) => {
+        if(!P.N || !X || !tip || !apex) return null;
+        const d = { x: X.x - P.N.x, y: X.y - P.N.y }, ax = { x: tip.x - apex.x, y: tip.y - apex.y };
+        const ang = trazoAngVec(d, ax); if(ang == null) return null;
+        const cr = d.x * ax.y - d.y * ax.x;
+        return trazoR1(-f * Math.sign(cr) * ang);
+    };
+    // distancia (mm) de un punto a la línea N→X, positiva si queda por delante
+    const dist = (pt, X) => {
+        if(!mmpx || !P.N || !X || !pt) return null;
+        const d = { x: X.x - P.N.x, y: X.y - P.N.y }, L = Math.hypot(d.x, d.y); if(!L) return null;
+        const cr = d.x * (pt.y - P.N.y) - d.y * (pt.x - P.N.x);
+        return trazoR1(-f * cr / L * mmpx);
+    };
+    m.u1na = incl(P.U1, P.U1A, P.A); m.u1nam = dist(P.U1, P.A);
+    m.l1nb = incl(P.L1, P.L1A, P.B); m.l1nbm = dist(P.L1, P.B);
+    if(P.U1 && P.U1A && P.L1 && P.L1A) m.ii = trazoR1(trazoAngVec({ x: P.U1A.x - P.U1.x, y: P.U1A.y - P.U1.y }, { x: P.L1A.x - P.L1.x, y: P.L1A.y - P.L1.y }));
+    m.pognb = dist(P.Pog, P.B);
+    return m;
+}
+function trazoEstado(k, v){
+    const r = TRAZO_REF[k]; if(v == null || !r) return '';
+    return Math.abs(v - r[0]) <= r[1] ? 'normal' : (v > r[0] ? 'aumentado' : 'disminuido');
+}
+function trazoClase(m){ return m.anb == null ? '' : (m.anb > 4 ? 'II' : (m.anb < 0 ? 'III' : 'I')); }
+function trazoIncl(v, hi, lo){ return v == null ? '' : (v > hi ? 'pro' : (v < lo ? 'retro' : 'normal')); }
+function trazoInterpretar(m){
+    const L = [], cl = trazoClase(m);
+    if(cl){
+        let t = 'Clase ' + cl + ' esquelética (ANB ' + m.anb + '°)';
+        if(cl === 'II') t += m.snb != null && trazoEstado('snb', m.snb) === 'disminuido' ? ', con mandíbula retrusiva (SNB disminuido)' : (m.sna != null && trazoEstado('sna', m.sna) === 'aumentado' ? ', con maxilar protrusivo (SNA aumentado)' : '');
+        if(cl === 'III') t += m.sna != null && trazoEstado('sna', m.sna) === 'disminuido' ? ', con maxilar retrusivo (SNA disminuido)' : (m.snb != null && trazoEstado('snb', m.snb) === 'aumentado' ? ', con mandíbula protrusiva (SNB aumentado)' : '');
+        L.push(t + '.');
+    }
+    if(m.snmp != null) L.push('Patrón vertical: ' + (m.snmp > 37 ? 'hiperdivergente (plano mandibular aumentado)' : (m.snmp < 27 ? 'hipodivergente (plano mandibular disminuido)' : 'normodivergente')) + ' (SN-GoMe ' + m.snmp + '°).');
+    if(m.u1na != null) L.push('Incisivo superior ' + ({ pro: 'proinclinado', retro: 'retroinclinado', normal: 'bien inclinado' }[trazoIncl(m.u1na, 26, 18)]) + ' (U1-NA ' + m.u1na + '°' + (m.u1nam != null ? ', ' + m.u1nam + ' mm' : '') + ').');
+    if(m.l1nb != null) L.push('Incisivo inferior ' + ({ pro: 'proinclinado', retro: 'retroinclinado', normal: 'bien inclinado' }[trazoIncl(m.l1nb, 29, 21)]) + ' (L1-NB ' + m.l1nb + '°' + (m.l1nbm != null ? ', ' + m.l1nbm + ' mm' : '') + ').');
+    if(m.ii != null) L.push('Ángulo interincisal ' + m.ii + '° (' + trazoEstado('ii', m.ii) + ').');
+    return L;
+}
+function trazoTexto(m, mmpx){
+    const partes = Object.keys(TRAZO_REF).filter(k => m[k] != null).map(k => TRAZO_REF[k][2] + ' ' + m[k] + TRAZO_REF[k][3] + ' (' + trazoEstado(k, m[k]) + ')');
+    if(!partes.length) return '';
+    return 'Trazado Steiner (DentiAgenda): ' + partes.join(' · ') + (mmpx ? '' : ' · mm sin calibrar') + '.';
+}
+
+let tz = null;
+function trazoAbrir(){
+    if(!mesa) return;
+    const p = pacientes[mesa.nombre]; if(!p) return;
+    const est = (p.estudios || []);
+    const pre = p.trazadoPuntos || null;
+    tz = { nombre: mesa.nombre, img: null, w: 0, h: 0, pts: {}, hist: [], idx: 0, zoom: 1, mmpx: null, calib: null, fuente: '' };
+    let inicial = est.length ? est[est.length - 1] : null;
+    const lat = est.filter(e => /later|tele|ceph|cefal/i.test(e.nombre || ''));
+    if(lat.length) inicial = lat[lat.length - 1];
+    if(pre && pre.url && est.some(e => e.url === pre.url)) inicial = est.find(e => e.url === pre.url);
+    document.getElementById('trazoModal').style.display = 'flex';
+    trazoPintarShell(est, inicial);
+    if(inicial) trazoCargar(inicial.url, pre && pre.url === inicial.url ? pre : null);
+    else document.getElementById('trazoInfo').textContent = 'Este paciente no tiene estudios. Abre una radiografía desde tu equipo.';
+}
+function trazoCerrar(){ document.getElementById('trazoModal').style.display = 'none'; tz = null; }
+function trazoPintarShell(est, sel){
+    document.getElementById('trazoBody').innerHTML = `
+        <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-bottom:6px;">
+            <select id="trazoSel" class="inset-3d" style="flex:1; min-width:140px;" onchange="trazoCambiarImagen(this.value)">
+                ${est.map(e => `<option value="${escAttr(e.url)}"${sel && sel.url === e.url ? ' selected' : ''}>${escHtml(e.nombre || 'Estudio')}</option>`).join('')}
+            </select>
+            <button class="esc-mini" onclick="trazoAbrirArchivo()">📂 Abrir desde mi equipo</button>
+        </div>
+        <div id="trazoInfo" class="esc-sub" style="font-weight:bold; color:var(--accent); margin:4px 0;">Cargando imagen…</div>
+        <div id="trazoChips" class="mesa-chips" style="margin-bottom:6px;"></div>
+        <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:6px;">
+            <button class="esc-mini" onclick="trazoZoom(-0.5)">🔍−</button><button class="esc-mini" onclick="trazoZoom(0.5)">🔍+</button>
+            <button class="esc-mini" onclick="trazoZoom(0)">Ajustar</button>
+            <button class="esc-mini" onclick="trazoDeshacer()">↩ Deshacer</button>
+            <button class="esc-mini" onclick="trazoLimpiar()">Limpiar</button>
+            <button class="esc-mini" onclick="trazoCalibrar()">📏 Calibrar mm</button>
+        </div>
+        <div id="trazoWrap" style="overflow:auto; max-height:56vh; background:#111; border-radius:10px;"><canvas id="trazoCanvas" style="display:block; width:100%; cursor:crosshair;"></canvas></div>
+        <div id="trazoRes" style="margin-top:10px;"></div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
+            <button class="btn-3d btn-submit" style="flex:1; min-width:150px;" onclick="trazoGuardar()">💾 Guardar en el paciente</button>
+        </div>
+        <p class="esc-sub" style="margin-top:6px;">Toca la radiografía para colocar cada punto en orden. Para corregir uno: toca su botón y luego el lugar correcto. Los mm requieren calibrar con una distancia conocida (regla de la imagen). Referencia de Steiner: ajusta a edad y grupo del paciente. Apoyo, no diagnóstico.</p>`;
+    const cv = document.getElementById('trazoCanvas');
+    cv.onclick = trazoClick;
+}
+function trazoAbrirArchivo(){
+    const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*';
+    inp.onchange = () => { if(inp.files[0]) trazoCargar(inp.files[0], null); };
+    inp.click();
+}
+function trazoCambiarImagen(url){ trazoCargar(url, null); }
+async function trazoCargar(fuente, pre){
+    const info = document.getElementById('trazoInfo'); if(info) info.textContent = 'Cargando imagen…';
+    try{
+        let blob;
+        if(typeof fuente === 'string'){
+            let r; try{ r = await fetch(fuente); }catch(e){ iaAyudaCors(); throw new Error('No pude leer la imagen desde el navegador (falta el permiso de Storage; usa "Abrir desde mi equipo" mientras tanto).'); }
+            if(!r.ok) throw new Error('No se pudo leer la imagen (' + r.status + ').');
+            blob = await r.blob();
+        }else blob = fuente;
+        const url = URL.createObjectURL(blob);
+        const img = new Image();
+        await new Promise((ok, ko) => { img.onload = ok; img.onerror = () => ko(new Error('Imagen no válida.')); img.src = url; });
+        tz.img = img; tz.w = img.naturalWidth; tz.h = img.naturalHeight; tz.fuente = typeof fuente === 'string' ? fuente : '';
+        tz.pts = {}; tz.hist = []; tz.idx = 0; tz.mmpx = null; tz.calib = null; tz.zoom = 1;
+        if(pre && pre.w === tz.w && pre.h === tz.h){ tz.pts = JSON.parse(JSON.stringify(pre.pts || {})); tz.mmpx = pre.mmpx || null; tz.hist = Object.keys(tz.pts); }
+        trazoSiguiente();
+        const cv = document.getElementById('trazoCanvas'); cv.width = tz.w; cv.height = tz.h; cv.style.width = '100%';
+        trazoChips(); trazoDibujar(); trazoResultados();
+    }catch(e){ if(info) info.textContent = '⚠️ ' + (e.message || e); }
+}
+function trazoSiguiente(){
+    const i = TRAZO_PUNTOS.findIndex(p => !tz.pts[p.id]);
+    tz.idx = i < 0 ? TRAZO_PUNTOS.length : i;
+    const info = document.getElementById('trazoInfo'); if(!info) return;
+    if(tz.calib) info.textContent = '📏 Calibración: toca ' + (tz.calib.length === 0 ? 'el primer extremo' : 'el segundo extremo') + ' de la distancia conocida.';
+    else info.textContent = tz.idx < TRAZO_PUNTOS.length ? 'Siguiente: ' + TRAZO_PUNTOS[tz.idx].id + ' – ' + TRAZO_PUNTOS[tz.idx].n : '✅ Todos los puntos colocados. Revisa y guarda.';
+}
+function trazoChips(){
+    const c = document.getElementById('trazoChips'); if(!c) return;
+    c.innerHTML = TRAZO_PUNTOS.map((p, i) => `<button class="mesa-chip${tz.pts[p.id] ? ' on' : ''}${i === tz.idx ? ' sel' : ''}" title="${escAttr(p.n)}" style="${i === tz.idx ? 'outline:2px solid var(--accent);' : ''}" onclick="trazoElegir(${i})">${p.id}</button>`).join('');
+}
+function trazoElegir(i){ tz.calib = null; tz.idx = i; trazoSiguiente(); tz.idx = i; const info = document.getElementById('trazoInfo'); info.textContent = (tz.pts[TRAZO_PUNTOS[i].id] ? 'Corrigiendo: ' : 'Siguiente: ') + TRAZO_PUNTOS[i].id + ' – ' + TRAZO_PUNTOS[i].n; trazoChips(); }
+function trazoZoom(d){
+    const cv = document.getElementById('trazoCanvas'), wrap = document.getElementById('trazoWrap');
+    tz.zoom = d === 0 ? 1 : Math.max(1, Math.min(4, tz.zoom + d));
+    cv.style.width = (tz.zoom * 100) + '%';
+    wrap.scrollLeft = (wrap.scrollWidth - wrap.clientWidth) / 2;
+    trazoDibujar();
+}
+function trazoClick(e){
+    if(!tz || !tz.img) return;
+    const cv = e.currentTarget, r = cv.getBoundingClientRect();
+    const x = (e.clientX - r.left) * cv.width / r.width, y = (e.clientY - r.top) * cv.height / r.height;
+    if(tz.calib){
+        tz.calib.push({ x: x, y: y });
+        if(tz.calib.length === 2){
+            const d = Math.hypot(tz.calib[1].x - tz.calib[0].x, tz.calib[1].y - tz.calib[0].y);
+            const mm = parseFloat(String(prompt('¿Cuántos milímetros mide esa distancia? (por ejemplo 10 si usaste la regla de 1 cm)') || '').replace(',', '.'));
+            tz.calib = null;
+            if(mm > 0 && d > 0) tz.mmpx = mm / d;
+            trazoSiguiente(); trazoResultados();
+        }else trazoSiguiente();
+        trazoDibujar(); return;
+    }
+    if(tz.idx >= TRAZO_PUNTOS.length) return;
+    const id = TRAZO_PUNTOS[tz.idx].id;
+    if(!tz.pts[id]) tz.hist.push(id);
+    tz.pts[id] = { x: x, y: y };
+    trazoSiguiente(); trazoChips(); trazoDibujar(); trazoResultados();
+}
+function trazoDeshacer(){ if(!tz) return; const id = tz.hist.pop(); if(id) delete tz.pts[id]; tz.calib = null; trazoSiguiente(); trazoChips(); trazoDibujar(); trazoResultados(); }
+function trazoLimpiar(){ if(!tz || !confirm('¿Borrar todos los puntos de este trazado?')) return; tz.pts = {}; tz.hist = []; tz.mmpx = null; tz.calib = null; trazoSiguiente(); trazoChips(); trazoDibujar(); trazoResultados(); }
+function trazoCalibrar(){ if(!tz || !tz.img) return; tz.calib = []; trazoSiguiente(); }
+function trazoLinea(ctx, a, b, color, w){ if(!a || !b) return; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.strokeStyle = color; ctx.lineWidth = w; ctx.stroke(); }
+function trazoPintarSobre(ctx, w, h, k, conTexto, m){
+    const P = tz.pts, lw = 1.6 * k;
+    trazoLinea(ctx, P.S, P.N, 'rgba(255,255,255,0.9)', lw);
+    trazoLinea(ctx, P.N, P.A, 'rgba(100,200,255,0.9)', lw);
+    trazoLinea(ctx, P.N, P.B, 'rgba(255,180,100,0.9)', lw);
+    trazoLinea(ctx, P.Go, P.Me, 'rgba(255,255,255,0.7)', lw);
+    trazoLinea(ctx, P.ANS, P.PNS, 'rgba(180,180,180,0.8)', lw);
+    trazoLinea(ctx, P.U1A, P.U1, 'rgba(255,100,100,0.95)', lw * 1.3);
+    trazoLinea(ctx, P.L1A, P.L1, 'rgba(80,220,200,0.95)', lw * 1.3);
+    if(tz.calib) tz.calib.forEach(q => { ctx.beginPath(); ctx.arc(q.x, q.y, 4 * k, 0, 6.3); ctx.fillStyle = '#ffd400'; ctx.fill(); });
+    ctx.font = 'bold ' + Math.round(11 * k) + 'px sans-serif';
+    TRAZO_PUNTOS.forEach(pt => {
+        const q = P[pt.id]; if(!q) return;
+        ctx.beginPath(); ctx.arc(q.x, q.y, 3.4 * k, 0, 6.3); ctx.fillStyle = pt.c; ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = k; ctx.stroke();
+        ctx.fillStyle = '#fff'; ctx.fillText(pt.id, q.x + 5 * k, q.y - 5 * k);
+    });
+    if(conTexto && m){
+        const filas = Object.keys(TRAZO_REF).filter(x => m[x] != null).map(x => TRAZO_REF[x][2] + ' ' + m[x] + TRAZO_REF[x][3]);
+        const fs = Math.round(h / 55);
+        ctx.font = 'bold ' + fs + 'px sans-serif';
+        ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(8, 8, fs * 11, fs * 1.4 * filas.length + fs * 0.8);
+        ctx.fillStyle = '#fff'; filas.forEach((t, i) => ctx.fillText(t, 8 + fs * 0.5, 8 + fs * 1.4 * (i + 1)));
+    }
+}
+function trazoDibujar(){
+    if(!tz || !tz.img) return;
+    const cv = document.getElementById('trazoCanvas'), ctx = cv.getContext('2d');
+    ctx.clearRect(0, 0, cv.width, cv.height); ctx.drawImage(tz.img, 0, 0, cv.width, cv.height);
+    const k = Math.max(1, (cv.width / (cv.getBoundingClientRect().width || cv.width)) * 1.1);
+    trazoPintarSobre(ctx, cv.width, cv.height, k, false, null);
+}
+function trazoResultados(){
+    const el = document.getElementById('trazoRes'); if(!el || !tz) return;
+    const m = trazoMedir(tz.pts, tz.mmpx);
+    const filas = Object.keys(TRAZO_REF).filter(k => m[k] != null).map(k => {
+        const e = trazoEstado(k, m[k]), col = e === 'normal' ? '#2f855a' : '#c05621';
+        return `<tr><td style="padding:3px 6px;">${TRAZO_REF[k][2]}${TRAZO_REF[k][3] === ' mm' ? ' (mm)' : ''}</td><td style="padding:3px 6px;"><b>${m[k]}${TRAZO_REF[k][3]}</b></td><td style="padding:3px 6px; color:var(--text-muted);">${TRAZO_REF[k][0]} ± ${TRAZO_REF[k][1]}</td><td style="padding:3px 6px; color:${col};">${e}</td></tr>`;
+    }).join('');
+    const interp = trazoInterpretar(m);
+    el.innerHTML = filas ? `<table style="width:100%; border-collapse:collapse; font-size:0.82rem;"><tr style="color:var(--primary);"><th style="text-align:left; padding:3px 6px;">Medida</th><th style="text-align:left;">Valor</th><th style="text-align:left;">Norma</th><th style="text-align:left;">Estado</th></tr>${filas}</table>
+        ${tz.mmpx ? '' : '<div class="esc-sub">Para ver los mm (1-NA, 1-NB, Pog-NB) usa 📏 Calibrar.</div>'}
+        <div style="margin-top:8px; font-size:0.85rem;">${interp.map(t => '• ' + escHtml(t)).join('<br>')}</div>` : '<div class="esc-sub">Coloca al menos S, N, A y B para ver medidas.</div>';
+}
+async function trazoGuardar(){
+    if(!tz || !tz.img) return;
+    const P = tz.pts;
+    if(!(P.S && P.N && P.A && P.B)){ alert('Coloca por lo menos S, N, A y B para guardar.'); return; }
+    const p = pacientes[tz.nombre]; if(!p) return;
+    const m = trazoMedir(P, tz.mmpx);
+    p.trazadoValores = trazoTexto(m, tz.mmpx);
+    p.trazadoPuntos = { url: tz.fuente || '', w: tz.w, h: tz.h, pts: JSON.parse(JSON.stringify(P)), mmpx: tz.mmpx || null, m: m, fecha: Date.now() };
+    let subida = true;
+    try{
+        const cv = document.createElement('canvas'); cv.width = tz.w; cv.height = tz.h;
+        const ctx = cv.getContext('2d'); ctx.drawImage(tz.img, 0, 0);
+        trazoPintarSobre(ctx, tz.w, tz.h, Math.max(1, tz.w / 900), true, m);
+        const dataUrl = cv.toDataURL('image/jpeg', 0.85);
+        if(!storage){ await cargarExtrasFirebase(); }
+        if(!storage) throw new Error('Storage no disponible');
+        const id = 'trazado_' + Date.now();
+        const ref = storage.ref().child(`estudios_pacientes/${encodeURIComponent(tz.nombre)}/${id}.jpg`);
+        await ref.putString(dataUrl, 'data_url');
+        p.trazado = { id: id, url: await ref.getDownloadURL(), fecha: Date.now() };
+    }catch(e){ console.error('trazo imagen', e); subida = false; }
+    mesaValoresGuardar();
+    const nombre = tz.nombre;
+    const cl = trazoClase(m), iS = trazoIncl(m.u1na, 26, 18), iI = trazoIncl(m.l1nb, 29, 21);
+    trazoCerrar();
+    if(mesa && mesa.nombre === nombre){
+        renderMesaDecisiones();
+        if((cl || iS || iI) && confirm('Trazado guardado' + (subida ? '' : ' (los valores sí; la imagen trazada no se pudo subir)') + '.\n\n¿Aplicar a la mesa la clase esqueletal e inclinación de incisivos que salen del trazado?\n(Tú puedes cambiarlas después)')){
+            if(cl) mesa.d.rel = cl;
+            if(iS) mesa.d.incSup = iS;
+            if(iI) mesa.d.incInf = iI;
+            mesaCambio();
+        }
+    }
+}
+
 </script>
 
 </body>
