@@ -2605,7 +2605,7 @@
             return d <= 0 ? 'hoy' : (d === 1 ? 'ayer' : 'hace ' + d + ' d');
         }
         function usaSmile(nombre){ const u = usoSmile[nombre]; return !!(u && u.ts); }
-        const DA_VERSION = 'v56';
+        const DA_VERSION = 'v57';
         window.addEventListener('load', () => document.querySelectorAll('.da-ver-txt').forEach(e => e.textContent = 'DentiAgenda ' + DA_VERSION));
         // Texto del estado de SmileLike para un paciente (usa lo guardado; abajo se refresca solo ese paciente)
         function textoEstadoSmile(nombre){
@@ -4639,8 +4639,8 @@ function guardarPacienteDiag(n){
 // ============ MESA DE TRABAJO ============
 const MESA_REL = [['I', 'Clase I · buena relación'], ['II', 'Clase II · mandíbula retruida'], ['III', 'Clase III · mandíbula adelantada'], ['?', 'Por confirmar']];
 const MESA_INC = [['normal', 'Inclinación adecuada'], ['pro', 'Proinclinados'], ['retro', 'Retroinclinados']];
-const MESA_HALL = [['caries', 'Caries'], ['terceros', 'Terceros molares'], ['raices', 'Raíces cortas'], ['retenidos', 'Dientes retenidos/incluidos'], ['ausencias', 'Ausencias dentales'], ['apinamiento', 'Apiñamiento'], ['diastemas', 'Espacios (diastemas)'], ['osea', 'Pérdida ósea'], ['patologia', 'Lesión/patología a vigilar']];
-const MESA_APARATOS = ['Estándar metálico', 'Metálico flex', 'Autoligado', 'Alineadores', 'Ortopedia'];
+const MESA_HALL = [['caries', 'Caries'], ['terceros', 'Terceros molares'], ['raices', 'Raíces cortas'], ['retenidos', 'Dientes retenidos/incluidos'], ['ausencias', 'Ausencias dentales'], ['apinamiento', 'Apiñamiento'], ['diastemas', 'Espacios (diastemas)'], ['osea', 'Pérdida ósea'], ['patologia', 'Lesión/patología a vigilar'], ['atm', 'Posible alteración articular (ATM)']];
+const MESA_APARATOS = ['Estándar metálico', 'Metálico flex', 'Autoligado', 'Alineadores', 'Ortopedia', 'Férula de desprogramación'];
 const MESA_DIENTES_SUP = [18,17,16,15,14,13,12,11,21,22,23,24,25,26,27,28];
 const MESA_DIENTES_INF = [48,47,46,45,44,43,42,41,31,32,33,34,35,36,37,38];
 let mesa = null;
@@ -4786,13 +4786,13 @@ function mesaArmarMensaje(nombre, d){
         if(d.incInf) partes.push(`los inferiores están ${inc[d.incInf]}`);
         L.push('🦷 En tus dientes frontales, ' + partes.join(' y ') + '.');
     }
-    const hall = { caries: 'caries que debemos tratar', terceros: 'terceros molares (muelas del juicio) a considerar', raices: 'raíces cortas, por lo que debemos tener precaución durante el tratamiento', retenidos: 'dientes retenidos o incluidos', ausencias: 'ausencias dentales', apinamiento: 'apiñamiento dental', diastemas: 'espacios entre algunos dientes', osea: 'pérdida de soporte óseo que debemos vigilar', patologia: 'un hallazgo que debemos vigilar de cerca' };
+    const hall = { caries: 'caries que debemos tratar', terceros: 'terceros molares (muelas del juicio) a considerar', raices: 'raíces cortas, por lo que debemos tener precaución durante el tratamiento', retenidos: 'dientes retenidos o incluidos', ausencias: 'ausencias dentales', apinamiento: 'apiñamiento dental', diastemas: 'espacios entre algunos dientes', osea: 'pérdida de soporte óseo que debemos vigilar', patologia: 'un hallazgo que debemos vigilar de cerca', atm: 'datos que sugieren una posible alteración de la articulación de la mandíbula (ATM), que debemos valorar' };
     const hs = d.hall.map(h => hall[h]).filter(Boolean);
     if(d.otro && d.otro.trim()) hs.push(d.otro.trim());
     if(hs.length){ L.push(''); L.push('🔎 También observé: ' + hs.join('; ') + '.'); }
     if(d.extr === 'no') { L.push(''); L.push('📋 Por ahora no se contemplan extracciones de premolares para tu tratamiento.'); }
     else if(d.extr === 'si'){ L.push(''); L.push('📋 Para lograr un buen resultado se contempla la extracción de ' + (d.dientes.length && d.dientes.every(n => [14, 15, 24, 25, 34, 35, 44, 45].includes(n)) ? 'premolares' : 'algunos dientes') + (d.dientes.length ? ` (dientes ${d.dientes.slice().sort((a, b) => a - b).join(', ')})` : '') + '.'); }
-    const nomApar = { 'Estándar metálico': 'brackets metálicos estándar', 'Metálico flex': 'brackets metálicos flex', 'Autoligado': 'brackets autoligado', 'Alineadores': 'alineadores', 'Ortopedia': 'ortopedia maxilar' };
+    const nomApar = { 'Estándar metálico': 'brackets metálicos estándar', 'Metálico flex': 'brackets metálicos flex', 'Autoligado': 'brackets autoligado', 'Alineadores': 'alineadores', 'Ortopedia': 'ortopedia maxilar', 'Férula de desprogramación': 'férula de desprogramación (para relajar la articulación antes o junto con el tratamiento)' };
     const aps = d.aparatos.map(a => nomApar[a] || a.toLowerCase());
     if(d.aparatoOtro && d.aparatoOtro.trim()) aps.push(d.aparatoOtro.trim());
     if(aps.length){
@@ -4852,8 +4852,9 @@ async function iaLlamarServidor(prov, p, extra){
 const IA_LLAVES_LS = 'da_ia_llaves';
 function iaLlavesLocales(){ try{ return JSON.parse(localStorage.getItem(IA_LLAVES_LS) || '{}') || {}; }catch(e){ return {}; } }
 function iaLlaveLocal(prov){ return String(iaLlavesLocales()[prov] || '').trim(); }
-const IA_HALLAZGOS_L = ["caries", "terceros", "raices", "retenidos", "ausencias", "apinamiento", "diastemas", "osea", "patologia"];
-const IA_APARATOS_L = ["Estándar metálico", "Metálico flex", "Autoligado", "Alineadores", "Ortopedia"];
+const IA_HALLAZGOS_L = ["caries", "terceros", "raices", "retenidos", "ausencias", "apinamiento", "diastemas", "osea", "patologia", "atm"];
+const IA_APARATOS_L = ["Estándar metálico", "Metálico flex", "Autoligado", "Alineadores", "Ortopedia", "Férula de desprogramación"];
+const IA_REGLAS_DEF = "- Si se sugiere extracción de premolares, NO sugieras brackets autoligado: con extracciones no se aprovecha su ventaja. En esos casos sugiere estándar metálico o metálico flex.\n- Si en la panorámica ves signos de daño en los cóndilos mandibulares (aplanamiento, erosión, osteofitos, asimetría marcada de cóndilos o ramas), marca \"atm\" en hallazgos y sugiere \"Férula de desprogramación\" en aparatos antes o junto con la ortodoncia; además pregunta por síntomas (dolor, chasquidos, limitación de apertura).";
 const IA_DIENTES_FDI_L = new Set([14, 15, 24, 25, 34, 35, 44, 45]);   // solo premolares
 
 function iaPromptLocal(edad, nombresImagenes) {
@@ -4869,11 +4870,11 @@ Responde ÚNICAMENTE con un objeto JSON válido (sin texto antes ni después, si
   "rel": "I" | "II" | "III" | "?" | "",
   "incSup": "normal" | "pro" | "retro" | "",
   "incInf": "normal" | "pro" | "retro" | "",
-  "hall": [ valores de: "caries","terceros","raices","retenidos","ausencias","apinamiento","diastemas","osea","patologia" ],
+  "hall": [ valores de: "caries","terceros","raices","retenidos","ausencias","apinamiento","diastemas","osea","patologia","atm" ],
   "otro": "otro hallazgo relevante en una frase, o vacío",
   "extr": "si" | "no" | "",   // SOLO extracción de PREMOLARES con fines ortodónticos
   "dientes": [ números FDI de los PREMOLARES a extraer (solo 14,15,24,25,34,35,44,45), si extr es "si" ],
-  "aparatos": [ valores de: "Estándar metálico","Metálico flex","Autoligado","Alineadores","Ortopedia" ],
+  "aparatos": [ valores de: "Estándar metálico","Metálico flex","Autoligado","Alineadores","Ortopedia","Férula de desprogramación" ],
   "nota": "consideración especial en una frase, o vacío",
   "confianza": { "rel": "alta"|"media"|"baja", "inc": "alta"|"media"|"baja", "hall": "alta"|"media"|"baja", "extr": "alta"|"media"|"baja" },
   "preguntas": [ { "pregunta": "pregunta corta para el doctor sobre lo que no puedes decidir con certeza", "suposicion": "tu respuesta preliminar o mejor suposición con base en las imágenes, indicando cuánta seguridad tienes y qué la confirmaría" } ],
@@ -4960,7 +4961,9 @@ async function iaLlamarLocal(prov, p, extra){
     for(const e of estudios){ imagenes.push(await iaDescargarLocal(String(e.url || ''))); nombres.push(String(e.nombre || '').slice(0, 60)); }
     const vals = String(p.trazadoValores || '').trim().slice(0, 1500);
     const notaTraz = (p.trazado || vals) ? '\n\nTRAZADO CEFALOMÉTRICO DEL DOCTOR: ' + (p.trazado ? 'una de las imágenes es su trazado; lee los valores impresos en ella. ' : '') + (vals ? 'Valores que él escribió: ' + vals + '. ' : '') + 'Son mediciones hechas con su plataforma: úsalas con PRIORIDAD sobre tu estimación visual de la lateral, cítalas en "observaciones" y verifica su coherencia (por ejemplo ANB ≈ SNA − SNB); si algo no cuadra o no se lee bien, dilo en "preguntas". Apóyate en ANB, inclinación y protrusión de incisivos (1-NA, 1-NB, IMPA, interincisal) y perfil para valorar la extracción de premolares.' : '';
-    const prompt = iaPromptLocal(iaEdadDe(p), nombres) + notaTraz + (extra ? '\n\nCONTEXTO ADICIONAL DEL DOCTOR (son datos reales, tómalos como ciertos y vuelve a valorar el caso con ellos; responde con el mismo JSON):\n' + extra : '');
+    const reglas = String(cfg.reglas !== undefined ? cfg.reglas : IA_REGLAS_DEF).trim().slice(0, 3000);
+    const notaReglas = reglas ? '\n\nREGLAS DEL CONSULTORIO (criterio del doctor; aplícalas siempre, tienen prioridad sobre tus preferencias generales):\n' + reglas : '';
+    const prompt = iaPromptLocal(iaEdadDe(p), nombres) + notaReglas + notaTraz + (extra ? '\n\nCONTEXTO ADICIONAL DEL DOCTOR (son datos reales, tómalos como ciertos y vuelve a valorar el caso con ellos; responde con el mismo JSON):\n' + extra : '');
     const llamar = async (modelo) => {
         try{
             if(prov === 'claude'){
@@ -5010,7 +5013,11 @@ async function iaLlamarLocal(prov, p, extra){
     if(prov === 'claude') out = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
     else if(prov === 'gemini') out = ((((j.candidates || [])[0] || {}).content || {}).parts || []).map(x => x.text || '').join('');
     else out = ((((j.choices || [])[0] || {}).message || {}).content) || '';
-    return { proveedor: prov, modelo: usado + (usado !== principal ? ' (respaldo)' : '') + (intentos > 1 ? ' · ' + intentos + ' intentos' : ''), resultado: iaLimpiarLocal(out), segundos: Math.round((Date.now() - t0) / 100) / 10 };
+    const res = iaLimpiarLocal(out); res.ajustes = [];
+    if(cfg.sinAutoligadoExtr !== false && res.extr === 'si' && res.aparatos.includes('Autoligado')){
+        res.aparatos = res.aparatos.filter(a => a !== 'Autoligado'); res.ajustes.push('Quité "Autoligado": con extracción de premolares no lo usas.');
+    }
+    return { proveedor: prov, modelo: usado + (usado !== principal ? ' (respaldo)' : '') + (intentos > 1 ? ' · ' + intentos + ' intentos' : ''), resultado: res, segundos: Math.round((Date.now() - t0) / 100) / 10 };
 }
 function iaAyudaCors(){
     alert('Tu almacenamiento (Storage) aún no permite que DentiAgenda lea las radiografías desde el navegador. Es un permiso que se da una sola vez:\n\n1) Abre https://console.cloud.google.com/ con tu cuenta, proyecto misonrisa-citas.\n2) Arriba a la derecha toca el icono >_ (Activar Cloud Shell).\n3) Pega estas dos líneas (Enter después de cada una):\n\necho \'[{"origin":["*"],"method":["GET"],"maxAgeSeconds":3600}]\' > cors.json\n\ngsutil cors set cors.json gs://misonrisa-citas.firebasestorage.app\n\n4) Vuelve aquí y analiza otra vez.');
@@ -5039,7 +5046,7 @@ function iaBloqueInner(){
         if(x.error) return `<div class="esc-card" style="cursor:default; display:block;"><b>🤖 ${IA_NOMBRE[k]}</b><div class="esc-sub" style="color:#c53030;">⚠️ ${escHtml(x.error)}</div></div>`;
         const r = x.resultado, c = r.confianza || {};
         const cf = (v) => v ? ` <span class="esc-sub">(confianza ${v})</span>` : '';
-        const hall = { caries: 'caries', terceros: 'terceros molares', raices: 'raíces cortas', retenidos: 'retenidos/incluidos', ausencias: 'ausencias', apinamiento: 'apiñamiento', diastemas: 'diastemas', osea: 'pérdida ósea', patologia: 'patología a vigilar' };
+        const hall = { caries: 'caries', terceros: 'terceros molares', raices: 'raíces cortas', retenidos: 'retenidos/incluidos', ausencias: 'ausencias', apinamiento: 'apiñamiento', diastemas: 'diastemas', osea: 'pérdida ósea', patologia: 'patología a vigilar', atm: 'posible alteración articular (ATM)' };
         const filas = [
             ['Relación', r.rel ? IA_REL[r.rel] + cf(c.rel) : '—'],
             ['Incisivos', (r.incSup || r.incInf) ? `sup. ${IA_INC[r.incSup] || '—'} · inf. ${IA_INC[r.incInf] || '—'}${cf(c.inc)}` : '—'],
@@ -5055,6 +5062,7 @@ function iaBloqueInner(){
         return `<div class="esc-card" style="cursor:default; display:block; margin-top:8px;">
             <div style="display:flex; justify-content:space-between;"><b>🤖 ${IA_NOMBRE[k]}</b><span class="esc-sub">${escHtml(x.modelo || '')} · ${x.segundos || '?'} s</span></div>
             ${filas}
+            ${(r.ajustes || []).length ? `<div class="esc-sub" style="margin-top:6px; color:var(--accent);">⚙️ ${r.ajustes.map(escHtml).join(' ')}</div>` : ''}
             ${r.observaciones ? `<div class="esc-sub" style="margin-top:6px;">💭 ${escHtml(r.observaciones)}</div>` : ''}
             ${preg}
             <button class="esc-mini" style="margin-top:8px; width:100%;" onclick="mesaAplicarIA('${k}')">✔ Aplicar sugerencias de ${IA_NOMBRE[k]}${ia.aplicada === k ? ' (aplicadas)' : ''}</button>
@@ -5176,6 +5184,12 @@ async function abrirIaLab(){
             <div style="display:flex; gap:6px;"><button class="btn-3d" style="flex:1;" onclick="iaGuardarLlaves()">💾 Guardar llaves</button><button class="esc-mini" onclick="iaBorrarLlaves()">🗑️ Borrar</button></div>
             <div class="esc-sub" style="margin-top:6px;">Se guardan solo en este navegador/dispositivo, no en la nube ni en el código. Si hay llave aquí, se usa esta; si no, se intenta con el servidor. Hazlo solo en tu equipo personal y pon un límite de gasto en el proveedor.</div>
         </div>
+        <div class="esc-tray"><h3><span>📘 Reglas de mi consultorio</span></h3>
+            <textarea id="iaReglas" class="inset-3d" rows="7" style="width:100%; font-size:0.8rem;">${escHtml(cfg.reglas !== undefined ? cfg.reglas : IA_REGLAS_DEF)}</textarea>
+            <label style="display:flex; gap:6px; align-items:center; font-size:0.8rem; margin-top:6px;"><input type="checkbox" id="iaSinAuto" ${cfg.sinAutoligadoExtr === false ? '' : 'checked'}> Con extracción de premolares, quitar siempre "Autoligado" (la app lo fuerza aunque la IA lo sugiera)</label>
+            <button class="btn-3d" style="width:100%; margin-top:6px;" onclick="iaGuardarConfig()">💾 Guardar</button>
+            <div class="esc-sub" style="margin-top:6px;">Escribe una regla por renglón, con tus palabras: la IA las recibe en cada análisis. La IA no aprende sola: aprende lo que tú escribes aquí. Si una regla es crítica, avísame y la vuelvo candado automático como el de autoligado.</div>
+        </div>
         <div class="esc-tray"><h3><span>⚙️ Modelos y tope diario</span></h3>
             ${['claude', 'gemini', 'grok'].map(k => `<div class="form-group" style="margin-bottom:6px;"><label style="font-size:0.78rem;">${IA_NOMBRE[k]} · modelo</label><input id="iaMod_${k}" class="inset-3d" value="${escAttr(mod[k])}"></div>`).join('')}
             <div class="form-group" style="margin-bottom:6px;"><label style="font-size:0.78rem;">Gemini · modelo de respaldo (se usa si el principal sigue saturado)</label><input id="iaResp_gemini_cfg" class="inset-3d" value="${escAttr((cfg.respaldo || {}).gemini !== undefined ? cfg.respaldo.gemini : 'gemini-3.1-pro-preview')}"></div>
@@ -5207,7 +5221,7 @@ async function iaGuardarConfig(){
     const modelos = {};
     ['claude', 'gemini', 'grok'].forEach(k => { const v = document.getElementById('iaMod_' + k).value.trim(); if(v) modelos[k] = v; });
     const lim = parseInt(document.getElementById('iaLimite').value, 10) || 40;
-    try{ await db.collection('agenda').doc('ia_config').set({ modelos: modelos, limiteDiario: lim, respaldo: { gemini: (document.getElementById('iaResp_gemini_cfg').value || '').trim() } }, { merge: true }); alert('Guardado.'); }
+    try{ await db.collection('agenda').doc('ia_config').set({ modelos: modelos, limiteDiario: lim, reglas: (document.getElementById('iaReglas').value || '').trim(), sinAutoligadoExtr: document.getElementById('iaSinAuto').checked, respaldo: { gemini: (document.getElementById('iaResp_gemini_cfg').value || '').trim() } }, { merge: true }); alert('Guardado.'); }
     catch(e){ alert('No se pudo guardar: ' + (e.message || e)); }
 }
 </script>
