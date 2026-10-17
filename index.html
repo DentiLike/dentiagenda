@@ -2605,7 +2605,7 @@
             return d <= 0 ? 'hoy' : (d === 1 ? 'ayer' : 'hace ' + d + ' d');
         }
         function usaSmile(nombre){ const u = usoSmile[nombre]; return !!(u && u.ts); }
-        const DA_VERSION = 'v55';
+        const DA_VERSION = 'v56';
         window.addEventListener('load', () => document.querySelectorAll('.da-ver-txt').forEach(e => e.textContent = 'DentiAgenda ' + DA_VERSION));
         // Texto del estado de SmileLike para un paciente (usa lo guardado; abajo se refresca solo ese paciente)
         function textoEstadoSmile(nombre){
@@ -4683,6 +4683,49 @@ function mesaSet(campo, valor){ mesa.d[campo] = (mesa.d[campo] === valor ? '' : 
 function mesaToggle(campo, valor){ const a = mesa.d[campo]; const i = a.indexOf(valor); if(i >= 0) a.splice(i, 1); else a.push(valor); mesaCambio(); }
 function mesaDiente(num){ const a = mesa.d.dientes; const i = a.indexOf(num); if(i >= 0) a.splice(i, 1); else a.push(num); mesaCambio(); }
 function mesaCambio(){ renderMesaDecisiones(); if(!mesa.editado) mesaRegenerar(true); }
+function trazadoSeccion(p){
+    const tz = p.trazado;
+    return `<div class="mesa-sec" style="border:1.5px dashed var(--primary); border-radius:12px; padding:10px;">
+        <label>📐 Trazado y valores <span style="font-weight:normal; color:var(--text-muted);">opcional · solo aquí, el paciente no lo ve</span></label>
+        <div style="display:flex; gap:8px; align-items:center; margin-bottom:6px;">
+            ${tz ? `<img src="${escAttr(tz.url)}" style="width:54px; height:54px; border-radius:8px; object-fit:cover; cursor:pointer;" onclick="mesaZoom(this.src)">` : ''}
+            <button class="esc-mini" onclick="mesaSubirTrazado()">${tz ? '🔄 Reemplazar trazado' : '➕ Agregar trazado (imagen)'}</button>
+            ${tz ? '<button class="esc-mini" onclick="mesaQuitarTrazado()">🗑️</button>' : ''}
+        </div>
+        <textarea class="inset-3d" rows="3" style="width:100%; font-size:0.8rem;" placeholder="Valores del trazado (opcional): SNA 82, SNB 78, ANB 4, SN-GoGn 34, 1-NA 26° 5 mm, 1-NB 30° 6 mm, interincisal 120°…" oninput="mesaValoresInput(this.value)" onchange="mesaValoresGuardar()">${escHtml(p.trazadoValores || '')}</textarea>
+        <div class="esc-sub" style="margin-top:4px;">Si los hay, la IA los usa con prioridad sobre su propia lectura de la lateral. La imagen se ajusta sola de tamaño (sin deformarla).</div>
+    </div>`;
+}
+function mesaValoresInput(v){ const p = pacientes[mesa.nombre]; if(p) p.trazadoValores = v; }
+function mesaValoresGuardar(){
+    try{ localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes)); }catch(e){}
+    guardarAgendaEnNube();
+}
+function mesaSubirTrazado(){
+    const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*';
+    inp.onchange = async () => {
+        const file = inp.files[0]; if(!file) return;
+        const n = mesa && mesa.nombre; const p = n && pacientes[n]; if(!p) return;
+        try{
+            const dataUrl = await comprimirImagen(file, 2000, 0.85);   // mismo tamaño máximo para todos; conserva la proporción
+            if(!storage){ await cargarExtrasFirebase(); if(!storage) throw new Error('Storage no disponible'); }
+            const id = 'trazado_' + Date.now();
+            const ref = storage.ref().child(`estudios_pacientes/${encodeURIComponent(n)}/${id}.jpg`);
+            await ref.putString(dataUrl, 'data_url');
+            const url = await ref.getDownloadURL();
+            p.trazado = { id: id, url: url, fecha: Date.now() };
+            mesaValoresGuardar();
+            if(mesa && mesa.nombre === n) renderMesaDecisiones();
+        }catch(err){ console.error('trazado', err); alert('No se pudo subir el trazado. Revisa tu conexión.'); }
+    };
+    inp.click();
+}
+function mesaQuitarTrazado(){
+    const p = pacientes[mesa.nombre]; if(!p || !p.trazado) return;
+    if(!confirm('¿Quitar el trazado de este paciente?')) return;
+    try{ if(storage) storage.refFromURL(p.trazado.url).delete().catch(() => {}); }catch(e){}
+    delete p.trazado; mesaValoresGuardar(); renderMesaDecisiones();
+}
 function renderMesaDecisiones(){
     const p = pacientes[mesa.nombre] || {};
     const est = (p.estudios || []);
@@ -4691,6 +4734,7 @@ function renderMesaDecisiones(){
     document.getElementById('mesaBody').innerHTML = `
         <div class="esc-sub" style="margin-bottom:8px;">📱 ${escHtml(p.telefono || 'sin teléfono')} · Toca una radiografía para ampliarla</div>
         <div class="mesa-estudios">${est.length ? est.map(e => `<img src="${escAttr(e.url)}" alt="${escAttr(e.nombre || '')}" onclick="mesaZoom(this.src)">`).join('') : '<div class="esc-vacio">Sin estudios subidos.</div>'}</div>
+        ${trazadoSeccion(p)}
         <div id="iaBloque">${iaBloqueInner()}</div>
 
         <div class="mesa-sec"><label>Relación entre tu maxilar superior y la mandíbula</label><div class="mesa-chips">${MESA_REL.map(x => mesaChip('rel', x[0], x[1])).join('')}</div></div>
@@ -4910,10 +4954,13 @@ async function iaLlamarLocal(prov, p, extra){
     const modelos = Object.assign({ claude: 'claude-opus-5-5', gemini: 'gemini-3.8-flash', grok: 'grok-4' }, cfg.modelos || {});
     const respaldos = Object.assign({ gemini: 'gemini-3.1-pro-preview' }, cfg.respaldo || {});
     await iaTopeLocal(Number(cfg.limiteDiario) > 0 ? Number(cfg.limiteDiario) : 40);
-    const estudios = (p.estudios || []).slice(-4);
+    const estudios = (p.estudios || []).slice(p.trazado ? -3 : -4).map(e => ({ url: e.url, nombre: e.nombre }));
+    if(p.trazado) estudios.push({ url: p.trazado.url, nombre: 'TRAZADO CEFALOMÉTRICO del doctor (con sus valores)' });
     const imagenes = []; const nombres = [];
     for(const e of estudios){ imagenes.push(await iaDescargarLocal(String(e.url || ''))); nombres.push(String(e.nombre || '').slice(0, 60)); }
-    const prompt = iaPromptLocal(iaEdadDe(p), nombres) + (extra ? '\n\nCONTEXTO ADICIONAL DEL DOCTOR (son datos reales, tómalos como ciertos y vuelve a valorar el caso con ellos; responde con el mismo JSON):\n' + extra : '');
+    const vals = String(p.trazadoValores || '').trim().slice(0, 1500);
+    const notaTraz = (p.trazado || vals) ? '\n\nTRAZADO CEFALOMÉTRICO DEL DOCTOR: ' + (p.trazado ? 'una de las imágenes es su trazado; lee los valores impresos en ella. ' : '') + (vals ? 'Valores que él escribió: ' + vals + '. ' : '') + 'Son mediciones hechas con su plataforma: úsalas con PRIORIDAD sobre tu estimación visual de la lateral, cítalas en "observaciones" y verifica su coherencia (por ejemplo ANB ≈ SNA − SNB); si algo no cuadra o no se lee bien, dilo en "preguntas". Apóyate en ANB, inclinación y protrusión de incisivos (1-NA, 1-NB, IMPA, interincisal) y perfil para valorar la extracción de premolares.' : '';
+    const prompt = iaPromptLocal(iaEdadDe(p), nombres) + notaTraz + (extra ? '\n\nCONTEXTO ADICIONAL DEL DOCTOR (son datos reales, tómalos como ciertos y vuelve a valorar el caso con ellos; responde con el mismo JSON):\n' + extra : '');
     const llamar = async (modelo) => {
         try{
             if(prov === 'claude'){
@@ -5040,7 +5087,7 @@ function iaRepintar(){ const e = document.getElementById('iaBloque'); if(e && me
 async function iaAnalizar(reanalizar){
     const m = mesa; if(!m) return;
     const p = pacientes[m.nombre];
-    if(!p || !(p.estudios || []).length){ alert('Este paciente no tiene estudios subidos.'); return; }
+    if(!p || (!(p.estudios || []).length && !p.trazado && !String(p.trazadoValores || '').trim())){ alert('Este paciente no tiene estudios, trazado ni valores.'); return; }
     if(!iaConsentimiento()) return;
     const provs = m.ia.prov === 'todos' ? ['claude', 'gemini', 'grok'] : [m.ia.prov];
     m.ia.cargando = provs.slice();
@@ -5048,6 +5095,7 @@ async function iaAnalizar(reanalizar){
     await Promise.all(provs.map(async pv => {
         try{
             const extra = reanalizar ? iaExtraDe(pv) : (m.ia.ctx || '').trim() ? '- Nota del doctor: ' + m.ia.ctx.trim() : '';
+            if((p.trazado || String(p.trazadoValores || '').trim()) && !iaLlaveLocal(pv)) throw new Error('Para usar el trazado y los valores necesitas la llave de ' + IA_NOMBRE[pv] + ' guardada en este dispositivo (Laboratorio IA).');
             if(extra && !iaLlaveLocal(pv)) throw new Error('Para usar tus respuestas necesitas la llave de ' + IA_NOMBRE[pv] + ' guardada en este dispositivo (Laboratorio IA).');
             m.ia.res[pv] = await iaLlamarServidor(pv, p, extra);
             if(m.ia.resp) m.ia.resp[pv] = [];
