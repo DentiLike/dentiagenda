@@ -2644,7 +2644,7 @@
             return d <= 0 ? 'hoy' : (d === 1 ? 'ayer' : 'hace ' + d + ' d');
         }
         function usaSmile(nombre){ const u = usoSmile[nombre]; return !!(u && u.ts); }
-        const DA_VERSION = 'v63';
+        const DA_VERSION = 'v64';
         window.addEventListener('load', () => document.querySelectorAll('.da-ver-txt').forEach(e => e.textContent = 'DentiAgenda ' + DA_VERSION));
         // Texto del estado de SmileLike para un paciente (usa lo guardado; abajo se refresca solo ese paciente)
         function textoEstadoSmile(nombre){
@@ -4364,6 +4364,12 @@
   .esc-card img, .esc-card .esc-ph { width:52px; height:52px; border-radius:9px; object-fit:cover; flex-shrink:0; background:#cbd5e0; display:flex; align-items:center; justify-content:center; }
   .esc-card .esc-info { flex:1; min-width:0; }
   .esc-card .esc-nom { font-weight:bold; font-size:0.9rem; color:var(--text-main); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .esc-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; }
+  .esc-grid .esc-card { flex-direction:column; align-items:stretch; text-align:center; margin-bottom:0; padding:8px; gap:6px; }
+  .esc-grid .esc-card img, .esc-grid .esc-card .esc-ph { width:100%; height:84px; }
+  .esc-grid .esc-card .esc-nom { white-space:normal; line-height:1.2; font-size:0.86rem; }
+  .esc-grid .esc-card.esc-solo { justify-content:center; min-height:70px; }
+  .esc-grid .esc-card .esc-mini { width:100%; }
   .esc-sub { font-size:0.74rem; color:var(--text-muted); line-height:1.3; }
   .esc-chip { display:inline-block; border-radius:8px; padding:1px 7px; font-size:0.68rem; font-weight:bold; margin-right:4px; }
   .esc-mini { border:none; border-radius:9px; padding:6px 9px; font-size:0.74rem; font-weight:bold; cursor:pointer; background:var(--bg-color); color:var(--primary); box-shadow:2px 2px 4px var(--shadow-dark), -2px -2px 4px var(--shadow-light); }
@@ -4545,8 +4551,9 @@ function abrirEscritorio(){
     renderEscritorio();
 }
 function diasDesdeTs(ts){ return ts ? Math.floor((Date.now() - ts) / 86400000) : 0; }
-function escTarjeta(n, bot){
+function escTarjeta(n, bot, solo){
     const p = pacientes[n] || {};
+    if(solo) return `<div class="esc-card esc-solo" data-n="${escAttr(n)}" onclick="escAbrirMesa(this.dataset.n)"><div class="esc-nom">${escHtml(n)}</div>${bot || ''}</div>`;
     const es = (p.estudios || []);
     const thumb = es.length ? `<img src="${escAttr(es[es.length - 1].url)}" alt="">` : '<div class="esc-ph">🦷</div>';
     const ts = ultimoEstudioTs(p) || Number(p.enEscritorio) || 0;
@@ -4564,11 +4571,11 @@ function renderEscritorio(){
     const c = escCategorias();
     purgarPapelera();
     const bt = (txt, fn) => `<button class="esc-mini" data-n="@N" onclick="event.stopPropagation(); ${fn}(this.dataset.n)">${txt}</button>`;
-    const conBoton = (lista, txt, fn) => lista.map(n => escTarjeta(n, bt(txt, fn).replace('@N', escAttr(n)))).join('');
+    const conBoton = (lista, txt, fn, solo) => lista.map(n => escTarjeta(n, bt(txt, fn).replace('@N', escAttr(n)), solo)).join('');
     const bandeja = (id, titulo, sub, lista, htmlCards) => `<div class="esc-tray" id="${id}">
         <h3><span>${titulo}</span><small>${lista.length}</small></h3>
         <div class="esc-sub" style="margin:-4px 0 8px;">${sub}</div>
-        ${lista.length ? htmlCards : '<div class="esc-vacio">Nada por aquí 👌</div>'}
+        ${lista.length ? '<div class="esc-grid">' + htmlCards + '</div>' : '<div class="esc-vacio">Nada por aquí 👌</div>'}
     </div>`;
     const tile = (id, ico, n, txt) => `<div class="esc-tile" onclick="document.getElementById('${id}').scrollIntoView({behavior:'smooth', block:'start'})"><b>${n}</b><span>${ico}<br>${txt}</span></div>`;
     const papCards = papelera.slice().sort((a, b) => b.fecha - a.fecha).map(it => {
@@ -4595,7 +4602,7 @@ function renderEscritorio(){
         </div>
         ${bandeja('trayPor', '📥 Por analizar', 'Estudios subidos que aún no revisas. Los que más llevan esperando, primero. Con ✅ marcas los casos que ya diagnosticaste.', c.por, conBoton(c.por, '✅', 'escYaHecho'))}
         ${bandeja('trayBor', '🧠 En diagnóstico', 'Borradores que dejaste a medias.', c.bor, conBoton(c.bor, '✅', 'escYaHecho'))}
-        ${bandeja('trayLis', '📤 Listos para enviar', 'Diagnóstico aprobado; falta mandarlo por WhatsApp.', c.lis, conBoton(c.lis, '📲 Enviar', 'escEnviarDirecto'))}
+        ${bandeja('trayLis', '📤 Listos para enviar', 'Diagnóstico aprobado; falta mandarlo por WhatsApp.', c.lis, conBoton(c.lis, '📲 Enviar', 'escEnviarDirecto', true))}
         ${bandeja('trayEnv', '⏳ Esperando respuesta', 'Ya se lo mandaste. Márcalo como resuelto cuando responda o agende.', c.env, conBoton(c.env, '✔ Resuelto', 'escMarcarResuelto'))}
         <div class="esc-tray" id="trayPap">
             <h3><span>🗑️ Papelera</span><small>${papelera.length}</small></h3>
