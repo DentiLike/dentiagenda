@@ -2644,7 +2644,7 @@
             return d <= 0 ? 'hoy' : (d === 1 ? 'ayer' : 'hace ' + d + ' d');
         }
         function usaSmile(nombre){ const u = usoSmile[nombre]; return !!(u && u.ts); }
-        const DA_VERSION = 'v64';
+        const DA_VERSION = 'v65';
         window.addEventListener('load', () => document.querySelectorAll('.da-ver-txt').forEach(e => e.textContent = 'DentiAgenda ' + DA_VERSION));
         // Texto del estado de SmileLike para un paciente (usa lo guardado; abajo se refresca solo ese paciente)
         function textoEstadoSmile(nombre){
@@ -4365,11 +4365,17 @@
   .esc-card .esc-info { flex:1; min-width:0; }
   .esc-card .esc-nom { font-weight:bold; font-size:0.9rem; color:var(--text-main); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .esc-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; }
-  .esc-grid .esc-card { flex-direction:column; align-items:stretch; text-align:center; margin-bottom:0; padding:8px; gap:6px; }
-  .esc-grid .esc-card img, .esc-grid .esc-card .esc-ph { width:100%; height:84px; }
-  .esc-grid .esc-card .esc-nom { white-space:normal; line-height:1.2; font-size:0.86rem; }
+  .esc-grid .esc-card { position:relative; flex-direction:column; align-items:stretch; text-align:center; margin-bottom:0; padding:10px 8px 8px; gap:6px; overflow:hidden; border-top:4px solid var(--urg, #a0aec0); }
+  .esc-grid .esc-card img, .esc-grid .esc-card .esc-ph { width:100%; height:56px; }
+  .esc-grid .esc-card .esc-nom { white-space:normal; line-height:1.15; font-size:1rem; }
+  .esc-grid .esc-card .esc-ape { font-size:0.72rem; font-weight:normal; color:var(--text-muted); display:block; }
   .esc-grid .esc-card.esc-solo { justify-content:center; min-height:70px; }
-  .esc-grid .esc-card .esc-mini { width:100%; }
+  .esc-grid .esc-card .esc-mini { width:100%; background:var(--accent); color:#fff; box-shadow:2px 2px 4px var(--shadow-dark); }
+  .esc-x { position:absolute; top:6px; right:6px; width:22px; height:22px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:0.9rem; line-height:1; color:var(--text-muted); background:rgba(0,0,0,0.06); cursor:pointer; z-index:2; }
+  .esc-tray h3 { cursor:pointer; user-select:none; }
+  .esc-tray h3 .esc-chev { display:inline-block; transition:transform .15s; margin-right:4px; font-size:0.7rem; }
+  .esc-tray.plegada .esc-chev { transform:rotate(-90deg); }
+  .esc-tray.plegada .esc-cuerpo { display:none; }
   .esc-sub { font-size:0.74rem; color:var(--text-muted); line-height:1.3; }
   .esc-chip { display:inline-block; border-radius:8px; padding:1px 7px; font-size:0.68rem; font-weight:bold; margin-right:4px; }
   .esc-mini { border:none; border-radius:9px; padding:6px 9px; font-size:0.74rem; font-weight:bold; cursor:pointer; background:var(--bg-color); color:var(--primary); box-shadow:2px 2px 4px var(--shadow-dark), -2px -2px 4px var(--shadow-light); }
@@ -4551,33 +4557,41 @@ function abrirEscritorio(){
     renderEscritorio();
 }
 function diasDesdeTs(ts){ return ts ? Math.floor((Date.now() - ts) / 86400000) : 0; }
-function escTarjeta(n, bot, solo){
+function escNombreHtml(n){
+    const t = String(n).trim().split(/\s+/);
+    return escHtml(t[0]) + (t.length > 1 ? '<span class="esc-ape">' + escHtml(t.slice(1).join(' ')) + '</span>' : '');
+}
+function escTarjeta(n, bot, solo, quitar){
     const p = pacientes[n] || {};
-    if(solo) return `<div class="esc-card esc-solo" data-n="${escAttr(n)}" onclick="escAbrirMesa(this.dataset.n)"><div class="esc-nom">${escHtml(n)}</div>${bot || ''}</div>`;
     const es = (p.estudios || []);
-    const thumb = es.length ? `<img src="${escAttr(es[es.length - 1].url)}" alt="">` : '<div class="esc-ph">🦷</div>';
     const ts = ultimoEstudioTs(p) || Number(p.enEscritorio) || 0;
     const d = diasDesdeTs(ts);
-    const espera = ts ? `<span class="esc-chip" style="background:${d >= 2 ? '#c53030' : (d >= 1 ? '#d69e2e' : '#718096')}; color:#fff;">⏳ ${d === 0 ? 'hoy' : 'hace ' + d + ' d'}</span>` : '';
-    const pot = p.esPotencial ? '<span class="esc-chip" style="background:var(--accent); color:#fff;">🎯 potencial</span>' : '';
-    return `<div class="esc-card" data-n="${escAttr(n)}" onclick="escAbrirMesa(this.dataset.n)">
-        ${thumb}
-        <div class="esc-info"><div class="esc-nom">${escHtml(n)}</div><div class="esc-sub">${pot}${espera}${es.length} estudio(s)</div></div>
+    const urg = ts ? (d >= 2 ? '#c53030' : (d >= 1 ? '#d69e2e' : '#38a169')) : 'var(--accent)';
+    const x = quitar ? `<span class="esc-x" title="Quitar de Mi consultorio" data-n="${escAttr(n)}" onclick="event.stopPropagation(); escYaHecho(this.dataset.n, true)">×</span>` : '';
+    if(solo) return `<div class="esc-card esc-solo" style="--urg:var(--accent);" data-n="${escAttr(n)}" onclick="escAbrirMesa(this.dataset.n)">${x}<div class="esc-nom">${escNombreHtml(n)}</div>${bot || ''}</div>`;
+    const thumb = es.length ? `<img src="${escAttr(es[es.length - 1].url)}" alt="">` : '<div class="esc-ph">🦷</div>';
+    const espera = ts ? `<span class="esc-chip" style="background:${urg}; color:#fff;">${d === 0 ? 'hoy' : 'hace ' + d + ' d'}</span>` : '';
+    const pot = p.esPotencial ? '<span class="esc-chip" style="background:var(--accent); color:#fff;">potencial</span>' : '';
+    return `<div class="esc-card" style="--urg:${urg};" data-n="${escAttr(n)}" onclick="escAbrirMesa(this.dataset.n)">
+        ${x}${thumb}
+        <div class="esc-info"><div class="esc-nom">${escNombreHtml(n)}</div><div class="esc-sub">${pot}${espera}${es.length} estudio(s)</div></div>
         ${bot || ''}
     </div>`;
 }
+var _escPleg = {};
+function escPlegar(id){ _escPleg[id] = !_escPleg[id]; const t = document.getElementById(id); if(t) t.classList.toggle('plegada', !!_escPleg[id]); }
 function renderEscritorio(){
     const cont = document.getElementById('escritorioBody'); if(!cont) return;
     const c = escCategorias();
     purgarPapelera();
     const bt = (txt, fn) => `<button class="esc-mini" data-n="@N" onclick="event.stopPropagation(); ${fn}(this.dataset.n)">${txt}</button>`;
-    const conBoton = (lista, txt, fn, solo) => lista.map(n => escTarjeta(n, bt(txt, fn).replace('@N', escAttr(n)), solo)).join('');
-    const bandeja = (id, titulo, sub, lista, htmlCards) => `<div class="esc-tray" id="${id}">
-        <h3><span>${titulo}</span><small>${lista.length}</small></h3>
-        <div class="esc-sub" style="margin:-4px 0 8px;">${sub}</div>
-        ${lista.length ? '<div class="esc-grid">' + htmlCards + '</div>' : '<div class="esc-vacio">Nada por aquí 👌</div>'}
+    const conBoton = (lista, txt, fn, solo, quitar) => lista.map(n => escTarjeta(n, bt(txt, fn).replace('@N', escAttr(n)), solo, quitar)).join('');
+    const bandeja = (id, titulo, sub, lista, htmlCards) => `<div class="esc-tray${_escPleg[id] ? ' plegada' : ''}" id="${id}">
+        <h3 onclick="escPlegar('${id}')"><span><span class="esc-chev">▼</span>${titulo}</span><small>${lista.length}</small></h3>
+        <div class="esc-cuerpo"><div class="esc-sub" style="margin:-4px 0 8px;">${sub}</div>
+        ${lista.length ? '<div class="esc-grid">' + htmlCards + '</div>' : '<div class="esc-vacio">Nada por aquí 👌</div>'}</div>
     </div>`;
-    const tile = (id, ico, n, txt) => `<div class="esc-tile" onclick="document.getElementById('${id}').scrollIntoView({behavior:'smooth', block:'start'})"><b>${n}</b><span>${ico}<br>${txt}</span></div>`;
+    const tile = (id, ico, n, txt) => `<div class="esc-tile" onclick="_escPleg['${id}'] = false; document.getElementById('${id}').classList.remove('plegada'); document.getElementById('${id}').scrollIntoView({behavior:'smooth', block:'start'})"><b>${n}</b><span>${ico}<br>${txt}</span></div>`;
     const papCards = papelera.slice().sort((a, b) => b.fecha - a.fecha).map(it => {
         const restan = Math.max(0, PAPELERA_DIAS - diasDesdeTs(it.fecha));
         return `<div class="esc-card" style="cursor:default;">
@@ -4602,8 +4616,8 @@ function renderEscritorio(){
         </div>
         ${bandeja('trayPor', '📥 Por analizar', 'Estudios subidos que aún no revisas. Los que más llevan esperando, primero. Con ✅ marcas los casos que ya diagnosticaste.', c.por, conBoton(c.por, '✅', 'escYaHecho'))}
         ${bandeja('trayBor', '🧠 En diagnóstico', 'Borradores que dejaste a medias.', c.bor, conBoton(c.bor, '✅', 'escYaHecho'))}
-        ${bandeja('trayLis', '📤 Listos para enviar', 'Diagnóstico aprobado; falta mandarlo por WhatsApp.', c.lis, conBoton(c.lis, '📲 Enviar', 'escEnviarDirecto', true))}
-        ${bandeja('trayEnv', '⏳ Esperando respuesta', 'Ya se lo mandaste. Márcalo como resuelto cuando responda o agende.', c.env, conBoton(c.env, '✔ Resuelto', 'escMarcarResuelto'))}
+        ${bandeja('trayLis', '📤 Listos para enviar', 'Diagnóstico aprobado; falta mandarlo por WhatsApp.', c.lis, conBoton(c.lis, '📲 Enviar', 'escEnviarDirecto', true, true))}
+        ${bandeja('trayEnv', '⏳ Esperando respuesta', 'Ya se lo mandaste. Márcalo como resuelto cuando responda o agende.', c.env, conBoton(c.env, '✔ Resuelto', 'escMarcarResuelto', false, true))}
         <div class="esc-tray" id="trayPap">
             <h3><span>🗑️ Papelera</span><small>${papelera.length}</small></h3>
             <div class="esc-sub" style="margin:-4px 0 8px;">Potenciales que no acudieron. Se limpia sola a los ${PAPELERA_DIAS} días.</div>
@@ -4653,7 +4667,7 @@ function escActivarDesdeFicha(){
 }
 // ✅ Caso que ya diagnosticaste por tu cuenta: sale de las charolas y de los avisos
 let escUndo = null, escUndoTimer = null;
-function escYaHecho(n){
+function escYaHecho(n, quitado){
     const p = pacientes[n]; if(!p) return;
     escUndo = { n: n, estudiosRevisados: p.estudiosRevisados, estudiosNoAplica: p.estudiosNoAplica, diag: p.diag, enEscritorio: p.enEscritorio };
     delete p.estudiosNoAplica; delete p.enEscritorio;
@@ -4662,7 +4676,7 @@ function escYaHecho(n){
     guardarPacienteDiag(n);
     renderEscritorio();
     const t = document.getElementById('escToast');
-    t.innerHTML = `✅ ${escHtml(n)} marcado como ya diagnosticado. <b style="text-decoration:underline; cursor:pointer;" onclick="escDeshacer()">Deshacer</b>`;
+    t.innerHTML = `${escHtml(n)} ${quitado ? 'quitado de Mi consultorio' : 'marcado como ya diagnosticado'}. <b style="text-decoration:underline; cursor:pointer;" onclick="escDeshacer()">Deshacer</b>`;
     t.style.display = 'block';
     clearTimeout(escUndoTimer);
     escUndoTimer = setTimeout(() => { t.style.display = 'none'; escUndo = null; }, 7000);
