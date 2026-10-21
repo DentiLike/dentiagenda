@@ -2673,7 +2673,7 @@
             return d <= 0 ? 'hoy' : (d === 1 ? 'ayer' : 'hace ' + d + ' d');
         }
         function usaSmile(nombre){ const u = usoSmile[nombre]; return !!(u && u.ts); }
-        const DA_VERSION = 'v78';
+        const DA_VERSION = 'v79';
         window.addEventListener('load', () => document.querySelectorAll('.da-ver-txt').forEach(e => e.textContent = 'DentiAgenda ' + DA_VERSION));
         // Texto del estado de SmileLike para un paciente (usa lo guardado; abajo se refresca solo ese paciente)
         function textoEstadoSmile(nombre){
@@ -6540,6 +6540,7 @@ function cariesPanel(){
             if(el._daT && ahora - el._daT < 800){ e.stopImmediatePropagation(); e.preventDefault(); daToast('Un momento: ya se está procesando'); return; }
             el._daT = ahora;
         }
+        window._daClickT = Date.now();
         const o = document.createElement('div'); o.className = 'da-onda'; o.style.left = e.clientX + 'px'; o.style.top = e.clientY + 'px';
         document.body.appendChild(o); setTimeout(() => o.remove(), 500);
     }, true);
@@ -6557,12 +6558,14 @@ function cariesPanel(){
         const n = x[0], msg = x[1], guard = x[2], o = window[n];
         if(typeof o !== 'function' || o._da) return;
         const w = function(){
-            if(guard && w._vuelo){ daToast('Sigue en proceso: espera a que termine'); return Promise.resolve(); }
-            let r; try{ r = o.apply(this, arguments); }catch(err){ daToast('No se pudo completar', 'err'); throw err; }
+            if(guard && w._vuelo){ if((Date.now() - (window._daClickT || 0)) < 2000) daToast('Sigue en proceso: espera a que termine'); return Promise.resolve(); }
+            // Solo avisa si tú lo pediste (hubo un clic o toque reciente); lo automático en segundo plano es silencioso
+            const manual = (Date.now() - (window._daClickT || 0)) < 2000 && arguments[0] !== true;
+            let r; try{ r = o.apply(this, arguments); }catch(err){ if(manual) daToast('No se pudo completar', 'err'); throw err; }
             if(r && typeof r.then === 'function'){
-                w._vuelo = true; daOcupado(1); if(msg) daToast(msg);
-                return r.then(function(v){ w._vuelo = false; daOcupado(-1); if(msg) daToast('Listo', 'ok'); return v; },
-                              function(err){ w._vuelo = false; daOcupado(-1); daToast('No se pudo completar: ' + (msg || '').replace('…', ''), 'err'); throw err; });
+                w._vuelo = true; if(manual){ daOcupado(1); if(msg) daToast(msg); }
+                return r.then(function(v){ w._vuelo = false; if(manual){ daOcupado(-1); if(msg) daToast('Listo', 'ok'); } return v; },
+                              function(err){ w._vuelo = false; if(manual){ daOcupado(-1); daToast('No se pudo completar: ' + (msg || '').replace('…', ''), 'err'); } throw err; });
             }
             return r;
         };
