@@ -2644,7 +2644,7 @@
             return d <= 0 ? 'hoy' : (d === 1 ? 'ayer' : 'hace ' + d + ' d');
         }
         function usaSmile(nombre){ const u = usoSmile[nombre]; return !!(u && u.ts); }
-        const DA_VERSION = 'v70';
+        const DA_VERSION = 'v72';
         window.addEventListener('load', () => document.querySelectorAll('.da-ver-txt').forEach(e => e.textContent = 'DentiAgenda ' + DA_VERSION));
         // Texto del estado de SmileLike para un paciente (usa lo guardado; abajo se refresca solo ese paciente)
         function textoEstadoSmile(nombre){
@@ -4381,10 +4381,19 @@
   .mesa-paso small { display:block; font-weight:normal; font-size:0.64rem; }
   .mesa-paso.hecho { color:#fff; background:var(--accent); }
   .mesa-paso.alerta { color:#fff; background:#d69e2e; }
+  .mesa-resumen { position:sticky; top:-2rem; z-index:6; background:var(--bg-color); padding:6px 0 6px; margin:0 0 8px; }
+  .mesa-resumen .rs-in { display:flex; gap:6px; overflow-x:auto; white-space:nowrap; padding:2px 1px 4px; }
+  .mesa-resumen .rs-ch { flex-shrink:0; font-size:0.72rem; font-weight:bold; padding:4px 10px; border-radius:12px; background:var(--bg-color); color:var(--primary); box-shadow:2px 2px 4px var(--shadow-dark), -2px -2px 4px var(--shadow-light); }
+  .mesa-resumen .rs-ch.warn { color:#b7791f; }
+  .mesa-paso.act { outline:2px solid var(--primary); outline-offset:1px; }
+  .mesa-nav { position:sticky; bottom:-2rem; z-index:6; background:var(--bg-color); padding:10px 0 4px; margin-top:14px; border-top:1px solid var(--shadow-dark); display:flex; gap:8px; }
+  .mesa-nav button { flex:1; padding:0.85rem 0.5rem; }
+  @media (max-width:600px){ .mesa-resumen { top:-1.3rem; } .mesa-nav { bottom:-1.3rem; } }
   .unif-fila { padding:7px 0; border-bottom:1px solid var(--shadow-dark); font-size:0.8rem; }
   .unif-fila:last-child { border-bottom:none; }
+  .u-est { display:inline-block; font-size:0.68rem; font-weight:bold; padding:1px 8px; border-radius:8px; color:#fff; }
   .unif-fila .u-est { font-size:0.68rem; font-weight:bold; padding:1px 7px; border-radius:8px; margin-left:6px; color:#fff; }
-  #daToast { position:fixed; left:50%; bottom:22px; transform:translateX(-50%) translateY(20px); z-index:99998; max-width:90%; padding:10px 16px; border-radius:12px; font-size:0.84rem; font-weight:bold; color:#fff; background:#2d3748; box-shadow:0 6px 18px rgba(0,0,0,.35); opacity:0; pointer-events:none; transition:opacity .15s, transform .15s; }
+  #daToast { position:fixed; left:50%; bottom:92px; transform:translateX(-50%) translateY(20px); z-index:99998; max-width:90%; padding:10px 16px; border-radius:12px; font-size:0.84rem; font-weight:bold; color:#fff; background:#2d3748; box-shadow:0 6px 18px rgba(0,0,0,.35); opacity:0; pointer-events:none; transition:opacity .15s, transform .15s; }
   #daToast.on { opacity:1; transform:translateX(-50%) translateY(0); }
   #daToast.err { background:#c53030; }
   #daToast.ok { background:#2f855a; }
@@ -4762,7 +4771,8 @@ function escAbrirMesa(n){
     if(!Array.isArray(mesa.d.aparatos)) mesa.d.aparatos = [];
     if(mesa.d.bracket){ if(!mesa.d.aparatos.includes(mesa.d.bracket)) mesa.d.aparatos.push(mesa.d.bracket); delete mesa.d.bracket; }   // borradores viejos
     editandoAhora = true;
-    document.getElementById('mesaTitulo').textContent = '🧠 ' + n;
+    mesa.paso = 0;
+    document.getElementById('mesaTitulo').textContent = n;
     renderMesaDecisiones();
     if(!mesa.mensaje || !mesa.editado) mesaRegenerar(true); else mesaPintarMensaje();
     if(!mesa.informe || !mesa.informeEditado) mesaRegenerarInforme(true); else mesaPintarMensaje();
@@ -4799,7 +4809,7 @@ function mesaCambio(){ renderMesaDecisiones(); mesaAutoTextos(); }
 function trazadoSeccion(p){
     const tzd = p.trazado;
     return `<div class="mesa-sec" style="border:1.5px dashed var(--primary); border-radius:12px; padding:10px;">
-        <label>Paso 2 · Trazado y valores <span style="font-weight:normal; color:var(--text-muted);">opcional · solo aquí, el paciente no lo ve</span></label>
+        <label>Trazado y valores <span style="font-weight:normal; color:var(--text-muted);">solo tú lo ves</span></label>
         <div style="display:flex; gap:8px; align-items:center; margin-bottom:6px;">
             ${tzd ? `<img src="${escAttr(tzd.url)}" style="width:54px; height:54px; border-radius:8px; object-fit:cover; cursor:pointer;" onclick="mesaZoom(this.src)">` : ''}
             <button class="esc-mini" onclick="trazoAbrir()">Hacer trazado aquí</button>
@@ -4926,84 +4936,118 @@ function unifTodo(modo){
     if(modo !== 'coinciden') unifHallazgosIA();
     daToast(modo === 'coinciden' ? 'Aplicado todo lo que coincide' : 'Resuelto: manda el trazado, y los hallazgos vienen de la IA', 'ok');
 }
-function unifPasos(p){
-    const ia = iaResActual(), m = p.trazadoPuntos && p.trazadoPuntos.m, b = mesa.bot || {}, filas = unifFilas();
-    const disc = filas.filter(f => f.hi && f.hb && !f.igual).length;
-    const cargando = (mesa.ia.cargando || []).length > 0;
-    const pa = (n, id, nom, ok, txt, alerta) => `<div class="mesa-paso${ok ? ' hecho' : (alerta ? ' alerta' : '')}" onclick="document.getElementById('${id}').scrollIntoView({behavior:'smooth', block:'start'})">${n}. ${nom}<small>${txt}</small></div>`;
-    return `<div class="mesa-pasos">
-        ${pa(1, 'paso1', 'IA', !!ia, cargando ? 'analizando' : (ia ? 'lista' : 'pendiente'), cargando)}
-        ${pa(2, 'paso2', 'Trazado', !!(m && m.anb != null), (m && m.anb != null) ? 'listo' : 'pendiente')}
-        ${pa(3, 'paso3', 'Bot', !!(m && m.anb != null) && !(b.faltan || []).length, !(m && m.anb != null) ? 'espera trazado' : ((b.faltan || []).length ? (b.faltan.length + ' por afinar') : 'listo'), !!(m && m.anb != null))}
-        ${pa(4, 'paso4', 'Unificar', (ia || b.rel) && !disc && filas.length > 0, disc ? disc + ' discrepan' : (filas.length ? 'sin conflictos' : 'pendiente'), disc > 0)}
-    </div>`;
+function mesaPasoInicial(p){
+    const et = p.diag && p.diag.etapa, m = p.trazadoPuntos && p.trazadoPuntos.m;
+    if(et === 'listo' || et === 'enviado') return 4;
+    const hayIA = Object.keys((p.diag && p.diag.ia && p.diag.ia.res) || {}).length > 0;
+    if(!hayIA && !(m && m.anb != null)) return 1;
+    if(!(m && m.anb != null)) return 2;
+    return 3;
 }
-function unifSeccion(){
-    const filas = unifFilas(), ia = iaResActual(), d = mesa.d;
-    const uno = (f) => {
-        const est = f.hi && f.hb ? (f.igual ? ['Coinciden', '#38a169'] : ['Discrepan', '#d69e2e']) : (f.hi ? ['Solo IA', '#718096'] : ['Solo bot', '#718096']);
-        const bt = (fu, t) => `<button class="esc-mini${f.ya === fu ? ' on' : ''}" onclick="unifUsar('${f.campo}', '${fu}')">${f.ya === fu ? '✔ ' : ''}${t}</button>`;
-        const acc = f.igual ? (f.ya ? '<span class="esc-sub">Ya está en tu decisión</span>' : bt('bot', 'Aplicar')) : [f.hi ? bt('ia', f.ya === 'ia' ? 'IA (elegido)' : 'Usar IA') : '', f.hb ? bt('bot', f.ya === 'bot' ? 'Bot (elegido)' : 'Usar bot') : ''].join(' ');
-        return `<div class="unif-fila"><b>${f.tit}</b><span class="u-est" style="background:${est[1]};">${est[0]}</span>
-            <div class="esc-sub" style="margin-top:3px;">${f.hi ? 'IA: ' + escHtml(f.vi) : ''}${f.hi && f.hb ? ' · ' : ''}${f.hb ? 'Bot: ' + escHtml(f.vb) : ''}</div>
-            <div style="margin-top:4px; display:flex; gap:6px; flex-wrap:wrap; align-items:center;">${acc}</div>
-            <div class="esc-sub" style="margin-top:3px;">Tu decisión final: <b>${f.actual ? escHtml(f.actual) : 'sin elegir'}</b></div></div>`;
-    };
-    const hallIA = ia ? (ia.r.hall || []).filter(h => !d.hall.includes(h)) : [];
-    const hlab = MESA_HALL.reduce((o, x) => { o[x[0]] = x[1]; return o; }, {});
-    const hallFila = hallIA.length ? `<div class="unif-fila"><b>Hallazgos de la IA que aún no marcas</b><div class="esc-sub" style="margin-top:3px;">${hallIA.map(h => escHtml(hlab[h] || h)).join(', ')}</div><div style="margin-top:4px;"><button class="esc-mini" onclick="unifHallazgosIA()">Agregarlos</button></div></div>` : '';
-    return `<div class="mesa-sec" style="border:1.5px solid var(--accent); border-radius:12px; padding:10px;">
-        <label>Paso 4 · Unificar criterio <span style="font-weight:normal; color:var(--text-muted);">compara la IA con el bot; tú decides abajo</span></label>
-        ${filas.length || hallFila ? filas.map(uno).join('') + hallFila : '<div class="esc-sub">Aún no hay nada que comparar: corre la IA (paso 1) y/o haz el trazado (paso 2).</div>'}
-        ${filas.length ? `<div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;"><button class="esc-mini" onclick="unifTodo('coinciden')">Aplicar lo que coincide</button><button class="esc-mini" onclick="unifTodo('prioridad')">Resolver todo: el trazado manda sobre la IA</button></div>
-        <div class="esc-sub" style="margin-top:6px;">Regla: para ángulos y decisiones mandan las medidas del trazado (bot); para hallazgos en las imágenes, la IA. Lo que apliques aquí se ve y se corrige en "Tu decisión final".</div>` : ''}
+function mesaPaso(n){
+    if(!mesa) return;
+    mesa.paso = n;
+    document.querySelectorAll('#mesaBody .mesa-pane').forEach(e => { e.style.display = Number(e.dataset.p) === n ? 'block' : 'none'; });
+    document.querySelectorAll('#mesaBody .mesa-paso').forEach(e => e.classList.toggle('act', Number(e.dataset.p) === n));
+    const at = document.getElementById('mesaAtras'), sg = document.getElementById('mesaSig');
+    if(at) at.style.display = n > 1 ? '' : 'none';
+    if(sg) sg.style.display = n < 4 ? '' : 'none';
+    if(!mesa._noScroll){ const m = document.querySelector('#mesaModal .modal'); if(m) m.scrollTop = 0; }
+}
+function mesaResumenHtml(){
+    const d = mesa.d, ch = [];
+    const REL = { I: 'Clase I', II: 'Clase II', III: 'Clase III', '?': 'Clase por confirmar' }, INC = { normal: 'normal', pro: 'proinclinados', retro: 'retroinclinados' };
+    if(d.rel) ch.push(REL[d.rel] || d.rel);
+    if(d.incSup) ch.push('Inc. sup. ' + INC[d.incSup]);
+    if(d.incInf) ch.push('Inc. inf. ' + INC[d.incInf]);
+    if(d.extr === 'si') ch.push('Extracción ' + (d.dientes.length ? d.dientes.slice().sort((a, b) => a - b).join(', ') : 'sí')); else if(d.extr === 'no') ch.push('Sin extracción');
+    if(d.aparatos.length) ch.push(d.aparatos.join(' + '));
+    const car = (d.cariesDet || []).filter(x => !x.x);
+    if(car.length) ch.push('Caries ' + car.map(x => x.d + (x.prof === 'profunda' ? '*' : '')).join(', '));
+    const otros = d.hall.filter(h => h !== 'caries').length; if(otros) ch.push(otros + ' hallazgo(s)');
+    return `<div class="mesa-resumen"><div class="rs-in" onclick="mesaPaso(3)">${ch.length ? ch.map(x => '<span class="rs-ch">' + escHtml(x) + '</span>').join('') : '<span class="rs-ch warn">Aún sin decisiones</span>'}</div></div>`;
+}
+function mesaPasosHtml(p){
+    const ia = iaResActual(), m = p.trazadoPuntos && p.trazadoPuntos.m, b = mesa.bot || {}, filas = unifFilas();
+    const disc = filas.filter(f => f.hi && f.hb && !f.igual && !f.ya).length;   // discrepancias aún sin resolver
+    const cargando = (mesa.ia.cargando || []).length > 0, tz = !!(m && m.anb != null);
+    const nCar = (mesa.d.cariesDet || []).filter(x => !x.x).length;
+    const et = p.diag && p.diag.etapa;
+    const pa = (n, nom, ok, txt, alerta) => `<div class="mesa-paso${ok ? ' hecho' : (alerta ? ' alerta' : '')}${(mesa.paso || 1) === n ? ' act' : ''}" data-p="${n}" onclick="mesaPaso(${n})">${n}. ${nom}<small>${txt}</small></div>`;
+    return `<div class="mesa-pasos">
+        ${pa(1, 'Analizar', !!ia, cargando ? 'analizando' : (ia ? (nCar ? nCar + ' caries' : 'lista') : 'pendiente'), cargando)}
+        ${pa(2, 'Trazado', tz && !(b.faltan || []).filter(x => !/Calibración/.test(x)).length, !tz ? 'pendiente' : ((b.faltan || []).filter(x => !/Calibración/.test(x)).length ? 'faltan datos' : 'listo'), tz)}
+        ${pa(3, 'Revisar', (ia || b.rel) && !disc && filas.length > 0, disc ? disc + ' discrepan' : (filas.length ? 'sin conflictos' : 'pendiente'), disc > 0)}
+        ${pa(4, 'Enviar', et === 'listo' || et === 'enviado', et === 'enviado' ? 'enviado' : (et === 'listo' ? 'aprobado' : (et === 'borrador' ? 'borrador' : 'pendiente')))}
     </div>`;
 }
 function renderMesaDecisiones(){
     const p = pacientes[mesa.nombre] || {};
     const est = (p.estudios || []);
     const d = mesa.d;
+    if(!mesa.paso) mesa.paso = mesaPasoInicial(p);
     const dientes = (arr) => arr.map(n => `<button class="${d.dientes.includes(n) ? 'on' : ''}" onclick="mesaDiente(${n})">${n}</button>`).join('');
-    const hTraz = trazadoSeccion(p), hBot = botSeccion(p), hUnif = unifSeccion(), hPasos = unifPasos(p);   // el bot se calcula antes de comparar
+    const hTraz = trazadoSeccion(p), hBot = botSeccion(p);   // el bot se calcula antes de comparar
+    const F = {}; unifFilas().forEach(f => { F[f.campo] = f; });
+    // Una fila de la revisión: lo que dijo la IA, lo que dijo el bot y tu decisión, todo junto
+    const fila = (campo, titulo, cuerpo) => {
+        const f = F[campo]; let meta = '';
+        if(f){
+            const e = f.hi && f.hb ? (f.igual ? ['Coinciden', '#38a169'] : ['Discrepan', '#d69e2e']) : (f.hi ? ['Solo IA', '#718096'] : ['Solo bot', '#718096']);
+            const bt = (fu, t) => `<button class="esc-mini" onclick="unifUsar('${campo}', '${fu}')">${t}</button>`;
+            meta = `<div class="esc-sub" style="margin:2px 0 6px;"><span class="u-est" style="background:${e[1]}; margin:0 6px 0 0;">${e[0]}</span>${f.hi ? 'IA: ' + escHtml(f.vi) : ''}${f.hi && f.hb ? ' · ' : ''}${f.hb ? 'Bot: ' + escHtml(f.vb) : ''}
+                <div style="margin-top:4px; display:flex; gap:6px; flex-wrap:wrap;">${f.hi && f.ya !== 'ia' ? bt('ia', 'Usar IA') : ''}${f.hb && f.ya !== 'bot' ? bt('bot', 'Usar bot') : ''}</div></div>`;
+        }
+        return `<div class="mesa-sec"><label>${titulo}</label>${meta}${cuerpo}</div>`;
+    };
+    const nav = '<div class="mesa-nav"><button class="btn-3d" id="mesaAtras" onclick="mesaPaso((mesa.paso || 1) - 1)">Atrás</button><button class="btn-3d btn-submit" id="mesaSig" style="margin-top:0; background:var(--primary); color:#fff;" onclick="mesaPaso((mesa.paso || 1) + 1)">Siguiente</button></div>';
+    const pane = (n, html) => `<div class="mesa-pane" data-p="${n}" style="display:${(mesa.paso || 1) === n ? 'block' : 'none'};">${html}</div>`;
     document.getElementById('mesaBody').innerHTML = `
-        <div class="esc-sub" style="margin-bottom:8px;">📱 ${escHtml(p.telefono || 'sin teléfono')} · Toca una radiografía para ampliarla</div>
-        <div class="mesa-estudios">${est.length ? est.map(e => `<img src="${escAttr(e.url)}" alt="${escAttr(e.nombre || '')}" onclick="mesaZoom(this.src)">`).join('') : '<div class="esc-vacio">Sin estudios subidos.</div>'}</div>
-        ${hPasos}
-        <div id="paso1"><div id="iaBloque">${iaBloqueInner()}</div></div>
-        <div id="paso2">${hTraz}</div>
-        <div id="paso3">${hBot}</div>
-        <div id="paso4">${hUnif}</div>
-        <div class="mesa-sec" style="margin-bottom:6px;"><label style="font-size:1rem;">Tu decisión final <span style="font-weight:normal; color:var(--text-muted);">editable; de aquí salen el informe y el mensaje</span></label></div>
+        <div class="esc-sub" style="margin-bottom:6px;">${escHtml(p.telefono || 'sin teléfono')}</div>
+        ${mesaResumenHtml()}
+        ${mesaPasosHtml(p)}
 
-        <div class="mesa-sec"><label>Relación entre tu maxilar superior y la mandíbula</label><div class="mesa-chips">${MESA_REL.map(x => mesaChip('rel', x[0], x[1])).join('')}</div></div>
-        <div class="mesa-sec"><label>Incisivos superiores</label><div class="mesa-chips">${MESA_INC.map(x => mesaChip('incSup', x[0], x[1])).join('')}</div></div>
-        <div class="mesa-sec"><label>Incisivos inferiores</label><div class="mesa-chips">${MESA_INC.map(x => mesaChip('incInf', x[0], x[1])).join('')}</div></div>
-        <div class="mesa-sec"><label>Hallazgos (puedes elegir varios)</label><div class="mesa-chips">${MESA_HALL.map(x => mesaChip('hall', x[0], x[1], true)).join('')}</div>
-            ${MESA_HALL.filter(x => MESA_HALL_DIENTES.includes(x[0]) && d.hall.includes(x[0])).map(x => `<div style="display:flex; gap:6px; align-items:center; margin-top:6px;"><span class="esc-sub" style="min-width:128px;">${x[1]}:</span><input type="text" class="inset-3d" style="flex:1; min-width:0;" placeholder="Dientes (ej. 16, 26)" value="${escAttr((d.hallDientes || {})[x[0]] || '')}" oninput="mesa.d.hallDientes = mesa.d.hallDientes || {}; mesa.d.hallDientes['${x[0]}'] = this.value; mesaAutoTextos();"></div>`).join('')}
-            <input type="text" class="inset-3d" style="margin-top:6px; width:100%;" placeholder="Otro hallazgo (opcional)" value="${escAttr(d.otro)}" oninput="mesa.d.otro=this.value; mesaAutoTextos();"></div>
-        <div class="mesa-sec"><label>¿Extracción de premolares?</label><div class="mesa-chips">${mesaChip('extr', 'no', 'No')}${mesaChip('extr', 'si', 'Sí')}</div>
-            ${d.extr === 'si' ? `<div class="esc-sub" style="margin-top:6px;">Toca los premolares a extraer (FDI):</div>
-            <div class="mesa-dientes" style="grid-template-columns:repeat(${mesa.todos ? 16 : 4},1fr);">${dientes(mesa.todos ? MESA_DIENTES_SUP : [15, 14, 24, 25])}</div><div class="mesa-dientes" style="grid-template-columns:repeat(${mesa.todos ? 16 : 4},1fr);">${dientes(mesa.todos ? MESA_DIENTES_INF : [45, 44, 34, 35])}</div>
-            <a href="#" class="esc-sub" style="color:var(--accent);" onclick="mesa.todos=!mesa.todos; mesaCambio(); return false;">${mesa.todos ? 'Mostrar solo premolares' : 'Otro diente…'}</a>` : ''}</div>
-        <div class="mesa-sec"><label>Aparatología indicada (puedes elegir varias)</label><div class="mesa-chips">${MESA_APARATOS.map(x => mesaChip('aparatos', x, x, true)).join('')}</div>
-            <input type="text" class="inset-3d" style="margin-top:6px; width:100%;" placeholder="Otro tipo (opcional)" value="${escAttr(d.aparatoOtro)}" oninput="mesa.d.aparatoOtro=this.value; mesaAutoTextos();"></div>
-        <div class="mesa-sec"><label>Consideraciones especiales</label>
-            <textarea class="inset-3d" rows="2" style="width:100%;" placeholder="Ej. precaución por raíces cortas, cuidar higiene…" oninput="mesa.d.nota=this.value; mesaAutoTextos();">${escHtml(d.nota)}</textarea></div>
+        ${pane(1, `
+            <div class="mesa-estudios">${est.length ? est.map(e => `<img src="${escAttr(e.url)}" alt="${escAttr(e.nombre || '')}" onclick="mesaZoom(this.src)">`).join('') : '<div class="esc-vacio">Sin estudios subidos.</div>'}</div>
+            <div id="iaBloque">${iaBloqueInner()}</div>`)}
 
-        <div class="mesa-sec"><label>Informe clínico <span style="font-weight:normal; color:var(--text-muted);">(para el expediente; se arma solo y puedes editarlo)</span></label>
-            <textarea id="mesaInforme" class="inset-3d" rows="14" style="width:100%;" oninput="mesa.informe=this.value; mesa.informeEditado=true;"></textarea>
-            <div style="display:flex; gap:6px; margin-top:6px; flex-wrap:wrap;"><button class="esc-mini" onclick="mesaCopiarInforme()">Copiar informe</button><button class="esc-mini" onclick="mesaRegenerarInforme(false); daToast('Informe armado de nuevo', 'ok')">Volver a armar el informe</button></div></div>
-        <div class="mesa-sec"><label>Mensaje para el paciente <span style="font-weight:normal; color:var(--text-muted);">(se arma solo; puedes editarlo)</span></label>
-            <textarea id="mesaMensaje" class="inset-3d" rows="11" style="width:100%;" oninput="mesa.mensaje=this.value; mesa.editado=true;"></textarea>
-            <button class="esc-mini" style="margin-top:6px;" onclick="mesaRegenerar(false); daToast('Mensaje armado de nuevo', 'ok')">Volver a armar el mensaje</button></div>
+        ${pane(2, `${hTraz}${hBot}`)}
 
-        <div style="display:flex; gap:8px; flex-wrap:wrap;">
-            <button class="btn-3d" style="flex:1; min-width:130px;" onclick="mesaBtn(this, 'Guardando…', () => mesaGuardar('borrador'))">💾 Guardar borrador</button>
-            <button class="btn-3d" style="flex:1; min-width:130px;" onclick="mesaBtn(this, 'Aprobando…', () => mesaGuardar('listo'))">✅ Aprobar</button>
-            <button class="btn-3d btn-submit" style="flex:1; min-width:130px;" onclick="mesaBtn(this, 'Abriendo WhatsApp…', () => mesaEnviar())">📲 Enviar por WhatsApp</button>
-        </div>
-        <p class="esc-sub" style="margin-top:8px;">Son observaciones preliminares de tu lectura, sujetas a valoración clínica.</p>`;
+        ${pane(3, `
+            ${Object.keys(F).length ? `<div style="margin-bottom:10px;"><button class="btn-3d" style="width:100%; padding:0.8rem; color:var(--accent);" onclick="unifTodo('prioridad')">Resolver todo: manda el trazado, la IA aporta hallazgos</button>
+                <div class="esc-sub" style="margin-top:4px;">Después ajusta lo que quieras. Aquí abajo queda tu decisión final.</div></div>` : ''}
+            ${fila('rel', 'Relación entre el maxilar superior y la mandíbula', `<div class="mesa-chips">${MESA_REL.map(x => mesaChip('rel', x[0], x[1])).join('')}</div>`)}
+            ${fila('incSup', 'Incisivos superiores', `<div class="mesa-chips">${MESA_INC.map(x => mesaChip('incSup', x[0], x[1])).join('')}</div>`)}
+            ${fila('incInf', 'Incisivos inferiores', `<div class="mesa-chips">${MESA_INC.map(x => mesaChip('incInf', x[0], x[1])).join('')}</div>`)}
+            <div class="mesa-sec"><label>Hallazgos (puedes elegir varios)</label><div class="mesa-chips">${MESA_HALL.map(x => mesaChip('hall', x[0], x[1], true)).join('')}</div>
+                ${MESA_HALL.filter(x => MESA_HALL_DIENTES.includes(x[0]) && d.hall.includes(x[0]) && x[0] !== 'caries').map(x => `<div style="display:flex; gap:6px; align-items:center; margin-top:6px;"><span class="esc-sub" style="min-width:128px;">${x[1]}:</span><input type="text" class="inset-3d" style="flex:1; min-width:0;" placeholder="Dientes (ej. 16, 26)" value="${escAttr((d.hallDientes || {})[x[0]] || '')}" oninput="mesa.d.hallDientes = mesa.d.hallDientes || {}; mesa.d.hallDientes['${x[0]}'] = this.value; mesaAutoTextos();"></div>`).join('')}
+                ${cariesPanel()}
+                <input type="text" class="inset-3d" style="margin-top:6px; width:100%;" placeholder="Otro hallazgo (opcional)" value="${escAttr(d.otro)}" oninput="mesa.d.otro=this.value; mesaAutoTextos();"></div>
+            ${fila('extr', '¿Extracción de premolares?', `<div class="mesa-chips">${mesaChip('extr', 'no', 'No')}${mesaChip('extr', 'si', 'Sí')}</div>
+                ${d.extr === 'si' ? `<div class="esc-sub" style="margin-top:6px;">Toca los premolares a extraer (FDI):</div>
+                <div class="mesa-dientes" style="grid-template-columns:repeat(${mesa.todos ? 16 : 4},1fr);">${dientes(mesa.todos ? MESA_DIENTES_SUP : [15, 14, 24, 25])}</div><div class="mesa-dientes" style="grid-template-columns:repeat(${mesa.todos ? 16 : 4},1fr);">${dientes(mesa.todos ? MESA_DIENTES_INF : [45, 44, 34, 35])}</div>
+                <a href="#" class="esc-sub" style="color:var(--accent);" onclick="mesa.todos=!mesa.todos; mesaCambio(); return false;">${mesa.todos ? 'Mostrar solo premolares' : 'Otro diente…'}</a>` : ''}`)}
+            ${fila('aparatos', 'Aparatología indicada (puedes elegir varias)', `<div class="mesa-chips">${MESA_APARATOS.map(x => mesaChip('aparatos', x, x, true)).join('')}</div>
+                <input type="text" class="inset-3d" style="margin-top:6px; width:100%;" placeholder="Otro tipo (opcional)" value="${escAttr(d.aparatoOtro)}" oninput="mesa.d.aparatoOtro=this.value; mesaAutoTextos();">`)}
+            <div class="mesa-sec"><label>Consideraciones especiales</label>
+                <textarea class="inset-3d" rows="2" style="width:100%;" placeholder="Ej. precaución por raíces cortas, cuidar higiene…" oninput="mesa.d.nota=this.value; mesaAutoTextos();">${escHtml(d.nota)}</textarea></div>`)}
+
+        ${pane(4, `
+            <div class="mesa-sec"><label>Mensaje para el paciente <span style="font-weight:normal; color:var(--text-muted);">(se arma solo; puedes editarlo)</span></label>
+                <textarea id="mesaMensaje" class="inset-3d" rows="12" style="width:100%;" oninput="mesa.mensaje=this.value; mesa.editado=true;"></textarea>
+                <button class="esc-mini" style="margin-top:6px;" onclick="mesaRegenerar(false); daToast('Mensaje armado de nuevo', 'ok')">Volver a armar el mensaje</button></div>
+            <details class="ft-plegable"><summary>Informe clínico para el expediente</summary>
+                <textarea id="mesaInforme" class="inset-3d" rows="14" style="width:100%; margin-top:8px;" oninput="mesa.informe=this.value; mesa.informeEditado=true;"></textarea>
+                <div style="display:flex; gap:6px; margin-top:6px; flex-wrap:wrap;"><button class="esc-mini" onclick="mesaCopiarInforme()">Copiar informe</button><button class="esc-mini" onclick="mesaRegenerarInforme(false); daToast('Informe armado de nuevo', 'ok')">Volver a armar el informe</button></div></details>
+            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
+                <button class="btn-3d" style="flex:1; min-width:130px;" onclick="mesaBtn(this, 'Guardando…', () => mesaGuardar('borrador'))">Guardar borrador</button>
+                <button class="btn-3d" style="flex:1; min-width:130px;" onclick="mesaBtn(this, 'Aprobando…', () => mesaGuardar('listo'))">Aprobar</button>
+                <button class="btn-3d btn-submit" style="flex:1; min-width:130px; margin-top:0;" onclick="mesaBtn(this, 'Abriendo WhatsApp…', () => mesaEnviar())">Enviar por WhatsApp</button>
+            </div>
+            <p class="esc-sub" style="margin-top:8px;">Son observaciones preliminares de tu lectura, sujetas a valoración clínica.</p>`)}
+        ${nav}`;
     mesaPintarMensaje();
+    mesa._noScroll = true; mesaPaso(mesa.paso || 1); mesa._noScroll = false;
 }
 function mesaPintarMensaje(){ const t = document.getElementById('mesaMensaje'); if(t) t.value = mesa.mensaje || ''; const i = document.getElementById('mesaInforme'); if(i) i.value = mesa.informe || ''; }
 function mesaRegenerarInforme(silencioso){
@@ -5043,7 +5087,9 @@ function mesaNombreObs(l){
 }
 // Puntos de atención y aviso de riesgos (lenguaje para el paciente)
 function mesaAtencionPaciente(d){
-    const L = [], H = d.hall || [];
+    const L = [], H = d.hall || [], C = [];
+    const prof = (d.cariesDet || []).filter(x => !x.x && x.prof === 'profunda').map(x => x.d);
+    if(prof.length) C.push('Caries profundas (' + (prof.length > 1 ? 'dientes ' : 'diente ') + mesaListaTexto(prof) + '): requieren atención prioritaria, de preferencia antes de iniciar el tratamiento de ortodoncia.');
     if(H.includes('raices')) L.push(mesaConDientes(d, 'raices', 'Raíces cortas') + ': suponen un riesgo elevado durante el tratamiento, por lo que se requiere mucha precaución y controles cercanos.');
     if(H.includes('retenidos')) L.push(mesaConDientes(d, 'retenidos', 'Dientes retenidos o incluidos') + ': requieren seguimiento durante el tratamiento.');
     if(H.includes('observacion')){ const l = mesaDientesDe(d, 'observacion'); L.push(mesaNombreObs(l) + (l.length > 1 ? ' permanecerán' : ' permanecerá') + ' en observación.'); }
@@ -5051,7 +5097,7 @@ function mesaAtencionPaciente(d){
         const br = (d.aparatos || []).some(a => ['Estándar metálico', 'Metálico flex', 'Autoligado'].includes(a));
         L.push('Si en algún momento se presenta un riesgo mayor, se retirará ' + (br ? 'el aparato (los brackets)' : 'el aparato') + ' para proteger sus dientes. Todo tratamiento de ortodoncia conlleva riesgos, que le explicaremos en consulta.');
     }
-    return L;
+    return C.concat(L);
 }
 function mesaAtencionInforme(d){
     const L = [], H = d.hall || [];
@@ -5115,6 +5161,8 @@ function mesaArmarInforme(nombre, d){
     const hs = d.hall.filter(h => !['observacion'].includes(h)).map(h => hall[h] ? mesaConDientes(d, h, hall[h]) : '').filter(Boolean);
     if(d.otro && d.otro.trim()) hs.push(d.otro.trim());
     if(hs.length) L.push('Hallazgos radiográficos: ' + hs.join('; ') + '.');
+    const cd = (d.cariesDet || []).filter(x => !x.x);
+    if(cd.length) L.push('Detalle de caries: ' + cd.map(x => x.d + (x.sup ? ' ' + x.sup : '') + ', ' + x.prof).join('; ') + '.');
     const ai = mesaAtencionInforme(d); if(ai.length){ L.push(''); L.push('RIESGOS Y PRECAUCIONES'); ai.forEach(x => L.push(x)); }
     L.push(''); L.push('PLAN DE TRATAMIENTO');
     if(d.extr === 'si') L.push('Extracciones: ' + (d.dientes.length ? 'premolares ' + d.dientes.slice().sort((a, b) => a - b).join(', ') : 'indicadas, dientes por definir') + '.');
@@ -5370,6 +5418,8 @@ function iaConsentimiento(){
 }
 function iaBloqueInner(){
     const ia = mesa.ia, cargando = ia.cargando.length > 0;
+    const conLlave = ['claude', 'gemini', 'grok'].filter(k => iaLlaveLocal(k));
+    if(conLlave.length === 1 && ia.prov !== conLlave[0]) ia.prov = conLlave[0];
     const opt = (v, t) => `<option value="${v}"${ia.prov === v ? ' selected' : ''}>${t}</option>`;
     const tarjetas = ['claude', 'gemini', 'grok'].filter(k => ia.res[k]).map(k => {
         const x = ia.res[k];
@@ -5399,15 +5449,18 @@ function iaBloqueInner(){
             <button class="esc-mini" style="margin-top:8px; width:100%;" onclick="mesaAplicarIA('${k}')">Aplicar sugerencias de ${IA_NOMBRE[k]}${ia.aplicada === k ? ' (aplicadas)' : ''}</button>
         </div>`;
     }).join('');
+    const rr = (typeof iaResActual === 'function') ? iaResActual() : null;
+    const nCar = (mesa.d.cariesDet || []).filter(x => !x.x).length;
+    const estado = cargando ? '' : (rr ? `<div class="esc-sub" style="margin-top:8px; color:#2f855a;"><b>Lectura lista.</b> ${(rr.r.hall || []).length} hallazgo(s) marcado(s)${nCar ? ' · ' + nCar + ' diente(s) con caries' : ''}. Revisa y confirma en el paso 3.</div>` : (conLlave.length ? '' : '<div class="esc-sub" style="margin-top:8px; color:#b7791f;">Aún no hay llave de IA en este dispositivo: cárgala en Mi consultorio → Laboratorio IA.</div>'));
     return `<div class="mesa-sec" style="border:1.5px dashed var(--accent); border-radius:12px; padding:10px;">
-        <label>Paso 1 · Lectura de la IA <span style="font-weight:normal; color:var(--text-muted);">segunda opinión sobre las imágenes; tú decides</span></label>
+        <label>Análisis con IA <span style="font-weight:normal; color:var(--text-muted);">lee las radiografías, marca hallazgos y caries; tú verificas</span></label>
         <div style="display:flex; gap:6px;">
-            <select class="inset-3d" style="flex:1; min-width:0;" onchange="mesa.ia.prov=this.value">${opt('claude', 'Claude')}${opt('gemini', 'Gemini')}${opt('grok', 'Grok')}${opt('todos', 'Los 3 (comparar)')}</select>
-            <button class="esc-mini${cargando ? ' ia-trabajando' : ''}" ${cargando ? 'disabled' : ''} onclick="iaAnalizar()">${cargando ? 'Analizando… <span id="iaSeg">' + Math.round((Date.now() - (ia.t0 || Date.now())) / 1000) + ' s</span>' : 'Complementar con IA'}</button>
+            ${conLlave.length > 1 ? `<select class="inset-3d" style="flex:1; min-width:0;" onchange="mesa.ia.prov=this.value">${opt('claude', 'Claude')}${opt('gemini', 'Gemini')}${opt('grok', 'Grok')}${opt('todos', 'Los 3 (comparar)')}</select>` : ''}
+            <button class="btn-3d${cargando ? ' ia-trabajando' : ''}" style="flex:1; padding:0.8rem;" ${cargando ? 'disabled' : ''} onclick="iaAnalizar()">${cargando ? 'Analizando… <span id="iaSeg">' + Math.round((Date.now() - (ia.t0 || Date.now())) / 1000) + ' s</span>' : (rr ? 'Volver a analizar' : 'Analizar caso con IA')}</button>
         </div>
         ${cargando ? `<div class="esc-sub" style="margin-top:6px;">Trabajando con ${ia.cargando.map(k => IA_NOMBRE[k]).join(', ')}. No hace falta volver a tocar el botón: tarda entre 10 y 60 segundos.</div>` : ''}
-        ${tarjetas}
-        <div class="esc-sub" style="margin-top:6px;">Lectura preliminar: no sustituye tu análisis. Confírmala en la imagen antes de aplicarla.</div>
+        ${estado}
+        ${tarjetas ? `<details class="ft-plegable"><summary>Ver lectura detallada de la IA</summary>${tarjetas}</details>` : ''}
     </div>`;
 }
 function iaUsarSuposicion(k, i){
@@ -5427,15 +5480,18 @@ function iaAutoHall(pv){
     const r = x.resultado, d = mesa.d; d.hallDientes = d.hallDientes || {};
     const lab = MESA_HALL.reduce((o, y) => { o[y[0]] = y[1]; return o; }, {});
     (r.hall || []).forEach(h => { if(!d.hall.includes(h)) d.hall.push(h); });
-    Object.keys(r.hallDientes || {}).forEach(h => { if(!(d.hallDientes[h] || '').trim()) d.hallDientes[h] = r.hallDientes[h]; });
+    Object.keys(r.hallDientes || {}).forEach(h => { if(h === 'caries' && (d.cariesDet || []).length) return; if(!(d.hallDientes[h] || '').trim()) d.hallDientes[h] = r.hallDientes[h]; });
     if(r.otro && !d.otro) d.otro = r.otro;
     mesa.ia.autoHall = pv;
+    const nc = (d.cariesDet || []).filter(x => !x.x);
+    if(nc.length){ if(!d.hall.includes('caries')) d.hall.push('caries'); cariesSync(); }
     try{ mesaAutoTextos(); }catch(e){}
-    daToast((r.hall || []).length ? 'La IA marcó ' + (r.hall || []).map(h => (lab[h] || h).toLowerCase() + ((r.hallDientes || {})[h] ? ' (' + r.hallDientes[h] + ')' : '')).join(', ') : 'La IA terminó: no marcó hallazgos', 'ok');
+    if(nc.length){ daToast('La IA marcó caries en ' + nc.map(x => x.d + (x.prof === 'profunda' ? ' (profunda)' : '')).join(', ') + (((r.hall || []).filter(h => h !== 'caries').length) ? ' y otros hallazgos' : '') + '. Verifícalas abajo.', 'ok'); }
+    else daToast((r.hall || []).length ? 'La IA marcó ' + (r.hall || []).map(h => (lab[h] || h).toLowerCase() + ((r.hallDientes || {})[h] ? ' (' + r.hallDientes[h] + ')' : '')).join(', ') : 'La IA terminó: no marcó hallazgos', 'ok');
 }
 function iaRepintar(){
     if(!mesa) return;
-    if(!mesa.ia.cargando.length && document.getElementById('paso4')){ renderMesaDecisiones(); return; }   // terminó: repinta todo para comparar con el bot
+    if(!mesa.ia.cargando.length && document.querySelector('#mesaBody .mesa-pane')){ renderMesaDecisiones(); return; }   // terminó: repinta todo para comparar con el bot
     const e = document.getElementById('iaBloque'); if(e) e.innerHTML = iaBloqueInner();
 }
 async function iaAnalizar(reanalizar){
@@ -5458,6 +5514,13 @@ async function iaAnalizar(reanalizar){
             if(extra && !iaLlaveLocal(pv)) throw new Error('Para usar tus respuestas necesitas la llave de ' + IA_NOMBRE[pv] + ' guardada en este dispositivo (Laboratorio IA).');
             const eb = (m.bot && iaLlaveLocal(pv)) ? botTextoParaIA(m.bot) : '';
             m.ia.res[pv] = await iaLlamarServidor(pv, p, [extra, eb].filter(Boolean).join('\n'));
+            if(mesa === m && iaLlaveLocal(pv)){
+                try{
+                    if(mesa === m) daToast('Análisis listo. Ahora reviso las caries diente por diente…');
+                    const cr = await iaCariesLocal(pv, p);
+                    if(mesa === m && (!iaResActual() || iaResActual().k === pv)){ cariesAplicar(cr); }
+                }catch(e){ if(mesa === m) mesa.d.cariesErr = e.message === 'NO_PANO' ? 'No hay una panorámica subida para revisar caries.' : iaMensajeError(e); console.error('caries', e); }
+            }
             if(mesa === m) iaAutoHall(pv);
             if(m.ia.resp) m.ia.resp[pv] = [];
         }
@@ -5494,7 +5557,8 @@ async function iaRegistrarCaso(){
         const d = mesa.d, id = mesa.ia.casoId, nombre = mesa.nombre;
         const fin = { rel: d.rel, incSup: d.incSup, incInf: d.incInf, hall: d.hall.slice(), extr: d.extr, dientes: d.dientes.slice(), aparatos: d.aparatos.slice() };
         const entrada = { m: traz ? traz.m : null, apinSup: d.apinSup || '', apinInf: d.apinInf || '', perfil: d.perfil || '', crec: d.crec || '', atmSint: d.atmSint || '', edad: (pz ? iaEdadDe(pz) : 0) || 0, hall: d.hall.slice() };
-        await db.collection('agenda').doc(id).set({ tipo: 'iacaso', ts: Date.now(), paciente: nombre, sugerencias: sug, final: fin, traz: traz, entrada: entrada });
+        const car = (d.cariesDet || []).length ? { ia: d.cariesDet.filter(x => x.ia !== false).map(x => ({ d: x.d, prof: x.prof, conf: x.conf, desc: !!x.x })), final: d.cariesDet.filter(x => !x.x).map(x => ({ d: x.d, prof: x.prof })), confirmada: !!d.cariesOk } : null;
+        await db.collection('agenda').doc(id).set({ tipo: 'iacaso', ts: Date.now(), paciente: nombre, sugerencias: sug, final: fin, traz: traz, entrada: entrada, caries: car });
     }catch(e){ console.error('iaRegistrarCaso', e); }
 }
 
@@ -5923,7 +5987,6 @@ function botValorar(p, d, cfg){
     if(aS === undefined && aI === undefined) r.faltan.push('Apiñamiento (superior e inferior)');
     else if(aS === undefined) r.faltan.push('Apiñamiento superior');
     else if(aI === undefined) r.faltan.push('Apiñamiento inferior');
-    if(!d.perfil) r.faltan.push('Perfil facial');
     r.variable = false; r.regla = '';
     const fijar = (regla, extr, dd, razon) => { r.regla = regla; r.extr = extr; r.dientes = dd; r.razones.push(razon); };
     if(r.rel === 'II' && (aS !== undefined || r.incSup === 'pro')){
@@ -6101,22 +6164,20 @@ function botSeccion(p){
     const faltaTraz = !m || m.anb == null;
     const memoria = sim.n >= 3 ? `En ${sim.n} casos tuyos parecidos, extrajiste en ${sim.si} (${Math.round(100 * sim.si / sim.n)}%).` : (_botCasos && _botCasos.length ? 'Todavía no tengo suficientes casos parecidos tuyos para comparar.' : '');
     return `<div class="mesa-sec" style="border:1.5px solid var(--primary); border-radius:12px; padding:10px;">
-        <label>Paso 3 · Bot DentiAgenda <span style="font-weight:normal; color:var(--text-muted);">usa tu trazado, te pregunta, sugiere y aprende de tus casos</span></label>
+        <label>Bot DentiAgenda <span style="font-weight:normal; color:var(--text-muted);">usa tu trazado y tus reglas; solo te pregunta lo que cambia la decisión</span></label>
         ${faltaTraz ? `<div class="esc-sub" style="margin:6px 0; color:#b7791f;">Primero necesito el trazado (S, N, A y B como mínimo). <a href="#" style="color:var(--accent); font-weight:bold;" onclick="trazoAbrir('${String(mesa.nombre).replace(/'/g, "\\'")}'); return false;">Hacer trazado</a></div>` : ''}
         ${botPregunta('apinSup', 'Apiñamiento superior', apin, sg.apinSup)}
         ${botPregunta('apinInf', 'Apiñamiento inferior', apin, sg.apinInf)}
-        ${botPregunta('perfil', 'Perfil facial', [['recto', 'Recto'], ['convexo', 'Convexo'], ['concavo', 'Cóncavo']], sg.perfil)}
-        ${botPregunta('crec', 'Crecimiento' + (edad ? ' (' + edad + ' años)' : ''), [['si', 'En crecimiento'], ['no', 'Sin crecimiento']], sg.crec)}
         ${botPregunta('atmSint', 'Síntomas de ATM (dolor, chasquidos, limitación de apertura)', [['si', 'Sí hay'], ['no', 'No hay']], sg.atmSint)}
         ${b.limite ? botPregunta('extr', 'Caso limítrofe: ¿extracción de premolares?', [['si', 'Sí'], ['no', 'No']], sg.extr) : ''}
         <div style="margin-top:10px; padding:8px; border-radius:8px; background:var(--bg-color); box-shadow:inset 2px 2px 5px var(--shadow-dark), inset -2px -2px 5px var(--shadow-light);">
             ${lin.length ? lin.map(t => '<div style="font-size:0.84rem; margin:2px 0;"><b>' + escHtml(t) + '</b></div>').join('') : '<div class="esc-sub">Sin datos suficientes todavía.</div>'}
             ${memoria ? '<div class="esc-sub" style="margin-top:6px;">Memoria: ' + escHtml(memoria) + '</div>' : ''}
-            ${b.razones.length ? '<div class="esc-sub" style="margin-top:6px;">Razones:<br>' + b.razones.map(t => '- ' + escHtml(t)).join('<br>') + '</div>' : ''}
+            ${b.razones.length ? '<details class="ft-plegable"><summary>Razones del bot</summary><div class="esc-sub">' + b.razones.map(t => '- ' + escHtml(t)).join('<br>') + '</div></details>' : ''}
             ${b.faltan.length ? '<div class="esc-sub" style="margin-top:6px; color:#b7791f;">Para afinar falta: ' + b.faltan.map(escHtml).join('; ') + '.</div>' : ''}
             <div class="esc-sub" style="margin-top:4px;">Confianza de esta valoración: ${b.confianza}. Los umbrales son valores de partida; ajústalos en Laboratorio IA.</div>
         </div>
-        <button class="esc-mini" style="margin-top:8px; width:100%;" onclick="botAplicar()">Aplicar valoración del bot a la mesa</button>
+        <button class="esc-mini" style="margin-top:8px; width:100%;" onclick="botAplicar(); mesaPaso(3)">Usar esta valoración y revisar</button>
     </div>`;
 }
 function botAplicar(){
@@ -6150,6 +6211,151 @@ function botPanelAprendizaje(casos, cfg){
 }
 </script>
 
+
+<script>
+// ============ CARIES: la IA revisa la radiografía diente por diente y las marca; tú verificas ============
+const CAR_PROF = { superficial: 'superficial', media: 'media', profunda: 'profunda' };
+function cariesPrompt(conBox){
+    return `Eres un asistente de apoyo para un ortodoncista. Tu única tarea ahora es BUSCAR CARIES en la radiografía panorámica adjunta, revisando DIENTE POR DIENTE y en orden FDI: 18 a 11, 21 a 28, 48 a 41, 31 a 38 (dientes permanentes).
+Busca: radiolucideces en esmalte o dentina (oclusales, interproximales mesiales o distales, cervicales) y caries recurrentes bajo restauraciones.
+Clasifica la profundidad: "superficial" = solo esmalte o tercio externo de dentina; "media" = tercio medio de dentina; "profunda" = tercio interno de dentina o cercana a la cámara pulpar.
+Incluye también las dudosas pero con confianza "baja" o "media": el doctor las va a verificar, es preferible que las veas a que se te pasen. Si de verdad no hay ninguna, devuelve la lista vacía.
+Responde ÚNICAMENTE con un objeto JSON válido (sin texto antes ni después, sin markdown):
+{
+  "caries": [ { "diente": 16, "superficie": "oclusal" | "mesial" | "distal" | "cervical" | "no_claro", "profundidad": "superficial" | "media" | "profunda", "confianza": "alta" | "media" | "baja"${conBox ? ', "box_2d": [ymin, xmin, ymax, xmax]' : ''}, "nota": "frase breve opcional" } ],
+  "restauraciones": [ números FDI de dientes con restauración extensa, corona o endodoncia visible ],
+  "calidad": "buena" | "regular" | "mala",
+  "observaciones": "máximo 3 frases: qué zonas no se pudieron valorar y por qué"
+}
+${conBox ? 'box_2d son coordenadas normalizadas de 0 a 1000 sobre la imagen completa (origen arriba a la izquierda) del recuadro que encierra el diente afectado; si no puedes ubicarlo con precisión, omite box_2d.\n' : ''}Usa solo numeración FDI permanente (11 a 48). No inventes dientes que no se ven (por ejemplo ausentes).`;
+}
+function cariesLimpiar(texto){
+    const i = texto.indexOf('{'), f = texto.lastIndexOf('}');
+    if(i < 0 || f < i) throw new Error('La IA no devolvió una lista de caries legible.');
+    let o; try{ o = JSON.parse(texto.slice(i, f + 1)); }catch(e){ throw new Error('La IA devolvió un formato inválido para las caries. Intenta de nuevo.'); }
+    const valido = n => Number.isInteger(n) && n >= 11 && n <= 48 && n % 10 >= 1 && n % 10 <= 8 && Math.floor(n / 10) >= 1 && Math.floor(n / 10) <= 4;
+    const vistos = {}, lista = [];
+    (Array.isArray(o.caries) ? o.caries : []).forEach(x => {
+        const d = Number(x && x.diente); if(!valido(d) || vistos[d]) return; vistos[d] = 1;
+        const bx = Array.isArray(x.box_2d) && x.box_2d.length === 4 && x.box_2d.every(v => typeof v === 'number' && v >= 0 && v <= 1000) ? x.box_2d : null;
+        lista.push({ d: d, prof: CAR_PROF[x.profundidad] || 'media', sup: ['oclusal', 'mesial', 'distal', 'cervical'].includes(x.superficie) ? x.superficie : '', conf: ['alta', 'media', 'baja'].includes(x.confianza) ? x.confianza : 'media', box: bx, nota: typeof x.nota === 'string' ? x.nota.trim().slice(0, 120) : '', x: false });
+    });
+    lista.sort((a, b) => a.d - b.d);
+    return { lista: lista, obs: typeof o.observaciones === 'string' ? o.observaciones.trim().slice(0, 400) : '', calidad: ['buena', 'regular', 'mala'].includes(o.calidad) ? o.calidad : '' };
+}
+async function iaCariesLocal(prov, p){
+    const key = iaLlaveLocal(prov); if(!key) throw new Error('Sin llave local de ' + IA_NOMBRE[prov]);
+    let cfg = {}; try{ const sn = await db.collection('agenda').doc('ia_config').get(); cfg = sn.exists ? sn.data() : {}; }catch(e){}
+    const modelos = Object.assign({ claude: 'claude-opus-5-5', gemini: 'gemini-3.8-flash', grok: 'grok-4' }, cfg.modelos || {});
+    const respaldos = Object.assign({ gemini: 'gemini-3.1-pro-preview' }, cfg.respaldo || {});
+    const ests = (p.estudios || []);
+    const pano = ests.filter(e => /panor/i.test(e.nombre || '')).slice(-1)[0] || ests.filter(e => !/lateral|cefal/i.test(e.nombre || '')).slice(-1)[0];
+    if(!pano) throw new Error('NO_PANO');
+    const img = await iaDescargarLocal(String(pano.url || ''));
+    const conBox = prov === 'gemini', prompt = cariesPrompt(conBox);
+    const llamar = async (modelo) => {
+        try{
+            if(prov === 'claude') return await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true', 'content-type': 'application/json' },
+                body: JSON.stringify({ model: modelo, max_tokens: 3000, messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: img.mime, data: img.b64 } }, { type: 'text', text: prompt }] }] }) });
+            if(prov === 'gemini') return await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(modelo) + ':generateContent', { method: 'POST', headers: { 'x-goog-api-key': key, 'content-type': 'application/json' },
+                body: JSON.stringify({ contents: [{ role: 'user', parts: [{ inline_data: { mime_type: img.mime, data: img.b64 } }, { text: prompt }] }], generationConfig: { responseMimeType: 'application/json', maxOutputTokens: 8192 } }) });
+            return await fetch('https://api.x.ai/v1/chat/completions', { method: 'POST', headers: { 'Authorization': 'Bearer ' + key, 'content-type': 'application/json' },
+                body: JSON.stringify({ model: modelo, messages: [{ role: 'user', content: [{ type: 'image_url', image_url: { url: 'data:' + img.mime + ';base64,' + img.b64, detail: 'high' } }, { type: 'text', text: prompt }] }] }) });
+        }catch(e){ throw new Error('RED_' + prov); }
+    };
+    const principal = String(modelos[prov]), resp0 = String(respaldos[prov] || '');
+    const plan = [principal, principal, principal]; if(resp0 && resp0 !== principal) plan.push(resp0);
+    const esperas = [3000, 7000, 1000];
+    let resp = null, texto = '', ultimoErr = null;
+    for(let i = 0; i < plan.length; i++){
+        try{ resp = await llamar(plan[i]); }catch(e){ ultimoErr = e; resp = null; if(i < plan.length - 1){ await new Promise(ok => setTimeout(ok, esperas[i] || 1000)); continue; } break; }
+        texto = await resp.text();
+        if(resp.ok) break;
+        if([429, 500, 502, 503, 504].indexOf(resp.status) >= 0 && i < plan.length - 1){ await new Promise(ok => setTimeout(ok, esperas[i] || 1000)); continue; }
+        break;
+    }
+    if(!resp) throw ultimoErr || new Error('RED_' + prov);
+    if(!resp.ok) throw new Error(IA_NOMBRE[prov] + ' respondió ' + resp.status + ' al revisar caries.');
+    const j = JSON.parse(texto);
+    let out;
+    if(prov === 'claude') out = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
+    else if(prov === 'gemini') out = ((((j.candidates || [])[0] || {}).content || {}).parts || []).map(x => x.text || '').join('');
+    else out = ((((j.choices || [])[0] || {}).message || {}).content) || '';
+    const res = cariesLimpiar(out); res.img = String(pano.url || ''); res.prov = prov;
+    return res;
+}
+// Aplica el resultado de la IA a tu decisión final (marca "Caries" y deja la lista para verificar)
+function cariesAplicar(res){
+    const d = mesa.d;
+    d.cariesDet = res.lista.map(x => Object.assign({}, x, { ia: true })); d.cariesImg = res.img; d.cariesObs = res.obs; d.cariesProv = res.prov; d.cariesOk = false;
+    if(d.cariesDet.length && !d.hall.includes('caries')) d.hall.push('caries');
+    cariesSync();
+}
+function cariesSync(){
+    const d = mesa.d; d.hallDientes = d.hallDientes || {};
+    const l = (d.cariesDet || []).filter(x => !x.x).map(x => x.d).sort((a, b) => a - b);
+    d.hallDientes.caries = l.join(', ');
+}
+function cariesCambio(){ cariesSync(); mesa.d.cariesOk = false; mesaCambio(); }
+function cariesProf(i, v){ const x = mesa.d.cariesDet[i]; if(!x) return; x.prof = v; cariesCambio(); }
+function cariesQuitar(i){ const x = mesa.d.cariesDet[i]; if(!x) return; x.x = !x.x; cariesCambio(); daToast(x.x ? 'Diente ' + x.d + ' descartado de las caries' : 'Diente ' + x.d + ' restaurado en la lista', 'ok'); }
+function cariesAgregar(){
+    const inp = document.getElementById('carNuevo'); if(!inp) return;
+    const n = parseInt(inp.value, 10);
+    if(!(n >= 11 && n <= 48 && n % 10 >= 1 && n % 10 <= 8 && Math.floor(n / 10) <= 4)){ alert('Escribe un número de diente FDI válido (11 a 48).'); return; }
+    const d = mesa.d; d.cariesDet = d.cariesDet || [];
+    const ex = d.cariesDet.find(x => x.d === n);
+    if(ex){ ex.x = false; }
+    else d.cariesDet.push({ d: n, prof: 'media', sup: '', conf: 'alta', box: null, nota: 'agregada por ti', x: false, ia: false });
+    d.cariesDet.sort((a, b) => a.d - b.d);
+    if(!d.hall.includes('caries')) d.hall.push('caries');
+    cariesCambio(); daToast('Diente ' + n + ' agregado a las caries', 'ok');
+}
+function cariesConfirmar(){ mesa.d.cariesOk = true; mesaCambio(); daToast('Lista de caries confirmada por ti', 'ok'); }
+async function cariesBuscar(){
+    if(!mesa || (mesa.ia.cargando || []).length || mesa._carBusca) return;
+    const p = pacientes[mesa.nombre]; const ia = iaResActual(); const prov = (ia && ia.k) || mesa.ia.prov !== 'todos' && mesa.ia.prov || 'gemini';
+    if(!iaConsentimiento()) return;
+    mesa._carBusca = true; daOcupado(1); daToast('Buscando caries diente por diente… tarda entre 10 y 60 segundos');
+    renderMesaDecisiones();
+    try{
+        const res = await iaCariesLocal(prov, p); cariesAplicar(res); mesaAutoTextos();
+        daToast(res.lista.length ? 'La IA encontró ' + res.lista.length + ' diente(s) con caries: ' + res.lista.map(x => x.d + (x.prof === 'profunda' ? ' (profunda)' : '')).join(', ') : 'La IA no encontró caries', 'ok');
+    }catch(e){ mesa.d.cariesErr = e.message === 'NO_PANO' ? 'No hay una panorámica subida para revisar.' : iaMensajeError(e); daToast('No se pudo revisar caries', 'err'); }
+    mesa._carBusca = false; daOcupado(-1); renderMesaDecisiones();
+}
+function cariesVer(){
+    const d = mesa.d; if(!d.cariesImg) return;
+    const col = { profunda: '#e53e3e', media: '#dd8b00', superficial: '#d6b600' };
+    const cajas = (d.cariesDet || []).filter(x => !x.x && x.box).map(x => { const b = x.box; return `<div style="position:absolute; left:${b[1] / 10}%; top:${b[0] / 10}%; width:${(b[3] - b[1]) / 10}%; height:${(b[2] - b[0]) / 10}%; border:2px solid ${col[x.prof]}; box-sizing:border-box;"><span style="position:absolute; top:-18px; left:0; background:${col[x.prof]}; color:#fff; font-size:11px; font-weight:bold; padding:1px 5px; border-radius:4px; white-space:nowrap;">${x.d}${x.prof === 'profunda' ? ' prof.' : ''}</span></div>`; }).join('');
+    let m = document.getElementById('cariesVer'); if(m) m.remove();
+    m = document.createElement('div'); m.id = 'cariesVer';
+    m.style.cssText = 'position:fixed; inset:0; z-index:7000; background:rgba(0,0,0,.88); overflow:auto; padding:30px 8px 20px;';
+    m.onclick = () => m.remove();
+    m.innerHTML = `<div style="color:#fff; font-size:0.8rem; text-align:center; margin-bottom:10px;">Toca para cerrar. Rojo: profunda · naranja: media · amarillo: superficial. Los recuadros son aproximados: verifica en la radiografía.</div><div style="position:relative; width:max(100%, 900px); margin:0 auto;"><img src="${escAttr(d.cariesImg)}" style="width:100%; display:block;">${cajas}</div>`;
+    document.body.appendChild(m);
+}
+function cariesPanel(){
+    const d = mesa.d, det = d.cariesDet || [], busca = !!mesa._carBusca;
+    const items = det.map((x, i) => `<div style="display:flex; gap:6px; align-items:center; padding:5px 0; border-bottom:1px solid var(--shadow-dark); ${x.x ? 'opacity:.45; text-decoration:line-through;' : ''}">
+        <b style="min-width:26px;">${x.d}</b>
+        <select class="inset-3d" style="flex:1; min-width:0; padding:4px;" onchange="cariesProf(${i}, this.value)">${['superficial', 'media', 'profunda'].map(v => `<option value="${v}"${x.prof === v ? ' selected' : ''}>${v}</option>`).join('')}</select>
+        <span class="esc-sub" style="min-width:70px;">${x.sup ? escHtml(x.sup) : ''}${x.conf ? ' · ' + x.conf : ''}</span>
+        <button class="esc-mini" onclick="cariesQuitar(${i})">${x.x ? 'Restaurar' : '✕'}</button></div>`).join('');
+    const prof = det.filter(x => !x.x && x.prof === 'profunda').map(x => x.d);
+    return `<div style="margin-top:8px; padding:8px; border-radius:10px; border:1.5px solid ${det.length ? 'var(--accent)' : 'var(--shadow-dark)'};">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; flex-wrap:wrap;"><b style="font-size:0.85rem;">Caries detectadas por la IA</b>
+            <button class="esc-mini${busca ? ' ia-trabajando' : ''}" ${busca ? 'disabled' : ''} onclick="cariesBuscar()">${busca ? 'Buscando…' : (det.length ? 'Volver a buscar' : 'Buscar caries con IA')}</button></div>
+        ${d.cariesErr ? `<div class="esc-sub" style="color:#c53030; margin-top:4px;">${escHtml(d.cariesErr)}</div>` : ''}
+        ${det.length ? `<div class="esc-sub" style="margin:4px 0;">Ya quedaron marcadas arriba. Verifícalas: cambia la profundidad, descarta con ✕ o agrega las que falten.${prof.length ? ' <b>Profundas: ' + prof.join(', ') + '.</b>' : ''}</div>${items}
+            <div style="display:flex; gap:6px; margin-top:8px; flex-wrap:wrap;"><input id="carNuevo" type="number" min="11" max="48" class="inset-3d" style="width:90px;" placeholder="Diente"><button class="esc-mini" onclick="cariesAgregar()">Agregar diente</button>
+            ${d.cariesImg && det.some(x => x.box && !x.x) ? '<button class="esc-mini" onclick="cariesVer()">Ver en la radiografía</button>' : ''}
+            <button class="esc-mini${d.cariesOk ? ' on' : ''}" onclick="cariesConfirmar()">${d.cariesOk ? '✔ Lista confirmada' : 'Confirmo esta lista'}</button></div>
+            ${d.cariesObs ? `<div class="esc-sub" style="margin-top:6px;">Observación de la IA: ${escHtml(d.cariesObs)}</div>` : ''}`
+        : (busca ? '' : '<div class="esc-sub" style="margin-top:4px;">' + (d.cariesProv ? 'La IA no encontró caries en la panorámica.' : 'Aún no se ha revisado. Se hace sola al analizar con IA, o toca el botón.') + ' También puedes agregar dientes a mano:</div><div style="display:flex; gap:6px; margin-top:6px;"><input id="carNuevo" type="number" min="11" max="48" class="inset-3d" style="width:90px;" placeholder="Diente"><button class="esc-mini" onclick="cariesAgregar()">Agregar diente</button></div>')}
+    </div>`;
+}
+</script>
 
 <script>
 // ============ AVISOS: todo clic debe dar una señal ============
