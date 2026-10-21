@@ -2644,7 +2644,7 @@
             return d <= 0 ? 'hoy' : (d === 1 ? 'ayer' : 'hace ' + d + ' d');
         }
         function usaSmile(nombre){ const u = usoSmile[nombre]; return !!(u && u.ts); }
-        const DA_VERSION = 'v72';
+        const DA_VERSION = 'v73';
         window.addEventListener('load', () => document.querySelectorAll('.da-ver-txt').forEach(e => e.textContent = 'DentiAgenda ' + DA_VERSION));
         // Texto del estado de SmileLike para un paciente (usa lo guardado; abajo se refresca solo ese paciente)
         function textoEstadoSmile(nombre){
@@ -4749,8 +4749,8 @@ function guardarPacienteDiag(n){
 // ============ MESA DE TRABAJO ============
 const MESA_REL = [['I', 'Clase I · buena relación'], ['II', 'Clase II · mandíbula retruida'], ['III', 'Clase III · mandíbula adelantada'], ['?', 'Por confirmar']];
 const MESA_INC = [['normal', 'Inclinación adecuada'], ['pro', 'Proinclinados'], ['retro', 'Retroinclinados']];
-const MESA_HALL = [['caries', 'Caries'], ['terceros', 'Terceros molares'], ['raices', 'Raíces cortas'], ['retenidos', 'Dientes retenidos/incluidos'], ['observacion', 'Diente en observación'], ['ausencias', 'Ausencias dentales'], ['apinamiento', 'Apiñamiento'], ['diastemas', 'Espacios (diastemas)'], ['osea', 'Pérdida ósea'], ['patologia', 'Lesión/patología a vigilar'], ['atm', 'Posible alteración articular (ATM)']];
-const MESA_HALL_DIENTES = ['caries', 'terceros', 'raices', 'retenidos', 'observacion', 'ausencias', 'patologia', 'osea'];
+const MESA_HALL = [['caries', 'Caries'], ['terceros', 'Terceros molares'], ['raices', 'Raíces cortas'], ['retenidos', 'Dientes retenidos/incluidos'], ['observacion', 'Diente en observación'], ['bruxismo', 'Desgaste dental / posible bruxismo'], ['ausencias', 'Ausencias dentales'], ['apinamiento', 'Apiñamiento'], ['diastemas', 'Espacios (diastemas)'], ['osea', 'Pérdida ósea'], ['patologia', 'Lesión/patología a vigilar'], ['atm', 'Posible alteración articular (ATM)']];
+const MESA_HALL_DIENTES = ['caries', 'terceros', 'raices', 'retenidos', 'observacion', 'bruxismo', 'ausencias', 'patologia', 'osea'];
 const MESA_APARATOS = ['Estándar metálico', 'Metálico flex', 'Autoligado', 'Alineadores', 'Ortopedia', 'Férula de desprogramación'];
 const MESA_DIENTES_SUP = [18,17,16,15,14,13,12,11,21,22,23,24,25,26,27,28];
 const MESA_DIENTES_INF = [48,47,46,45,44,43,42,41,31,32,33,34,35,36,37,38];
@@ -5121,7 +5121,7 @@ function mesaArmarMensaje(nombre, d){
         if(d.incInf) partes.push(`los inferiores se encuentran ${inc[d.incInf]}`);
         L.push('Dientes anteriores: ' + partes.join(' y ') + '.');
     }
-    const hall = { caries: 'caries por tratar', terceros: 'terceros molares (muelas del juicio) por valorar', raices: 'raíces cortas, por lo que se tendrá precaución durante el tratamiento', retenidos: 'dientes retenidos o incluidos', ausencias: 'ausencias dentales', apinamiento: 'apiñamiento dental', diastemas: 'espacios entre algunos dientes', osea: 'pérdida de soporte óseo, que se vigilará', patologia: 'un hallazgo que se vigilará de cerca', atm: 'datos que sugieren una posible alteración de la articulación de la mandíbula (ATM), que será valorada' };
+    const hall = { caries: 'caries por tratar', terceros: 'terceros molares (muelas del juicio) por valorar', raices: 'raíces cortas, por lo que se tendrá precaución durante el tratamiento', retenidos: 'dientes retenidos o incluidos', bruxismo: 'desgaste de las coronas dentales, compatible con bruxismo (apretar o rechinar los dientes)', ausencias: 'ausencias dentales', apinamiento: 'apiñamiento dental', diastemas: 'espacios entre algunos dientes', osea: 'pérdida de soporte óseo, que se vigilará', patologia: 'un hallazgo que se vigilará de cerca', atm: 'datos que sugieren una posible alteración de la articulación de la mandíbula (ATM), que será valorada' };
     const hs = d.hall.filter(h => !['raices', 'retenidos', 'observacion'].includes(h)).map(h => hall[h] ? mesaConDientes(d, h, hall[h]) : '').filter(Boolean);
     if(d.otro && d.otro.trim()) hs.push(d.otro.trim());
     if(hs.length) L.push('Otros hallazgos: ' + hs.join('; ') + '.');
@@ -5157,7 +5157,7 @@ function mesaArmarInforme(nombre, d){
     const inc = { normal: 'inclinación normal', pro: 'proinclinados', retro: 'retroinclinados' };
     if(d.incSup) L.push('Incisivos superiores: ' + inc[d.incSup] + (m && m.u1na != null ? ' (U1-NA ' + m.u1na + '°' + (m.u1nam != null ? ', ' + m.u1nam + ' mm' : '') + ')' : '') + '.');
     if(d.incInf) L.push('Incisivos inferiores: ' + inc[d.incInf] + (m && m.l1nb != null ? ' (L1-NB ' + m.l1nb + '°' + (m.l1nbm != null ? ', ' + m.l1nbm + ' mm' : '') + ')' : '') + '.');
-    const hall = { caries: 'lesiones cariosas', terceros: 'terceros molares', raices: 'acortamiento radicular', retenidos: 'dientes retenidos o incluidos', ausencias: 'ausencias dentales', apinamiento: 'apiñamiento dental', diastemas: 'diastemas', osea: 'pérdida de soporte óseo', patologia: 'imagen a vigilar, sin diagnóstico definitivo', atm: 'datos radiográficos sugestivos de alteración de la ATM (cóndilos)' };
+    const hall = { caries: 'lesiones cariosas', terceros: 'terceros molares', raices: 'acortamiento radicular', retenidos: 'dientes retenidos o incluidos', bruxismo: 'desgaste coronal compatible con atrición por bruxismo', ausencias: 'ausencias dentales', apinamiento: 'apiñamiento dental', diastemas: 'diastemas', osea: 'pérdida de soporte óseo', patologia: 'imagen a vigilar, sin diagnóstico definitivo', atm: 'datos radiográficos sugestivos de alteración de la ATM (cóndilos)' };
     const hs = d.hall.filter(h => !['observacion'].includes(h)).map(h => hall[h] ? mesaConDientes(d, h, hall[h]) : '').filter(Boolean);
     if(d.otro && d.otro.trim()) hs.push(d.otro.trim());
     if(hs.length) L.push('Hallazgos radiográficos: ' + hs.join('; ') + '.');
@@ -5227,7 +5227,7 @@ async function iaLlamarServidor(prov, p, extra){
 const IA_LLAVES_LS = 'da_ia_llaves';
 function iaLlavesLocales(){ try{ return JSON.parse(localStorage.getItem(IA_LLAVES_LS) || '{}') || {}; }catch(e){ return {}; } }
 function iaLlaveLocal(prov){ return String(iaLlavesLocales()[prov] || '').trim(); }
-const IA_HALLAZGOS_L = ["caries", "terceros", "raices", "retenidos", "observacion", "ausencias", "apinamiento", "diastemas", "osea", "patologia", "atm"];
+const IA_HALLAZGOS_L = ["caries", "terceros", "raices", "retenidos", "observacion", "bruxismo", "ausencias", "apinamiento", "diastemas", "osea", "patologia", "atm"];
 const IA_APARATOS_L = ["Estándar metálico", "Metálico flex", "Autoligado", "Alineadores", "Ortopedia", "Férula de desprogramación"];
 const IA_REGLAS_DEF = "- Si se sugiere extracción de premolares, NO sugieras brackets autoligado: con extracciones no se aprovecha su ventaja. En esos casos sugiere estándar metálico o metálico flex.\n- Si en la panorámica ves signos de daño en los cóndilos mandibulares (aplanamiento, erosión, osteofitos, asimetría marcada de cóndilos o ramas), marca \"atm\" en hallazgos y sugiere \"Férula de desprogramación\" en aparatos antes o junto con la ortodoncia; además pregunta por síntomas (dolor, chasquidos, limitación de apertura).";
 const IA_DIENTES_FDI_L = new Set([14, 15, 24, 25, 34, 35, 44, 45]);   // solo premolares
@@ -5245,7 +5245,7 @@ Responde ÚNICAMENTE con un objeto JSON válido (sin texto antes ni después, si
   "rel": "I" | "II" | "III" | "?" | "",
   "incSup": "normal" | "pro" | "retro" | "",
   "incInf": "normal" | "pro" | "retro" | "",
-  "hall": [ valores de: "caries","terceros","raices","retenidos","observacion","ausencias","apinamiento","diastemas","osea","patologia","atm" ],
+  "hall": [ valores de: "caries","terceros","raices","retenidos","observacion","bruxismo","ausencias","apinamiento","diastemas","osea","patologia","atm" ],
   "hallDientes": { "<hallazgo de la lista anterior>": [ números FDI de los dientes afectados ] },   // SOLO los hallazgos que puedas ubicar en dientes concretos (caries, raices, retenidos, observacion, ausencias, terceros)
   "otro": "otro hallazgo relevante en una frase, o vacío",
   "extr": "si" | "no" | "",   // SOLO extracción de PREMOLARES con fines ortodónticos
@@ -5426,7 +5426,7 @@ function iaBloqueInner(){
         if(x.error) return `<div class="esc-card" style="cursor:default; display:block;"><b>${IA_NOMBRE[k]}</b><div class="esc-sub" style="color:#c53030;">${escHtml(x.error)}</div></div>`;
         const r = x.resultado, c = r.confianza || {};
         const cf = (v) => v ? ` <span class="esc-sub">(confianza ${v})</span>` : '';
-        const hall = { caries: 'caries', terceros: 'terceros molares', raices: 'raíces cortas', retenidos: 'retenidos/incluidos', observacion: 'diente en observación', ausencias: 'ausencias', apinamiento: 'apiñamiento', diastemas: 'diastemas', osea: 'pérdida ósea', patologia: 'patología a vigilar', atm: 'posible alteración articular (ATM)' };
+        const hall = { caries: 'caries', terceros: 'terceros molares', raices: 'raíces cortas', retenidos: 'retenidos/incluidos', observacion: 'diente en observación', bruxismo: 'desgaste / posible bruxismo', ausencias: 'ausencias', apinamiento: 'apiñamiento', diastemas: 'diastemas', osea: 'pérdida ósea', patologia: 'patología a vigilar', atm: 'posible alteración articular (ATM)' };
         const filas = [
             ['Relación', r.rel ? IA_REL[r.rel] + cf(c.rel) : '—'],
             ['Incisivos', (r.incSup || r.incInf) ? `sup. ${IA_INC[r.incSup] || '—'} · inf. ${IA_INC[r.incInf] || '—'}${cf(c.inc)}` : '—'],
@@ -5623,6 +5623,7 @@ async function abrirIaLab(){
         <div class="esc-tray"><h3><span>⚙️ Modelos y tope diario</span></h3>
             ${['claude', 'gemini', 'grok'].map(k => `<div class="form-group" style="margin-bottom:6px;"><label style="font-size:0.78rem;">${IA_NOMBRE[k]} · modelo</label><input id="iaMod_${k}" class="inset-3d" value="${escAttr(mod[k])}"></div>`).join('')}
             <div class="form-group" style="margin-bottom:6px;"><label style="font-size:0.78rem;">Gemini · modelo de respaldo (se usa si el principal sigue saturado)</label><input id="iaResp_gemini_cfg" class="inset-3d" value="${escAttr((cfg.respaldo || {}).gemini !== undefined ? cfg.respaldo.gemini : 'gemini-3.1-pro-preview')}"></div>
+            <div class="form-group" style="margin-bottom:6px;"><label style="font-size:0.78rem;">Modelo para revisar caries (déjalo vacío para usar el más potente de Gemini; más potente = más preciso y más costoso)</label><input id="iaMod_caries" class="inset-3d" value="${escAttr(mod.caries || '')}" placeholder="vacío = automático"></div>
             <div class="form-group" style="margin-bottom:6px;"><label style="font-size:0.78rem;">Tope de análisis por día (protege tu gasto)</label><input id="iaLimite" type="number" min="1" class="inset-3d" value="${escAttr(lim)}"></div>
             <button class="btn-3d" style="width:100%;" onclick="iaGuardarConfig()">💾 Guardar</button>
             <div class="esc-sub" style="margin-top:6px;">Los nombres de modelo cambian con el tiempo: si un proveedor marca error de modelo, pon aquí el nombre vigente de su documentación. Las llaves se guardan en la sección de arriba (solo en este dispositivo).</div>
@@ -5649,7 +5650,7 @@ function iaGuardarLlaves(){
 function iaBorrarLlaves(){ if(confirm('¿Borrar las llaves guardadas en este dispositivo?')){ try{ localStorage.removeItem(IA_LLAVES_LS); }catch(e){} abrirIaLab(); } }
 async function iaGuardarConfig(){
     const modelos = {};
-    ['claude', 'gemini', 'grok'].forEach(k => { const v = document.getElementById('iaMod_' + k).value.trim(); if(v) modelos[k] = v; });
+    ['claude', 'gemini', 'grok', 'caries'].forEach(k => { const el = document.getElementById('iaMod_' + k); const v = el ? el.value.trim() : ''; if(v) modelos[k] = v; });
     const lim = parseInt(document.getElementById('iaLimite').value, 10) || 40;
     try{ await db.collection('agenda').doc('ia_config').set({ modelos: modelos, limiteDiario: lim, reglas: (document.getElementById('iaReglas').value || '').trim(), bot: (() => { const o = {}; Object.keys(BOT_DEF).forEach(k => { const v = parseFloat(document.getElementById('botc_' + k).value); if(!isNaN(v)) o[k] = v; }); return o; })(), sinAutoligadoExtr: document.getElementById('iaSinAuto').checked, respaldo: { gemini: (document.getElementById('iaResp_gemini_cfg').value || '').trim() } }, { merge: true }); alert('Guardado.'); _botCfgCargada = false; _botCfg = {}; }
     catch(e){ alert('No se pudo guardar: ' + (e.message || e)); }
@@ -6215,33 +6216,68 @@ function botPanelAprendizaje(casos, cfg){
 <script>
 // ============ CARIES: la IA revisa la radiografía diente por diente y las marca; tú verificas ============
 const CAR_PROF = { superficial: 'superficial', media: 'media', profunda: 'profunda' };
-function cariesPrompt(conBox){
-    return `Eres un asistente de apoyo para un ortodoncista. Tu única tarea ahora es BUSCAR CARIES en la radiografía panorámica adjunta, revisando DIENTE POR DIENTE y en orden FDI: 18 a 11, 21 a 28, 48 a 41, 31 a 38 (dientes permanentes).
-Busca: radiolucideces en esmalte o dentina (oclusales, interproximales mesiales o distales, cervicales) y caries recurrentes bajo restauraciones.
-Clasifica la profundidad: "superficial" = solo esmalte o tercio externo de dentina; "media" = tercio medio de dentina; "profunda" = tercio interno de dentina o cercana a la cámara pulpar.
-Incluye también las dudosas pero con confianza "baja" o "media": el doctor las va a verificar, es preferible que las veas a que se te pasen. Si de verdad no hay ninguna, devuelve la lista vacía.
+const CAR_ZONAS = {
+    1: { nom: 'cuadrante SUPERIOR DERECHO del paciente (queda en el lado IZQUIERDO de la imagen, arriba)', dientes: '18, 17, 16, 15, 14, 13, 12, 11 (de atrás hacia el centro)', t: { x0: 0.06, y0: 0.10, w: 0.52, h: 0.50 } },
+    2: { nom: 'cuadrante SUPERIOR IZQUIERDO del paciente (queda en el lado DERECHO de la imagen, arriba)', dientes: '21, 22, 23, 24, 25, 26, 27, 28 (del centro hacia atrás)', t: { x0: 0.42, y0: 0.10, w: 0.52, h: 0.50 } },
+    3: { nom: 'cuadrante INFERIOR IZQUIERDO del paciente (queda en el lado DERECHO de la imagen, abajo)', dientes: '31, 32, 33, 34, 35, 36, 37, 38 (del centro hacia atrás)', t: { x0: 0.42, y0: 0.40, w: 0.52, h: 0.50 } },
+    4: { nom: 'cuadrante INFERIOR DERECHO del paciente (queda en el lado IZQUIERDO de la imagen, abajo)', dientes: '48, 47, 46, 45, 44, 43, 42, 41 (de atrás hacia el centro)', t: { x0: 0.06, y0: 0.40, w: 0.52, h: 0.50 } }
+};
+function cariesPrompt(q, conBox){
+    const z = CAR_ZONAS[q];
+    return `Eres un asistente de apoyo para un ortodoncista. La imagen es un recorte ampliado de una radiografía panorámica: ${z.nom}. Los dientes de esta zona son: ${z.dientes}. Analiza SOLO esos dientes, uno por uno, con criterio estricto. Prioriza la PRECISIÓN: es peor marcar una caries falsa que dejar pasar una dudosa (las dudosas van con confianza "baja").
+
+CARIES: señales que debes buscar en la corona de cada diente
+1. Discontinuidad del contorno de la corona: una muesca, escalón o pérdida de la línea continua del esmalte (en cara oclusal, mesial, distal o cervical), con borde irregular u orgánico, o una cavidad de forma redondeada o circular.
+2. Zona radiolúcida (más oscura) dentro de la corona, bajo o junto a esa discontinuidad, que se extiende hacia la dentina.
+3. Radiolucidez interproximal en forma de cuña o triángulo entre dos dientes, que no corresponde a un espacio normal.
+4. Radiolucidez bajo restauraciones o coronas existentes (caries recurrente).
+NO son caries: la sombra normal de la unión esmalte-cemento, la cámara pulpar y los conductos, el espacio del ligamento periodontal, la superposición de dientes vecinos, el aire de la vía aérea, ni una zona cervical oscura simétrica en varios dientes (burnout). Si la imagen está borrosa o superpuesta en un diente, no lo marques.
+Profundidad: "superficial" = solo esmalte; "media" = dentina externa o media; "profunda" = dentina interna o cercana a la cámara pulpar.
+
+DESGASTE
+- "plano": pérdida de altura de la corona con el borde incisal u oclusal recto, como cortado de un tajo (atrición, posible bruxismo); suele verse en varios dientes y simétrico.
+- "circular": pérdida de sustancia redondeada, en copa o cuña, en el cuello o en la superficie oclusal (erosión, abrasión o abfracción).
+
+En cada hallazgo escribe la "evidencia": una frase que diga exactamente qué ves (por ejemplo "muesca en la cara oclusal con radiolucidez que llega a dentina"). Si no puedes describir lo que ves, no lo incluyas.
+
 Responde ÚNICAMENTE con un objeto JSON válido (sin texto antes ni después, sin markdown):
 {
-  "caries": [ { "diente": 16, "superficie": "oclusal" | "mesial" | "distal" | "cervical" | "no_claro", "profundidad": "superficial" | "media" | "profunda", "confianza": "alta" | "media" | "baja"${conBox ? ', "box_2d": [ymin, xmin, ymax, xmax]' : ''}, "nota": "frase breve opcional" } ],
-  "restauraciones": [ números FDI de dientes con restauración extensa, corona o endodoncia visible ],
+  "caries": [ { "diente": 16, "superficie": "oclusal" | "mesial" | "distal" | "cervical" | "no_claro", "profundidad": "superficial" | "media" | "profunda", "confianza": "alta" | "media" | "baja", "evidencia": "qué ves", ${conBox ? '"box_2d": [ymin, xmin, ymax, xmax], ' : ''}"nota": "opcional" } ],
+  "desgaste": [ { "diente": 11, "tipo": "plano" | "circular", "severidad": "leve" | "moderado" | "severo", "confianza": "alta" | "media" | "baja", "evidencia": "qué ves" } ],
   "calidad": "buena" | "regular" | "mala",
-  "observaciones": "máximo 3 frases: qué zonas no se pudieron valorar y por qué"
+  "observaciones": "máximo 2 frases: qué no pudiste valorar y por qué"
 }
-${conBox ? 'box_2d son coordenadas normalizadas de 0 a 1000 sobre la imagen completa (origen arriba a la izquierda) del recuadro que encierra el diente afectado; si no puedes ubicarlo con precisión, omite box_2d.\n' : ''}Usa solo numeración FDI permanente (11 a 48). No inventes dientes que no se ven (por ejemplo ausentes).`;
+${conBox ? 'box_2d son coordenadas de 0 a 1000 sobre ESTE recorte (origen arriba a la izquierda) del recuadro que encierra el diente; si no puedes ubicarlo con precisión, omite box_2d.\n' : ''}Solo dientes de esta zona (${z.dientes.replace(/ \(.*\)/, '')}). Numeración FDI permanente. Si no hay caries ni desgaste, devuelve las listas vacías.`;
 }
-function cariesLimpiar(texto){
+const CAR_VALIDO = n => Number.isInteger(n) && n >= 11 && n <= 48 && n % 10 >= 1 && n % 10 <= 8 && Math.floor(n / 10) >= 1 && Math.floor(n / 10) <= 4;
+function cariesLimpiarZona(texto, q){
     const i = texto.indexOf('{'), f = texto.lastIndexOf('}');
-    if(i < 0 || f < i) throw new Error('La IA no devolvió una lista de caries legible.');
-    let o; try{ o = JSON.parse(texto.slice(i, f + 1)); }catch(e){ throw new Error('La IA devolvió un formato inválido para las caries. Intenta de nuevo.'); }
-    const valido = n => Number.isInteger(n) && n >= 11 && n <= 48 && n % 10 >= 1 && n % 10 <= 8 && Math.floor(n / 10) >= 1 && Math.floor(n / 10) <= 4;
-    const vistos = {}, lista = [];
-    (Array.isArray(o.caries) ? o.caries : []).forEach(x => {
-        const d = Number(x && x.diente); if(!valido(d) || vistos[d]) return; vistos[d] = 1;
-        const bx = Array.isArray(x.box_2d) && x.box_2d.length === 4 && x.box_2d.every(v => typeof v === 'number' && v >= 0 && v <= 1000) ? x.box_2d : null;
-        lista.push({ d: d, prof: CAR_PROF[x.profundidad] || 'media', sup: ['oclusal', 'mesial', 'distal', 'cervical'].includes(x.superficie) ? x.superficie : '', conf: ['alta', 'media', 'baja'].includes(x.confianza) ? x.confianza : 'media', box: bx, nota: typeof x.nota === 'string' ? x.nota.trim().slice(0, 120) : '', x: false });
-    });
-    lista.sort((a, b) => a.d - b.d);
-    return { lista: lista, obs: typeof o.observaciones === 'string' ? o.observaciones.trim().slice(0, 400) : '', calidad: ['buena', 'regular', 'mala'].includes(o.calidad) ? o.calidad : '' };
+    if(i < 0 || f < i) throw new Error('La IA no devolvió una lista legible.');
+    let o; try{ o = JSON.parse(texto.slice(i, f + 1)); }catch(e){ throw new Error('La IA devolvió un formato inválido.'); }
+    const z = CAR_ZONAS[q], T = z.t;
+    const glob = bx => { if(!(Array.isArray(bx) && bx.length === 4 && bx.every(v => typeof v === 'number' && v >= 0 && v <= 1000))) return null;
+        return [Math.round((T.y0 + bx[0] / 1000 * T.h) * 1000), Math.round((T.x0 + bx[1] / 1000 * T.w) * 1000), Math.round((T.y0 + bx[2] / 1000 * T.h) * 1000), Math.round((T.x0 + bx[3] / 1000 * T.w) * 1000)]; };
+    const enZona = n => CAR_VALIDO(n) && Math.floor(n / 10) === q;
+    const cf = v => ['alta', 'media', 'baja'].includes(v) ? v : 'media';
+    const str = (v, n) => typeof v === 'string' ? v.trim().slice(0, n) : '';
+    const car = [], vistos = {};
+    (Array.isArray(o.caries) ? o.caries : []).forEach(x => { const d = Number(x && x.diente); if(!enZona(d) || vistos[d]) return; vistos[d] = 1;
+        car.push({ d: d, prof: CAR_PROF[x.profundidad] || 'media', sup: ['oclusal', 'mesial', 'distal', 'cervical'].includes(x.superficie) ? x.superficie : '', conf: cf(x.confianza), ev: str(x.evidencia, 180), box: glob(x.box_2d), nota: str(x.nota, 120), x: cf(x.confianza) === 'baja' }); });
+    const des = [], v2 = {};
+    (Array.isArray(o.desgaste) ? o.desgaste : []).forEach(x => { const d = Number(x && x.diente); if(!enZona(d) || v2[d]) return; v2[d] = 1;
+        des.push({ d: d, tipo: x.tipo === 'circular' ? 'circular' : 'plano', sev: ['leve', 'moderado', 'severo'].includes(x.severidad) ? x.severidad : 'leve', conf: cf(x.confianza), ev: str(x.evidencia, 180), x: cf(x.confianza) === 'baja' }); });
+    return { car: car, des: des, calidad: ['buena', 'regular', 'mala'].includes(o.calidad) ? o.calidad : '', obs: str(o.observaciones, 240) };
+}
+function cariesRecorte(imgEl, T){
+    const W = imgEl.naturalWidth, H = imgEl.naturalHeight;
+    const sx = Math.round(T.x0 * W), sy = Math.round(T.y0 * H), sw = Math.round(T.w * W), sh = Math.round(T.h * H);
+    const k = Math.min(1.8, 1800 / sw);
+    const cv = document.createElement('canvas'); cv.width = Math.round(sw * k); cv.height = Math.round(sh * k);
+    const cx = cv.getContext('2d'); cx.imageSmoothingQuality = 'high'; cx.drawImage(imgEl, sx, sy, sw, sh, 0, 0, cv.width, cv.height);
+    return cv.toDataURL('image/jpeg', 0.92).split(',')[1];
+}
+function cariesCargarImg(img){
+    return new Promise((ok, ko) => { const el = new Image(); el.onload = () => ok(el); el.onerror = () => ko(new Error('No se pudo abrir la radiografía.')); el.src = 'data:' + img.mime + ';base64,' + img.b64; });
 }
 async function iaCariesLocal(prov, p){
     const key = iaLlaveLocal(prov); if(!key) throw new Error('Sin llave local de ' + IA_NOMBRE[prov]);
@@ -6252,50 +6288,69 @@ async function iaCariesLocal(prov, p){
     const pano = ests.filter(e => /panor/i.test(e.nombre || '')).slice(-1)[0] || ests.filter(e => !/lateral|cefal/i.test(e.nombre || '')).slice(-1)[0];
     if(!pano) throw new Error('NO_PANO');
     const img = await iaDescargarLocal(String(pano.url || ''));
-    const conBox = prov === 'gemini', prompt = cariesPrompt(conBox);
-    const llamar = async (modelo) => {
-        try{
-            if(prov === 'claude') return await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true', 'content-type': 'application/json' },
-                body: JSON.stringify({ model: modelo, max_tokens: 3000, messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: img.mime, data: img.b64 } }, { type: 'text', text: prompt }] }] }) });
-            if(prov === 'gemini') return await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(modelo) + ':generateContent', { method: 'POST', headers: { 'x-goog-api-key': key, 'content-type': 'application/json' },
-                body: JSON.stringify({ contents: [{ role: 'user', parts: [{ inline_data: { mime_type: img.mime, data: img.b64 } }, { text: prompt }] }], generationConfig: { responseMimeType: 'application/json', maxOutputTokens: 8192 } }) });
-            return await fetch('https://api.x.ai/v1/chat/completions', { method: 'POST', headers: { 'Authorization': 'Bearer ' + key, 'content-type': 'application/json' },
-                body: JSON.stringify({ model: modelo, messages: [{ role: 'user', content: [{ type: 'image_url', image_url: { url: 'data:' + img.mime + ';base64,' + img.b64, detail: 'high' } }, { type: 'text', text: prompt }] }] }) });
-        }catch(e){ throw new Error('RED_' + prov); }
+    const el = await cariesCargarImg(img);
+    // Modelo para caries: el más potente (precisión > velocidad). Se cambia en Laboratorio IA.
+    const mc = String((cfg.modelos || {}).caries || '').trim();
+    const principal = mc || (prov === 'gemini' ? String(respaldos.gemini || modelos.gemini) : String(modelos[prov]));
+    const plan = [principal, principal]; if(String(modelos[prov]) !== principal) plan.push(String(modelos[prov]));
+    const conBox = prov === 'gemini';
+    const esperas = [3000, 6000];
+    const zona = async (q) => {
+        const b64 = cariesRecorte(el, CAR_ZONAS[q].t), prompt = cariesPrompt(q, conBox);
+        const llamar = async (modelo) => {
+            try{
+                if(prov === 'claude') return await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true', 'content-type': 'application/json' },
+                    body: JSON.stringify({ model: modelo, max_tokens: 3000, messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b64 } }, { type: 'text', text: prompt }] }] }) });
+                if(prov === 'gemini') return await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(modelo) + ':generateContent', { method: 'POST', headers: { 'x-goog-api-key': key, 'content-type': 'application/json' },
+                    body: JSON.stringify({ contents: [{ role: 'user', parts: [{ inline_data: { mime_type: 'image/jpeg', data: b64 } }, { text: prompt }] }], generationConfig: { responseMimeType: 'application/json', maxOutputTokens: 8192 } }) });
+                return await fetch('https://api.x.ai/v1/chat/completions', { method: 'POST', headers: { 'Authorization': 'Bearer ' + key, 'content-type': 'application/json' },
+                    body: JSON.stringify({ model: modelo, messages: [{ role: 'user', content: [{ type: 'image_url', image_url: { url: 'data:image/jpeg;base64,' + b64, detail: 'high' } }, { type: 'text', text: prompt }] }] }) });
+            }catch(e){ throw new Error('RED_' + prov); }
+        };
+        let resp = null, texto = '', ultimoErr = null;
+        for(let i = 0; i < plan.length; i++){
+            try{ resp = await llamar(plan[i]); }catch(e){ ultimoErr = e; resp = null; if(i < plan.length - 1){ await new Promise(ok => setTimeout(ok, esperas[i] || 1000)); continue; } break; }
+            texto = await resp.text();
+            if(resp.ok) break;
+            if([429, 500, 502, 503, 504].indexOf(resp.status) >= 0 && i < plan.length - 1){ await new Promise(ok => setTimeout(ok, esperas[i] || 1000)); continue; }
+            break;
+        }
+        if(!resp) throw ultimoErr || new Error('RED_' + prov);
+        if(!resp.ok) throw new Error(IA_NOMBRE[prov] + ' respondió ' + resp.status);
+        const j = JSON.parse(texto);
+        let out;
+        if(prov === 'claude') out = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
+        else if(prov === 'gemini') out = ((((j.candidates || [])[0] || {}).content || {}).parts || []).map(x => x.text || '').join('');
+        else out = ((((j.choices || [])[0] || {}).message || {}).content) || '';
+        return cariesLimpiarZona(out, q);
     };
-    const principal = String(modelos[prov]), resp0 = String(respaldos[prov] || '');
-    const plan = [principal, principal, principal]; if(resp0 && resp0 !== principal) plan.push(resp0);
-    const esperas = [3000, 7000, 1000];
-    let resp = null, texto = '', ultimoErr = null;
-    for(let i = 0; i < plan.length; i++){
-        try{ resp = await llamar(plan[i]); }catch(e){ ultimoErr = e; resp = null; if(i < plan.length - 1){ await new Promise(ok => setTimeout(ok, esperas[i] || 1000)); continue; } break; }
-        texto = await resp.text();
-        if(resp.ok) break;
-        if([429, 500, 502, 503, 504].indexOf(resp.status) >= 0 && i < plan.length - 1){ await new Promise(ok => setTimeout(ok, esperas[i] || 1000)); continue; }
-        break;
-    }
-    if(!resp) throw ultimoErr || new Error('RED_' + prov);
-    if(!resp.ok) throw new Error(IA_NOMBRE[prov] + ' respondió ' + resp.status + ' al revisar caries.');
-    const j = JSON.parse(texto);
-    let out;
-    if(prov === 'claude') out = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
-    else if(prov === 'gemini') out = ((((j.candidates || [])[0] || {}).content || {}).parts || []).map(x => x.text || '').join('');
-    else out = ((((j.choices || [])[0] || {}).message || {}).content) || '';
-    const res = cariesLimpiar(out); res.img = String(pano.url || ''); res.prov = prov;
-    return res;
+    const rs = await Promise.allSettled([1, 2, 3, 4].map(zona));
+    const ok = rs.filter(x => x.status === 'fulfilled').map(x => x.value), fallas = rs.filter(x => x.status === 'rejected');
+    if(!ok.length) throw fallas[0].reason;
+    const lista = [].concat.apply([], ok.map(x => x.car)).sort((a, b) => a.d - b.d);
+    const desg = [].concat.apply([], ok.map(x => x.des)).sort((a, b) => a.d - b.d);
+    const obs = ok.map(x => x.obs).filter(Boolean).join(' ').slice(0, 400) + (fallas.length ? ' No se pudieron revisar ' + fallas.length + ' de 4 zonas; usa "Volver a buscar".' : '');
+    return { lista: lista, desg: desg, obs: obs.trim(), calidad: (ok.find(x => x.calidad) || {}).calidad || '', img: String(pano.url || ''), prov: prov, modelo: principal };
 }
 // Aplica el resultado de la IA a tu decisión final (marca "Caries" y deja la lista para verificar)
 function cariesAplicar(res){
     const d = mesa.d;
-    d.cariesDet = res.lista.map(x => Object.assign({}, x, { ia: true })); d.cariesImg = res.img; d.cariesObs = res.obs; d.cariesProv = res.prov; d.cariesOk = false;
-    if(d.cariesDet.length && !d.hall.includes('caries')) d.hall.push('caries');
+    d.cariesDet = res.lista.map(x => Object.assign({}, x, { ia: true })); d.cariesImg = res.img; d.cariesObs = res.obs; d.cariesProv = res.prov; d.cariesOk = false; d.cariesErr = '';
+    d.desgDet = (res.desg || []).map(x => Object.assign({}, x));
+    if(d.cariesDet.some(x => !x.x) && !d.hall.includes('caries')) d.hall.push('caries');
+    // Desgaste plano en 2 o más dientes (o uno severo) = posible bruxismo
+    const pl = d.desgDet.filter(x => !x.x && x.tipo === 'plano');
+    if((pl.length >= 2 || pl.some(x => x.sev === 'severo')) && !d.hall.includes('bruxismo')) d.hall.push('bruxismo');
     cariesSync();
 }
 function cariesSync(){
     const d = mesa.d; d.hallDientes = d.hallDientes || {};
     const l = (d.cariesDet || []).filter(x => !x.x).map(x => x.d).sort((a, b) => a - b);
     d.hallDientes.caries = l.join(', ');
+    const g = (d.desgDet || []).filter(x => !x.x).map(x => x.d).sort((a, b) => a - b);
+    if(g.length) d.hallDientes.bruxismo = g.join(', ');
 }
+function desgQuitar(i){ const x = (mesa.d.desgDet || [])[i]; if(!x) return; x.x = !x.x; cariesCambio(); daToast(x.x ? 'Desgaste del diente ' + x.d + ' descartado' : 'Desgaste del diente ' + x.d + ' restaurado', 'ok'); }
 function cariesCambio(){ cariesSync(); mesa.d.cariesOk = false; mesaCambio(); }
 function cariesProf(i, v){ const x = mesa.d.cariesDet[i]; if(!x) return; x.prof = v; cariesCambio(); }
 function cariesQuitar(i){ const x = mesa.d.cariesDet[i]; if(!x) return; x.x = !x.x; cariesCambio(); daToast(x.x ? 'Diente ' + x.d + ' descartado de las caries' : 'Diente ' + x.d + ' restaurado en la lista', 'ok'); }
@@ -6341,7 +6396,9 @@ function cariesPanel(){
         <b style="min-width:26px;">${x.d}</b>
         <select class="inset-3d" style="flex:1; min-width:0; padding:4px;" onchange="cariesProf(${i}, this.value)">${['superficial', 'media', 'profunda'].map(v => `<option value="${v}"${x.prof === v ? ' selected' : ''}>${v}</option>`).join('')}</select>
         <span class="esc-sub" style="min-width:70px;">${x.sup ? escHtml(x.sup) : ''}${x.conf ? ' · ' + x.conf : ''}</span>
-        <button class="esc-mini" onclick="cariesQuitar(${i})">${x.x ? 'Restaurar' : '✕'}</button></div>`).join('');
+        <button class="esc-mini" onclick="cariesQuitar(${i})">${x.x ? (x.conf === 'baja' && x.ia ? 'Incluir' : 'Restaurar') : '✕'}</button></div>
+        ${x.ev ? `<div class="esc-sub" style="margin:-2px 0 4px 32px;">${x.conf === 'baja' && x.x ? '<b>Dudosa.</b> ' : ''}${escHtml(x.ev)}</div>` : ''}`).join('');
+    const des = (d.desgDet || []).length ? `<div class="esc-sub" style="margin-top:8px;"><b>Desgaste dental</b> (toca para descartar):</div><div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:4px;">${d.desgDet.map((x, i) => `<button class="esc-mini${x.x ? '' : ' on'}" title="${escAttr(x.ev || '')}" onclick="desgQuitar(${i})">${x.d} · ${x.tipo === 'plano' ? 'plano' : 'circular'} · ${x.sev}</button>`).join('')}</div>${d.hall.includes('bruxismo') ? '<div class="esc-sub" style="margin-top:4px;">Se marcó <b>posible bruxismo</b> por el desgaste plano en varios dientes.</div>' : ''}` : '';
     const prof = det.filter(x => !x.x && x.prof === 'profunda').map(x => x.d);
     return `<div style="margin-top:8px; padding:8px; border-radius:10px; border:1.5px solid ${det.length ? 'var(--accent)' : 'var(--shadow-dark)'};">
         <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; flex-wrap:wrap;"><b style="font-size:0.85rem;">Caries detectadas por la IA</b>
@@ -6351,8 +6408,9 @@ function cariesPanel(){
             <div style="display:flex; gap:6px; margin-top:8px; flex-wrap:wrap;"><input id="carNuevo" type="number" min="11" max="48" class="inset-3d" style="width:90px;" placeholder="Diente"><button class="esc-mini" onclick="cariesAgregar()">Agregar diente</button>
             ${d.cariesImg && det.some(x => x.box && !x.x) ? '<button class="esc-mini" onclick="cariesVer()">Ver en la radiografía</button>' : ''}
             <button class="esc-mini${d.cariesOk ? ' on' : ''}" onclick="cariesConfirmar()">${d.cariesOk ? '✔ Lista confirmada' : 'Confirmo esta lista'}</button></div>
+            ${des}
             ${d.cariesObs ? `<div class="esc-sub" style="margin-top:6px;">Observación de la IA: ${escHtml(d.cariesObs)}</div>` : ''}`
-        : (busca ? '' : '<div class="esc-sub" style="margin-top:4px;">' + (d.cariesProv ? 'La IA no encontró caries en la panorámica.' : 'Aún no se ha revisado. Se hace sola al analizar con IA, o toca el botón.') + ' También puedes agregar dientes a mano:</div><div style="display:flex; gap:6px; margin-top:6px;"><input id="carNuevo" type="number" min="11" max="48" class="inset-3d" style="width:90px;" placeholder="Diente"><button class="esc-mini" onclick="cariesAgregar()">Agregar diente</button></div>')}
+        : (busca ? '' : '<div class="esc-sub" style="margin-top:4px;">' + (d.cariesProv ? 'La IA no encontró caries en la panorámica.' + ((d.desgDet || []).length ? ' Desgaste: ' + d.desgDet.filter(x => !x.x).map(x => x.d + ' ' + x.tipo).join(', ') + '.' : '') : 'Aún no se ha revisado. Se hace sola al analizar con IA, o toca el botón.') + ' También puedes agregar dientes a mano:</div><div style="display:flex; gap:6px; margin-top:6px;"><input id="carNuevo" type="number" min="11" max="48" class="inset-3d" style="width:90px;" placeholder="Diente"><button class="esc-mini" onclick="cariesAgregar()">Agregar diente</button></div>')}
     </div>`;
 }
 </script>
