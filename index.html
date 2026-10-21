@@ -2644,7 +2644,7 @@
             return d <= 0 ? 'hoy' : (d === 1 ? 'ayer' : 'hace ' + d + ' d');
         }
         function usaSmile(nombre){ const u = usoSmile[nombre]; return !!(u && u.ts); }
-        const DA_VERSION = 'v65';
+        const DA_VERSION = 'v69';
         window.addEventListener('load', () => document.querySelectorAll('.da-ver-txt').forEach(e => e.textContent = 'DentiAgenda ' + DA_VERSION));
         // Texto del estado de SmileLike para un paciente (usa lo guardado; abajo se refresca solo ese paciente)
         function textoEstadoSmile(nombre){
@@ -4376,6 +4376,19 @@
   .esc-tray h3 .esc-chev { display:inline-block; transition:transform .15s; margin-right:4px; font-size:0.7rem; }
   .esc-tray.plegada .esc-chev { transform:rotate(-90deg); }
   .esc-tray.plegada .esc-cuerpo { display:none; }
+  .mesa-pasos { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin:0 0 12px; }
+  .mesa-paso { border-radius:10px; padding:6px 2px; text-align:center; cursor:pointer; font-size:0.72rem; font-weight:bold; color:var(--text-muted); background:var(--bg-color); box-shadow:2px 2px 5px var(--shadow-dark), -2px -2px 5px var(--shadow-light); line-height:1.25; }
+  .mesa-paso small { display:block; font-weight:normal; font-size:0.64rem; }
+  .mesa-paso.hecho { color:#fff; background:var(--accent); }
+  .mesa-paso.alerta { color:#fff; background:#d69e2e; }
+  .unif-fila { padding:7px 0; border-bottom:1px solid var(--shadow-dark); font-size:0.8rem; }
+  .unif-fila:last-child { border-bottom:none; }
+  .unif-fila .u-est { font-size:0.68rem; font-weight:bold; padding:1px 7px; border-radius:8px; margin-left:6px; color:#fff; }
+  .esc-mini:disabled { opacity:.6; cursor:wait; }
+  .ia-trabajando { background:var(--accent) !important; color:#fff !important; animation:iaPulso 1.1s ease-in-out infinite; cursor:wait; }
+  .ia-trabajando::before { content:''; display:inline-block; width:11px; height:11px; margin-right:7px; vertical-align:-1px; border:2px solid rgba(255,255,255,.55); border-top-color:#fff; border-radius:50%; animation:iaGira .8s linear infinite; }
+  @keyframes iaGira { to { transform:rotate(360deg); } }
+  @keyframes iaPulso { 50% { opacity:.65; } }
   .esc-sub { font-size:0.74rem; color:var(--text-muted); line-height:1.3; }
   .esc-chip { display:inline-block; border-radius:8px; padding:1px 7px; font-size:0.68rem; font-weight:bold; margin-right:4px; }
   .esc-mini { border:none; border-radius:9px; padding:6px 9px; font-size:0.74rem; font-weight:bold; cursor:pointer; background:var(--bg-color); color:var(--primary); box-shadow:2px 2px 4px var(--shadow-dark), -2px -2px 4px var(--shadow-light); }
@@ -4718,15 +4731,25 @@ function guardarPacienteDiag(n){
 // ============ MESA DE TRABAJO ============
 const MESA_REL = [['I', 'Clase I · buena relación'], ['II', 'Clase II · mandíbula retruida'], ['III', 'Clase III · mandíbula adelantada'], ['?', 'Por confirmar']];
 const MESA_INC = [['normal', 'Inclinación adecuada'], ['pro', 'Proinclinados'], ['retro', 'Retroinclinados']];
-const MESA_HALL = [['caries', 'Caries'], ['terceros', 'Terceros molares'], ['raices', 'Raíces cortas'], ['retenidos', 'Dientes retenidos/incluidos'], ['ausencias', 'Ausencias dentales'], ['apinamiento', 'Apiñamiento'], ['diastemas', 'Espacios (diastemas)'], ['osea', 'Pérdida ósea'], ['patologia', 'Lesión/patología a vigilar'], ['atm', 'Posible alteración articular (ATM)']];
+const MESA_HALL = [['caries', 'Caries'], ['terceros', 'Terceros molares'], ['raices', 'Raíces cortas'], ['retenidos', 'Dientes retenidos/incluidos'], ['observacion', 'Diente en observación'], ['ausencias', 'Ausencias dentales'], ['apinamiento', 'Apiñamiento'], ['diastemas', 'Espacios (diastemas)'], ['osea', 'Pérdida ósea'], ['patologia', 'Lesión/patología a vigilar'], ['atm', 'Posible alteración articular (ATM)']];
+const MESA_HALL_DIENTES = ['caries', 'terceros', 'raices', 'retenidos', 'observacion', 'ausencias', 'patologia', 'osea'];
 const MESA_APARATOS = ['Estándar metálico', 'Metálico flex', 'Autoligado', 'Alineadores', 'Ortopedia', 'Férula de desprogramación'];
 const MESA_DIENTES_SUP = [18,17,16,15,14,13,12,11,21,22,23,24,25,26,27,28];
 const MESA_DIENTES_INF = [48,47,46,45,44,43,42,41,31,32,33,34,35,36,37,38];
 let mesa = null;
+function trazoMigrar(nombre){
+    const p = pacientes[nombre]; if(!p || !p.trazadoPuntos || !p.trazadoPuntos.pts || p.trazadoPuntos.v2) return;
+    try{
+        const tp = p.trazadoPuntos, m = trazoMedir(tp.pts, tp.mmpx || null);
+        tp.m = m; tp.v2 = true; p.trazadoValores = trazoTexto(m, tp.mmpx || null);
+        guardarPacienteDiag(nombre);
+    }catch(e){ console.error('trazoMigrar', e); }
+}
 function escAbrirMesa(n){
     const p = pacientes[n]; if(!p) return;
+    trazoMigrar(n);
     const dg = p.diag || {};
-    mesa = { ia: Object.assign({ prov: 'gemini', cargando: [], res: {}, casoId: null }, dg.ia || {}, { cargando: [] }), nombre: n, d: Object.assign({ rel: '', incSup: '', incInf: '', hall: [], otro: '', extr: '', dientes: [], aparatos: [], aparatoOtro: '', nota: '', apinSup: '', apinInf: '', perfil: '', crec: '', atmSint: '' }, dg.d || {}), mensaje: dg.mensaje || '', editado: !!dg.editado, informe: dg.informe || '', informeEditado: !!dg.informeEditado };
+    mesa = { ia: Object.assign({ prov: 'gemini', cargando: [], res: {}, casoId: null }, dg.ia || {}, { cargando: [] }), nombre: n, d: Object.assign({ rel: '', incSup: '', incInf: '', hall: [], otro: '', extr: '', dientes: [], aparatos: [], aparatoOtro: '', nota: '', apinSup: '', apinInf: '', perfil: '', crec: '', atmSint: '', hallDientes: {} }, dg.d || {}), mensaje: dg.mensaje || '', editado: !!dg.editado, informe: dg.informe || '', informeEditado: !!dg.informeEditado };
     if(!Array.isArray(mesa.d.aparatos)) mesa.d.aparatos = [];
     if(mesa.d.bracket){ if(!mesa.d.aparatos.includes(mesa.d.bracket)) mesa.d.aparatos.push(mesa.d.bracket); delete mesa.d.bracket; }   // borradores viejos
     editandoAhora = true;
@@ -4767,7 +4790,7 @@ function mesaCambio(){ renderMesaDecisiones(); mesaAutoTextos(); }
 function trazadoSeccion(p){
     const tzd = p.trazado;
     return `<div class="mesa-sec" style="border:1.5px dashed var(--primary); border-radius:12px; padding:10px;">
-        <label>Trazado y valores <span style="font-weight:normal; color:var(--text-muted);">opcional · solo aquí, el paciente no lo ve</span></label>
+        <label>Paso 2 · Trazado y valores <span style="font-weight:normal; color:var(--text-muted);">opcional · solo aquí, el paciente no lo ve</span></label>
         <div style="display:flex; gap:8px; align-items:center; margin-bottom:6px;">
             ${tzd ? `<img src="${escAttr(tzd.url)}" style="width:54px; height:54px; border-radius:8px; object-fit:cover; cursor:pointer;" onclick="mesaZoom(this.src)">` : ''}
             <button class="esc-mini" onclick="trazoAbrir()">Hacer trazado aquí</button>
@@ -4780,6 +4803,7 @@ function trazadoSeccion(p){
 }
 function renderTrazadoPerfil(nombre){
     const box = document.getElementById('trazadoPerfil'); if(!box) return;
+    trazoMigrar(nombre);
     const p = pacientes[nombre] || {}, tzd = p.trazado, tp = p.trazadoPuntos, vals = String(p.trazadoValores || '').trim();
     const nq = String(nombre).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
     if(!tzd && !vals && !tp){
@@ -4840,22 +4864,108 @@ function mesaQuitarTrazado(){
     try{ if(storage) storage.refFromURL(p.trazado.url).delete().catch(() => {}); }catch(e){}
     delete p.trazado; mesaValoresGuardar(); try{ renderTrazadoPerfil(mesa.nombre); }catch(e){} renderMesaDecisiones();
 }
+
+function iaResActual(){
+    const res = (mesa.ia && mesa.ia.res) || {};
+    const orden = [mesa.ia.aplicada, mesa.ia.prov, 'gemini', 'claude', 'grok'];
+    for(const k of orden){ if(k && res[k] && res[k].resultado) return { k: k, r: res[k].resultado }; }
+    return null;
+}
+const UNIF_LAB = { rel: { I: 'Clase I', II: 'Clase II', III: 'Clase III', '?': 'por confirmar' }, inc: { normal: 'normal', pro: 'proinclinados', retro: 'retroinclinados' }, extr: { si: 'sí', no: 'no' } };
+function unifFilas(){
+    const ia = iaResActual(), r = ia ? ia.r : null, b = mesa.bot, d = mesa.d, out = [];
+    const mk = (campo, tit, vi, vb, fmt, actual) => {
+        const tiene = v => Array.isArray(v) ? v.length > 0 : !!v;
+        const hi = tiene(vi), hb = tiene(vb);
+        if(!hi && !hb) return;
+        const igual = hi && hb && JSON.stringify(Array.isArray(vi) ? vi.slice().sort() : vi) === JSON.stringify(Array.isArray(vb) ? vb.slice().sort() : vb);
+        out.push({ campo: campo, tit: tit, hi: hi, hb: hb, igual: igual, vi: hi ? fmt(vi) : '', vb: hb ? fmt(vb) : '', actual: tiene(actual) ? fmt(actual) : '', ya: (hi && JSON.stringify(vi) === JSON.stringify(actual)) ? 'ia' : ((hb && JSON.stringify(vb) === JSON.stringify(actual)) ? 'bot' : '') });
+    };
+    mk('rel', 'Relación esquelética', r && r.rel, b && b.rel, v => UNIF_LAB.rel[v] || v, d.rel);
+    mk('incSup', 'Incisivos superiores', r && r.incSup, b && b.incSup, v => UNIF_LAB.inc[v] || v, d.incSup);
+    mk('incInf', 'Incisivos inferiores', r && r.incInf, b && b.incInf, v => UNIF_LAB.inc[v] || v, d.incInf);
+    mk('extr', 'Extracción de premolares', r && r.extr, b && b.extr, v => UNIF_LAB.extr[v] || v, d.extr);
+    mk('aparatos', 'Aparatología', r && r.aparatos, b && b.aparatos, v => v.join(', '), d.aparatos);
+    return out;
+}
+function unifUsar(campo, fuente){
+    const ia = iaResActual(), r = ia ? ia.r : null, b = mesa.bot, d = mesa.d, f = fuente === 'ia' ? r : b;
+    if(!f) return;
+    if(campo === 'extr'){ d.extr = f.extr; d.dientes = f.extr === 'si' ? (f.dientes || []).slice() : []; }
+    else if(campo === 'aparatos'){ d.aparatos = (f.aparatos || []).slice(); }
+    else if(f[campo]) d[campo] = f[campo];
+    mesaCambio();
+}
+function unifHallazgosIA(){
+    const ia = iaResActual(); if(!ia) return;
+    const r = ia.r, d = mesa.d; d.hallDientes = d.hallDientes || {};
+    (r.hall || []).forEach(h => { if(!d.hall.includes(h)) d.hall.push(h); });
+    Object.keys(r.hallDientes || {}).forEach(h => { if(!(d.hallDientes[h] || '').trim()) d.hallDientes[h] = r.hallDientes[h]; });
+    if(r.otro && !d.otro) d.otro = r.otro;
+    mesaCambio();
+}
+function unifTodo(modo){
+    const filas = unifFilas();
+    filas.forEach(f => {
+        if(modo === 'coinciden'){ if(f.igual) unifUsar(f.campo, 'bot'); }
+        else if(f.hb) unifUsar(f.campo, 'bot');    // trazado/bot manda sobre la lectura de la IA
+        else if(f.hi) unifUsar(f.campo, 'ia');
+    });
+    if(modo !== 'coinciden') unifHallazgosIA();
+}
+function unifPasos(p){
+    const ia = iaResActual(), m = p.trazadoPuntos && p.trazadoPuntos.m, b = mesa.bot || {}, filas = unifFilas();
+    const disc = filas.filter(f => f.hi && f.hb && !f.igual).length;
+    const cargando = (mesa.ia.cargando || []).length > 0;
+    const pa = (n, id, nom, ok, txt, alerta) => `<div class="mesa-paso${ok ? ' hecho' : (alerta ? ' alerta' : '')}" onclick="document.getElementById('${id}').scrollIntoView({behavior:'smooth', block:'start'})">${n}. ${nom}<small>${txt}</small></div>`;
+    return `<div class="mesa-pasos">
+        ${pa(1, 'paso1', 'IA', !!ia, cargando ? 'analizando' : (ia ? 'lista' : 'pendiente'), cargando)}
+        ${pa(2, 'paso2', 'Trazado', !!(m && m.anb != null), (m && m.anb != null) ? 'listo' : 'pendiente')}
+        ${pa(3, 'paso3', 'Bot', !!(m && m.anb != null) && !(b.faltan || []).length, !(m && m.anb != null) ? 'espera trazado' : ((b.faltan || []).length ? (b.faltan.length + ' por afinar') : 'listo'), !!(m && m.anb != null))}
+        ${pa(4, 'paso4', 'Unificar', (ia || b.rel) && !disc && filas.length > 0, disc ? disc + ' discrepan' : (filas.length ? 'sin conflictos' : 'pendiente'), disc > 0)}
+    </div>`;
+}
+function unifSeccion(){
+    const filas = unifFilas(), ia = iaResActual(), d = mesa.d;
+    const uno = (f) => {
+        const est = f.hi && f.hb ? (f.igual ? ['Coinciden', '#38a169'] : ['Discrepan', '#d69e2e']) : (f.hi ? ['Solo IA', '#718096'] : ['Solo bot', '#718096']);
+        const bt = (fu, t) => `<button class="esc-mini" onclick="unifUsar('${f.campo}', '${fu}')">${t}</button>`;
+        const acc = f.igual ? (f.ya ? '<span class="esc-sub">Ya está en tu decisión</span>' : bt('bot', 'Aplicar')) : [f.hi ? bt('ia', f.ya === 'ia' ? 'IA (elegido)' : 'Usar IA') : '', f.hb ? bt('bot', f.ya === 'bot' ? 'Bot (elegido)' : 'Usar bot') : ''].join(' ');
+        return `<div class="unif-fila"><b>${f.tit}</b><span class="u-est" style="background:${est[1]};">${est[0]}</span>
+            <div class="esc-sub" style="margin-top:3px;">${f.hi ? 'IA: ' + escHtml(f.vi) : ''}${f.hi && f.hb ? ' · ' : ''}${f.hb ? 'Bot: ' + escHtml(f.vb) : ''}</div>
+            <div style="margin-top:4px; display:flex; gap:6px; flex-wrap:wrap; align-items:center;">${acc}</div></div>`;
+    };
+    const hallIA = ia ? (ia.r.hall || []).filter(h => !d.hall.includes(h)) : [];
+    const hlab = MESA_HALL.reduce((o, x) => { o[x[0]] = x[1]; return o; }, {});
+    const hallFila = hallIA.length ? `<div class="unif-fila"><b>Hallazgos de la IA que aún no marcas</b><div class="esc-sub" style="margin-top:3px;">${hallIA.map(h => escHtml(hlab[h] || h)).join(', ')}</div><div style="margin-top:4px;"><button class="esc-mini" onclick="unifHallazgosIA()">Agregarlos</button></div></div>` : '';
+    return `<div class="mesa-sec" style="border:1.5px solid var(--accent); border-radius:12px; padding:10px;">
+        <label>Paso 4 · Unificar criterio <span style="font-weight:normal; color:var(--text-muted);">compara la IA con el bot; tú decides abajo</span></label>
+        ${filas.length || hallFila ? filas.map(uno).join('') + hallFila : '<div class="esc-sub">Aún no hay nada que comparar: corre la IA (paso 1) y/o haz el trazado (paso 2).</div>'}
+        ${filas.length ? `<div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;"><button class="esc-mini" onclick="unifTodo('coinciden')">Aplicar lo que coincide</button><button class="esc-mini" onclick="unifTodo('prioridad')">Resolver todo: el trazado manda sobre la IA</button></div>
+        <div class="esc-sub" style="margin-top:6px;">Regla: para ángulos y decisiones mandan las medidas del trazado (bot); para hallazgos en las imágenes, la IA. Lo que apliques aquí se ve y se corrige en "Tu decisión final".</div>` : ''}
+    </div>`;
+}
 function renderMesaDecisiones(){
     const p = pacientes[mesa.nombre] || {};
     const est = (p.estudios || []);
     const d = mesa.d;
     const dientes = (arr) => arr.map(n => `<button class="${d.dientes.includes(n) ? 'on' : ''}" onclick="mesaDiente(${n})">${n}</button>`).join('');
+    const hTraz = trazadoSeccion(p), hBot = botSeccion(p), hUnif = unifSeccion(), hPasos = unifPasos(p);   // el bot se calcula antes de comparar
     document.getElementById('mesaBody').innerHTML = `
         <div class="esc-sub" style="margin-bottom:8px;">📱 ${escHtml(p.telefono || 'sin teléfono')} · Toca una radiografía para ampliarla</div>
         <div class="mesa-estudios">${est.length ? est.map(e => `<img src="${escAttr(e.url)}" alt="${escAttr(e.nombre || '')}" onclick="mesaZoom(this.src)">`).join('') : '<div class="esc-vacio">Sin estudios subidos.</div>'}</div>
-        ${trazadoSeccion(p)}
-        ${botSeccion(p)}
-        <div id="iaBloque">${iaBloqueInner()}</div>
+        ${hPasos}
+        <div id="paso1"><div id="iaBloque">${iaBloqueInner()}</div></div>
+        <div id="paso2">${hTraz}</div>
+        <div id="paso3">${hBot}</div>
+        <div id="paso4">${hUnif}</div>
+        <div class="mesa-sec" style="margin-bottom:6px;"><label style="font-size:1rem;">Tu decisión final <span style="font-weight:normal; color:var(--text-muted);">editable; de aquí salen el informe y el mensaje</span></label></div>
 
         <div class="mesa-sec"><label>Relación entre tu maxilar superior y la mandíbula</label><div class="mesa-chips">${MESA_REL.map(x => mesaChip('rel', x[0], x[1])).join('')}</div></div>
         <div class="mesa-sec"><label>Incisivos superiores</label><div class="mesa-chips">${MESA_INC.map(x => mesaChip('incSup', x[0], x[1])).join('')}</div></div>
         <div class="mesa-sec"><label>Incisivos inferiores</label><div class="mesa-chips">${MESA_INC.map(x => mesaChip('incInf', x[0], x[1])).join('')}</div></div>
         <div class="mesa-sec"><label>Hallazgos (puedes elegir varios)</label><div class="mesa-chips">${MESA_HALL.map(x => mesaChip('hall', x[0], x[1], true)).join('')}</div>
+            ${MESA_HALL.filter(x => MESA_HALL_DIENTES.includes(x[0]) && d.hall.includes(x[0])).map(x => `<div style="display:flex; gap:6px; align-items:center; margin-top:6px;"><span class="esc-sub" style="min-width:128px;">${x[1]}:</span><input type="text" class="inset-3d" style="flex:1; min-width:0;" placeholder="Dientes (ej. 16, 26)" value="${escAttr((d.hallDientes || {})[x[0]] || '')}" oninput="mesa.d.hallDientes = mesa.d.hallDientes || {}; mesa.d.hallDientes['${x[0]}'] = this.value; mesaAutoTextos();"></div>`).join('')}
             <input type="text" class="inset-3d" style="margin-top:6px; width:100%;" placeholder="Otro hallazgo (opcional)" value="${escAttr(d.otro)}" oninput="mesa.d.otro=this.value; mesaAutoTextos();"></div>
         <div class="mesa-sec"><label>¿Extracción de premolares?</label><div class="mesa-chips">${mesaChip('extr', 'no', 'No')}${mesaChip('extr', 'si', 'Sí')}</div>
             ${d.extr === 'si' ? `<div class="esc-sub" style="margin-top:6px;">Toca los premolares a extraer (FDI):</div>
@@ -4874,9 +4984,9 @@ function renderMesaDecisiones(){
             <button class="esc-mini" style="margin-top:6px;" onclick="mesaRegenerar(false)">Volver a armar el mensaje</button></div>
 
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
-            <button class="btn-3d" style="flex:1; min-width:130px;" onclick="mesaGuardar('borrador')">💾 Guardar borrador</button>
-            <button class="btn-3d" style="flex:1; min-width:130px;" onclick="mesaGuardar('listo')">✅ Aprobar</button>
-            <button class="btn-3d btn-submit" style="flex:1; min-width:130px;" onclick="mesaEnviar()">📲 Enviar por WhatsApp</button>
+            <button class="btn-3d" style="flex:1; min-width:130px;" onclick="mesaBtn(this, 'Guardando…', () => mesaGuardar('borrador'))">💾 Guardar borrador</button>
+            <button class="btn-3d" style="flex:1; min-width:130px;" onclick="mesaBtn(this, 'Aprobando…', () => mesaGuardar('listo'))">✅ Aprobar</button>
+            <button class="btn-3d btn-submit" style="flex:1; min-width:130px;" onclick="mesaBtn(this, 'Abriendo WhatsApp…', () => mesaEnviar())">📲 Enviar por WhatsApp</button>
         </div>
         <p class="esc-sub" style="margin-top:8px;">Son observaciones preliminares de tu lectura, sujetas a valoración clínica.</p>`;
     mesaPintarMensaje();
@@ -4903,6 +5013,40 @@ function mesaDocClinica(){
 }
 const MESA_NOM_APAR = { 'Estándar metálico': 'brackets metálicos estándar', 'Metálico flex': 'brackets metálicos flex', 'Autoligado': 'brackets autoligado', 'Alineadores': 'alineadores', 'Ortopedia': 'ortopedia maxilar', 'Férula de desprogramación': 'férula de desprogramación' };
 function mesaListaTexto(arr){ return arr.length > 1 ? arr.slice(0, -1).join(', ') + ' y ' + arr[arr.length - 1] : (arr[0] || ''); }
+
+function mesaDientesDe(d, h){
+    const l = (String((d.hallDientes || {})[h] || '').match(/\d{2}/g) || []).filter((x, i, a) => a.indexOf(x) === i);
+    return l;
+}
+function mesaConDientes(d, h, base){
+    const l = mesaDientesDe(d, h);
+    return l.length ? base + ' (' + (l.length > 1 ? 'dientes ' : 'diente ') + mesaListaTexto(l) + ')' : base;
+}
+function mesaNombreObs(l){
+    const can = [13, 23, 33, 43];
+    if(l.length && l.every(x => can.includes(Number(x)))) return (l.length > 1 ? 'Los caninos ' : 'El canino ') + mesaListaTexto(l);
+    return l.length ? (l.length > 1 ? 'Los dientes ' : 'El diente ') + mesaListaTexto(l) : 'El diente señalado';
+}
+// Puntos de atención y aviso de riesgos (lenguaje para el paciente)
+function mesaAtencionPaciente(d){
+    const L = [], H = d.hall || [];
+    if(H.includes('raices')) L.push(mesaConDientes(d, 'raices', 'Raíces cortas') + ': suponen un riesgo elevado durante el tratamiento, por lo que se requiere mucha precaución y controles cercanos.');
+    if(H.includes('retenidos')) L.push(mesaConDientes(d, 'retenidos', 'Dientes retenidos o incluidos') + ': requieren seguimiento durante el tratamiento.');
+    if(H.includes('observacion')){ const l = mesaDientesDe(d, 'observacion'); L.push(mesaNombreObs(l) + (l.length > 1 ? ' permanecerán' : ' permanecerá') + ' en observación.'); }
+    if(L.length){
+        const br = (d.aparatos || []).some(a => ['Estándar metálico', 'Metálico flex', 'Autoligado'].includes(a));
+        L.push('Si en algún momento se presenta un riesgo mayor, se retirará ' + (br ? 'el aparato (los brackets)' : 'el aparato') + ' para proteger sus dientes. Todo tratamiento de ortodoncia conlleva riesgos, que le explicaremos en consulta.');
+    }
+    return L;
+}
+function mesaAtencionInforme(d){
+    const L = [], H = d.hall || [];
+    if(H.includes('raices')) L.push(mesaConDientes(d, 'raices', 'Acortamiento radicular') + ': riesgo elevado de reabsorción radicular; se indica máxima precaución y control periódico.');
+    if(H.includes('retenidos')) L.push(mesaConDientes(d, 'retenidos', 'Dientes retenidos o incluidos') + ': requieren seguimiento durante el tratamiento.');
+    if(H.includes('observacion')){ const l = mesaDientesDe(d, 'observacion'); L.push(mesaNombreObs(l) + ' en observación.'); }
+    if(L.length) L.push('Si se presenta un riesgo mayor durante el tratamiento, se suspenderá y se retirará la aparatología. Riesgos del tratamiento informados al paciente.');
+    return L;
+}
 // Texto para el paciente: claro, sobrio, sin adornos
 function mesaArmarMensaje(nombre, d){
     const dc = mesaDocClinica(), L = [];
@@ -4918,9 +5062,10 @@ function mesaArmarMensaje(nombre, d){
         L.push('Dientes anteriores: ' + partes.join(' y ') + '.');
     }
     const hall = { caries: 'caries por tratar', terceros: 'terceros molares (muelas del juicio) por valorar', raices: 'raíces cortas, por lo que se tendrá precaución durante el tratamiento', retenidos: 'dientes retenidos o incluidos', ausencias: 'ausencias dentales', apinamiento: 'apiñamiento dental', diastemas: 'espacios entre algunos dientes', osea: 'pérdida de soporte óseo, que se vigilará', patologia: 'un hallazgo que se vigilará de cerca', atm: 'datos que sugieren una posible alteración de la articulación de la mandíbula (ATM), que será valorada' };
-    const hs = d.hall.map(h => hall[h]).filter(Boolean);
+    const hs = d.hall.filter(h => !['raices', 'retenidos', 'observacion'].includes(h)).map(h => hall[h] ? mesaConDientes(d, h, hall[h]) : '').filter(Boolean);
     if(d.otro && d.otro.trim()) hs.push(d.otro.trim());
     if(hs.length) L.push('Otros hallazgos: ' + hs.join('; ') + '.');
+    const at = mesaAtencionPaciente(d); if(at.length){ L.push(''); at.forEach(x => L.push(x)); L.push(''); }
     if(d.extr === 'no') L.push('Extracciones: por el momento no se contempla la extracción de premolares.');
     else if(d.extr === 'si') L.push('Extracciones: se contempla la extracción de ' + (d.dientes.length && d.dientes.every(n => [14, 15, 24, 25, 34, 35, 44, 45].includes(n)) ? 'premolares' : 'algunos dientes') + (d.dientes.length ? ` (dientes ${d.dientes.slice().sort((a, b) => a - b).join(', ')})` : '') + ' para lograr un resultado estable.');
     const aps = d.aparatos.map(a => MESA_NOM_APAR[a] || a.toLowerCase());
@@ -4953,9 +5098,10 @@ function mesaArmarInforme(nombre, d){
     if(d.incSup) L.push('Incisivos superiores: ' + inc[d.incSup] + (m && m.u1na != null ? ' (U1-NA ' + m.u1na + '°' + (m.u1nam != null ? ', ' + m.u1nam + ' mm' : '') + ')' : '') + '.');
     if(d.incInf) L.push('Incisivos inferiores: ' + inc[d.incInf] + (m && m.l1nb != null ? ' (L1-NB ' + m.l1nb + '°' + (m.l1nbm != null ? ', ' + m.l1nbm + ' mm' : '') + ')' : '') + '.');
     const hall = { caries: 'lesiones cariosas', terceros: 'terceros molares', raices: 'acortamiento radicular', retenidos: 'dientes retenidos o incluidos', ausencias: 'ausencias dentales', apinamiento: 'apiñamiento dental', diastemas: 'diastemas', osea: 'pérdida de soporte óseo', patologia: 'imagen a vigilar, sin diagnóstico definitivo', atm: 'datos radiográficos sugestivos de alteración de la ATM (cóndilos)' };
-    const hs = d.hall.map(h => hall[h]).filter(Boolean);
+    const hs = d.hall.filter(h => !['observacion'].includes(h)).map(h => hall[h] ? mesaConDientes(d, h, hall[h]) : '').filter(Boolean);
     if(d.otro && d.otro.trim()) hs.push(d.otro.trim());
     if(hs.length) L.push('Hallazgos radiográficos: ' + hs.join('; ') + '.');
+    const ai = mesaAtencionInforme(d); if(ai.length){ L.push(''); L.push('RIESGOS Y PRECAUCIONES'); ai.forEach(x => L.push(x)); }
     L.push(''); L.push('PLAN DE TRATAMIENTO');
     if(d.extr === 'si') L.push('Extracciones: ' + (d.dientes.length ? 'premolares ' + d.dientes.slice().sort((a, b) => a - b).join(', ') : 'indicadas, dientes por definir') + '.');
     else if(d.extr === 'no') L.push('Extracciones: sin extracción de premolares.');
@@ -4965,6 +5111,11 @@ function mesaArmarInforme(nombre, d){
     if(d.nota && d.nota.trim()){ L.push(''); L.push('OBSERVACIONES'); L.push(d.nota.trim()); }
     L.push(''); L.push('Valoración preliminar, sujeta a confirmación clínica.'); L.push(''); L.push(dc.doc); L.push(dc.clinica);
     return L.join('\n');
+}
+function mesaBtn(btn, txt, fn){
+    if(btn.dataset.ocupado) return;
+    btn.dataset.ocupado = '1'; btn.textContent = txt; btn.style.opacity = '.6'; btn.style.cursor = 'wait';
+    setTimeout(() => { try{ fn(); }finally{ setTimeout(() => { btn.dataset.ocupado = ''; btn.style.opacity = ''; btn.style.cursor = ''; }, 1500); } }, 30);
 }
 function mesaGuardar(etapa, silencioso){
     const n = mesa.nombre, p = pacientes[n]; if(!p) return;
@@ -5014,7 +5165,7 @@ async function iaLlamarServidor(prov, p, extra){
 const IA_LLAVES_LS = 'da_ia_llaves';
 function iaLlavesLocales(){ try{ return JSON.parse(localStorage.getItem(IA_LLAVES_LS) || '{}') || {}; }catch(e){ return {}; } }
 function iaLlaveLocal(prov){ return String(iaLlavesLocales()[prov] || '').trim(); }
-const IA_HALLAZGOS_L = ["caries", "terceros", "raices", "retenidos", "ausencias", "apinamiento", "diastemas", "osea", "patologia", "atm"];
+const IA_HALLAZGOS_L = ["caries", "terceros", "raices", "retenidos", "observacion", "ausencias", "apinamiento", "diastemas", "osea", "patologia", "atm"];
 const IA_APARATOS_L = ["Estándar metálico", "Metálico flex", "Autoligado", "Alineadores", "Ortopedia", "Férula de desprogramación"];
 const IA_REGLAS_DEF = "- Si se sugiere extracción de premolares, NO sugieras brackets autoligado: con extracciones no se aprovecha su ventaja. En esos casos sugiere estándar metálico o metálico flex.\n- Si en la panorámica ves signos de daño en los cóndilos mandibulares (aplanamiento, erosión, osteofitos, asimetría marcada de cóndilos o ramas), marca \"atm\" en hallazgos y sugiere \"Férula de desprogramación\" en aparatos antes o junto con la ortodoncia; además pregunta por síntomas (dolor, chasquidos, limitación de apertura).";
 const IA_DIENTES_FDI_L = new Set([14, 15, 24, 25, 34, 35, 44, 45]);   // solo premolares
@@ -5032,7 +5183,8 @@ Responde ÚNICAMENTE con un objeto JSON válido (sin texto antes ni después, si
   "rel": "I" | "II" | "III" | "?" | "",
   "incSup": "normal" | "pro" | "retro" | "",
   "incInf": "normal" | "pro" | "retro" | "",
-  "hall": [ valores de: "caries","terceros","raices","retenidos","ausencias","apinamiento","diastemas","osea","patologia","atm" ],
+  "hall": [ valores de: "caries","terceros","raices","retenidos","observacion","ausencias","apinamiento","diastemas","osea","patologia","atm" ],
+  "hallDientes": { "<hallazgo de la lista anterior>": [ números FDI de los dientes afectados ] },   // SOLO los hallazgos que puedas ubicar en dientes concretos (caries, raices, retenidos, observacion, ausencias, terceros)
   "otro": "otro hallazgo relevante en una frase, o vacío",
   "extr": "si" | "no" | "",   // SOLO extracción de PREMOLARES con fines ortodónticos
   "dientes": [ números FDI de los PREMOLARES a extraer (solo 14,15,24,25,34,35,44,45), si extr es "si" ],
@@ -5047,6 +5199,7 @@ Reglas:
 - "rel" es la clase esqueletal (relación maxilar–mandíbula) vista en la lateral: I, II o III. Si no hay lateral o no se puede valorar, deja "" o "?".
 - "incSup"/"incInf" describen la inclinación de los incisivos (pro = proinclinados, retro = retroinclinados) vistos en la lateral.
 - "hall" y "otro" salen principalmente de la panorámica. Incluye caries, lesiones periapicales, terceros molares, dientes retenidos o supernumerarios, ausencias y raíces cortas SOLO si realmente los ves. Las raíces cortas y las caries incipientes son difíciles de ver en panorámica: si dudas, no las marques y mejor haz una pregunta.
+- "hallDientes": cuando marques caries, raíces cortas, dientes retenidos, ausencias o terceros, indica en qué dientes (FDI) los ves. Si no puedes ubicarlos con seguridad, omite ese hallazgo en "hallDientes" (no inventes). "observacion" es un diente que conviene vigilar (por ejemplo un canino retenido, con erupción dudosa o posición comprometida).
 - Si algo no se puede valorar por calidad, ángulo o porque falta el estudio, deja el campo vacío ("" o []) y dilo en "preguntas" u "observaciones". No inventes. Es preferible dejar vacío que equivocarte.
 - "extr" se refiere ÚNICAMENTE a la extracción de premolares por ortodoncia (para resolver apiñamiento, protrusión o discrepancia de espacio). NO consideres las muelas del juicio/terceros molares aquí (esas van en "hall" como "terceros"). Si sugieres extracción, indica en "dientes" qué premolares (solo 14,15,24,25,34,35,44,45) y justifica en "observaciones" con el apiñamiento estimado, la protrusión de incisivos y el perfil; si el caso se puede resolver sin extraer, pon "no".
 - Extracciones y aparatología son sugerencias de bajo peso: el doctor decide. Si no hay base suficiente, deja "extr" vacío y haz una pregunta (por ejemplo sobre el perfil facial o el apiñamiento).
@@ -5075,6 +5228,7 @@ function iaLimpiarLocal(texto) {
     incSup: enum_(o.incSup, ["normal", "pro", "retro"]),
     incInf: enum_(o.incInf, ["normal", "pro", "retro"]),
     hall: arr(o.hall, IA_HALLAZGOS_L),
+    hallDientes: (() => { const out = {}, hd = o.hallDientes && typeof o.hallDientes === "object" ? o.hallDientes : {}; IA_HALLAZGOS_L.forEach((h) => { const l = (Array.isArray(hd[h]) ? hd[h] : []).map(Number).filter((n) => Number.isInteger(n) && n >= 11 && n <= 48 && n % 10 >= 1 && n % 10 <= 8 && Math.floor(n / 10) >= 1 && Math.floor(n / 10) <= 4); if(l.length) out[h] = [...new Set(l)].sort((a, b) => a - b).join(", "); }); return out; })(),
     otro: str(o.otro, 160),
     extr: extr,
     dientes: extr === "si" ? [...new Set(dientes)] : [],
@@ -5208,11 +5362,11 @@ function iaBloqueInner(){
         if(x.error) return `<div class="esc-card" style="cursor:default; display:block;"><b>${IA_NOMBRE[k]}</b><div class="esc-sub" style="color:#c53030;">${escHtml(x.error)}</div></div>`;
         const r = x.resultado, c = r.confianza || {};
         const cf = (v) => v ? ` <span class="esc-sub">(confianza ${v})</span>` : '';
-        const hall = { caries: 'caries', terceros: 'terceros molares', raices: 'raíces cortas', retenidos: 'retenidos/incluidos', ausencias: 'ausencias', apinamiento: 'apiñamiento', diastemas: 'diastemas', osea: 'pérdida ósea', patologia: 'patología a vigilar', atm: 'posible alteración articular (ATM)' };
+        const hall = { caries: 'caries', terceros: 'terceros molares', raices: 'raíces cortas', retenidos: 'retenidos/incluidos', observacion: 'diente en observación', ausencias: 'ausencias', apinamiento: 'apiñamiento', diastemas: 'diastemas', osea: 'pérdida ósea', patologia: 'patología a vigilar', atm: 'posible alteración articular (ATM)' };
         const filas = [
             ['Relación', r.rel ? IA_REL[r.rel] + cf(c.rel) : '—'],
             ['Incisivos', (r.incSup || r.incInf) ? `sup. ${IA_INC[r.incSup] || '—'} · inf. ${IA_INC[r.incInf] || '—'}${cf(c.inc)}` : '—'],
-            ['Hallazgos', (r.hall.length || r.otro) ? r.hall.map(h => hall[h]).concat(r.otro ? [escHtml(r.otro)] : []).join(', ') + cf(c.hall) : '—'],
+            ['Hallazgos', (r.hall.length || r.otro) ? r.hall.map(h => hall[h] + ((r.hallDientes || {})[h] ? ' (' + r.hallDientes[h] + ')' : '')).concat(r.otro ? [escHtml(r.otro)] : []).join(', ') + cf(c.hall) : '—'],
             ['Extracción de premolares', r.extr === 'si' ? 'sí' + (r.dientes.length ? ' (' + r.dientes.join(', ') + ')' : '') + cf(c.extr) : (r.extr === 'no' ? 'no' + cf(c.extr) : '—')],
             ['Aparatología', r.aparatos.length ? r.aparatos.join(', ') : '—']
         ].map(f => `<div style="font-size:0.78rem; margin:2px 0;"><b>${f[0]}:</b> ${f[1]}</div>`).join('');
@@ -5231,12 +5385,12 @@ function iaBloqueInner(){
         </div>`;
     }).join('');
     return `<div class="mesa-sec" style="border:1.5px dashed var(--accent); border-radius:12px; padding:10px;">
-        <label>Complementar con IA <span style="font-weight:normal; color:var(--text-muted);">segunda opinión sobre las imágenes; tú decides</span></label>
+        <label>Paso 1 · Lectura de la IA <span style="font-weight:normal; color:var(--text-muted);">segunda opinión sobre las imágenes; tú decides</span></label>
         <div style="display:flex; gap:6px;">
             <select class="inset-3d" style="flex:1; min-width:0;" onchange="mesa.ia.prov=this.value">${opt('claude', 'Claude')}${opt('gemini', 'Gemini')}${opt('grok', 'Grok')}${opt('todos', 'Los 3 (comparar)')}</select>
-            <button class="esc-mini" ${cargando ? 'disabled' : ''} onclick="iaAnalizar()">${cargando ? 'Analizando…' : 'Complementar con IA'}</button>
+            <button class="esc-mini${cargando ? ' ia-trabajando' : ''}" ${cargando ? 'disabled' : ''} onclick="iaAnalizar()">${cargando ? 'Analizando… <span id="iaSeg">' + Math.round((Date.now() - (ia.t0 || Date.now())) / 1000) + ' s</span>' : 'Complementar con IA'}</button>
         </div>
-        ${cargando ? `<div class="esc-sub" style="margin-top:6px;">Esperando a ${ia.cargando.map(k => IA_NOMBRE[k]).join(', ')}… puede tardar hasta un minuto.</div>` : ''}
+        ${cargando ? `<div class="esc-sub" style="margin-top:6px;">Trabajando con ${ia.cargando.map(k => IA_NOMBRE[k]).join(', ')}. No hace falta volver a tocar el botón: tarda entre 10 y 60 segundos.</div>` : ''}
         ${tarjetas}
         <div class="esc-sub" style="margin-top:6px;">Lectura preliminar: no sustituye tu análisis. Confírmala en la imagen antes de aplicarla.</div>
     </div>`;
@@ -5253,14 +5407,22 @@ function iaExtraDe(pv){
     if((ia.ctx || '').trim()) l.push('- Nota del doctor: ' + ia.ctx.trim());
     return l.join('\n');
 }
-function iaRepintar(){ const e = document.getElementById('iaBloque'); if(e && mesa) e.innerHTML = iaBloqueInner(); }
+function iaRepintar(){
+    if(!mesa) return;
+    if(!mesa.ia.cargando.length && document.getElementById('paso4')){ renderMesaDecisiones(); return; }   // terminó: repinta todo para comparar con el bot
+    const e = document.getElementById('iaBloque'); if(e) e.innerHTML = iaBloqueInner();
+}
 async function iaAnalizar(reanalizar){
     const m = mesa; if(!m) return;
+    if(m.ia.cargando.length) return;   // ya hay un análisis en curso: no lanzar otro
     const p = pacientes[m.nombre];
     if(!p || (!(p.estudios || []).length && !p.trazado && !String(p.trazadoValores || '').trim())){ alert('Este paciente no tiene estudios, trazado ni valores.'); return; }
     if(!iaConsentimiento()) return;
     const provs = m.ia.prov === 'todos' ? ['claude', 'gemini', 'grok'] : [m.ia.prov];
     m.ia.cargando = provs.slice();
+    m.ia.t0 = Date.now();
+    clearInterval(window._iaTimer);
+    window._iaTimer = setInterval(() => { const e = document.getElementById('iaSeg'); if(e && mesa && mesa.ia.cargando.length) e.textContent = Math.round((Date.now() - mesa.ia.t0) / 1000) + ' s'; else if(!mesa || !mesa.ia.cargando.length) clearInterval(window._iaTimer); }, 1000);
     iaRepintar();
     await Promise.all(provs.map(async pv => {
         try{
@@ -5283,6 +5445,8 @@ function mesaAplicarIA(pv){
     if(r.incSup) d.incSup = r.incSup;
     if(r.incInf) d.incInf = r.incInf;
     r.hall.forEach(h => { if(!d.hall.includes(h)) d.hall.push(h); });
+    d.hallDientes = d.hallDientes || {};
+    Object.keys(r.hallDientes || {}).forEach(h => { if(!(d.hallDientes[h] || '').trim()) d.hallDientes[h] = r.hallDientes[h]; });
     if(r.otro && !d.otro) d.otro = r.otro;
     if(r.extr){ d.extr = r.extr; d.dientes = r.extr === 'si' ? r.dientes.slice() : []; }
     r.aparatos.forEach(a => { if(!d.aparatos.includes(a)) d.aparatos.push(a); });
@@ -5359,9 +5523,9 @@ async function abrirIaLab(){
         </div>
         <div class="esc-tray"><h3><span>Criterios del bot</span></h3>
             ${(() => { const bc = Object.assign({}, BOT_DEF, cfg.bot || {}); const f = (k, t) => `<div class="form-group" style="margin-bottom:6px;"><label style="font-size:0.78rem;">${t}</label><input id="botc_${k}" type="number" step="0.5" class="inset-3d" value="${String(bc[k])}"></div>`;
-                return f('anbII', 'ANB por encima del cual es Clase II (°)') + f('anbIII', 'ANB por debajo del cual es Clase III (°)') + f('u1pro', 'U1-NA mayor a este valor = proinclinado (°)') + f('u1retro', 'U1-NA menor a este valor = retroinclinado (°)') + f('l1pro', 'L1-NB mayor a este valor = proinclinado (°)') + f('l1retro', 'L1-NB menor a este valor = retroinclinado (°)') + f('mmProt', 'Protrusión de incisivos desde (mm)') + f('ptsSi', 'Puntos para sugerir extracción de premolares (o más)') + f('ptsNo', 'Puntos para NO sugerir extracción (o menos)') + f('edadCrec', 'Edad por debajo de la cual se supone crecimiento (años)') + f('edadAlin', 'Edad desde la cual se considera alineadores (años)'); })()}
+                return f('anbII', 'ANB por encima del cual es Clase II (°)') + f('anbIII', 'ANB por debajo del cual es Clase III (°)') + f('u1pro', 'U1-NA mayor a este valor = proinclinado (°)') + f('u1retro', 'U1-NA menor a este valor = retroinclinado (°)') + f('l1pro', 'L1-NB mayor a este valor = proinclinado (°)') + f('l1retro', 'L1-NB menor a este valor = retroinclinado (°)') + f('mmProt', 'Protrusión de incisivos desde (mm)') + f('edadCrec', 'Edad por debajo de la cual se supone crecimiento (años)') + f('edadAlin', 'Edad desde la cual se considera alineadores (años)'); })()}
             <button class="btn-3d" style="width:100%; margin-top:6px;" onclick="iaGuardarConfig()">Guardar</button>
-            <div class="esc-sub" style="margin-top:6px;">Son valores de partida, no tu criterio: ajústalos. Puntuación: apiñamiento (ninguno -1, leve 0, moderado +1, severo +3) + protrusión de cada arcada (+1) + perfil convexo (+1) o cóncavo (-2) - ortopedia posible (-1).</div>
+            <div class="esc-sub" style="margin-top:6px;">Son valores de partida, no tu criterio: ajústalos. Reglas de extracción (editables en el código por ahora): Clase II con proinclinación o apiñamiento superior = extracción superior (más inferior si el apiñamiento inferior es severo); Clase I con apiñamiento moderado o severo = superior e inferior; Clase III = camuflaje con extracción inferior (y superior si hay colapso). Aquí ajustas solo los umbrales de ángulos y edades.</div>
         </div>
         <div class="esc-tray"><h3><span>Lo que ha aprendido el bot</span></h3>${botPanelAprendizaje(casos, cfg.bot)}</div>
         <div class="esc-tray"><h3><span>⚙️ Modelos y tope diario</span></h3>
@@ -5416,8 +5580,8 @@ const TRAZO_PUNTOS = [
     { id: 'A', n: 'Punto A', c: '#2ecc71' }, { id: 'B', n: 'Punto B', c: '#f39c12' },
     { id: 'Pog', n: 'Pogonion', c: '#9b59b6' }, { id: 'Me', n: 'Menton', c: '#1abc9c' },
     { id: 'Go', n: 'Gonion', c: '#e91e63' }, { id: 'ANS', n: 'Espina nasal anterior', c: '#95a5a6' },
-    { id: 'PNS', n: 'Espina nasal posterior', c: '#7f8c8d' }, { id: 'U1', n: 'Incisivo sup. (borde)', c: '#ff6b6b' },
-    { id: 'U1A', n: 'Incisivo sup. (ápice)', c: '#c0392b' }, { id: 'L1', n: 'Incisivo inf. (borde)', c: '#4ecdc4' },
+    { id: 'PNS', n: 'Espina nasal posterior', c: '#7f8c8d' }, { id: 'U1', n: 'Incisivo sup. (corona)', c: '#ff6b6b' },
+    { id: 'U1A', n: 'Incisivo sup. (ápice)', c: '#c0392b' }, { id: 'L1', n: 'Incisivo inf. (corona)', c: '#4ecdc4' },
     { id: 'L1A', n: 'Incisivo inf. (ápice)', c: '#16a085' }
 ];
 // [media, tolerancia, etiqueta, unidad]  (referencia de Steiner; ajústala a edad y grupo del paciente)
@@ -5449,10 +5613,12 @@ function trazoMedir(P, mmpx){
     if(P.S && P.N && P.Go && P.Me) m.snmp = trazoR1(trazoAngVec({ x: P.N.x - P.S.x, y: P.N.y - P.S.y }, { x: P.Me.x - P.Go.x, y: P.Me.y - P.Go.y }));
     if(P.S && P.N && P.ANS && P.PNS) m.snpp = trazoR1(trazoAngVec({ x: P.N.x - P.S.x, y: P.N.y - P.S.y }, { x: P.ANS.x - P.PNS.x, y: P.ANS.y - P.PNS.y }));
     // inclinación de un incisivo respecto a una línea N→X (con signo: + hacia adelante/proinclinado)
-    const incl = (tip, apex, X) => {
+    // inf = true para el incisivo inferior: su eje (ápice→borde) apunta hacia arriba y la línea NB hacia abajo,
+    // así que el ángulo se mide contra el eje invertido (si no, sale el suplemento, p. ej. 153° en vez de 27°)
+    const incl = (tip, apex, X, inf) => {
         if(!P.N || !X || !tip || !apex) return null;
         const d = { x: X.x - P.N.x, y: X.y - P.N.y }, ax = { x: tip.x - apex.x, y: tip.y - apex.y };
-        const ang = trazoAngVec(d, ax); if(ang == null) return null;
+        const ang = trazoAngVec(d, inf ? { x: -ax.x, y: -ax.y } : ax); if(ang == null) return null;
         const cr = d.x * ax.y - d.y * ax.x;
         return trazoR1(-f * Math.sign(cr) * ang);
     };
@@ -5464,7 +5630,7 @@ function trazoMedir(P, mmpx){
         return trazoR1(-f * cr / L * mmpx);
     };
     m.u1na = incl(P.U1, P.U1A, P.A); m.u1nam = dist(P.U1, P.A);
-    m.l1nb = incl(P.L1, P.L1A, P.B); m.l1nbm = dist(P.L1, P.B);
+    m.l1nb = incl(P.L1, P.L1A, P.B, true); m.l1nbm = dist(P.L1, P.B);
     if(P.U1 && P.U1A && P.L1 && P.L1A) m.ii = trazoR1(trazoAngVec({ x: P.U1A.x - P.U1.x, y: P.U1A.y - P.U1.y }, { x: P.L1A.x - P.L1.x, y: P.L1A.y - P.L1.y }));
     m.pognb = dist(P.Pog, P.B);
     return m;
@@ -5656,9 +5822,15 @@ async function trazoGuardar(){
     const P = tz.pts;
     if(!(P.S && P.N && P.A && P.B)){ alert('Coloca por lo menos S, N, A y B para guardar.'); return; }
     const p = pacientes[tz.nombre]; if(!p) return;
+    // Revisión de incisivos: la corona debe quedar más cerca del plano oclusal que el ápice
+    if(P.U1 && P.U1A && P.U1.y < P.U1A.y && confirm('Parece que la corona y el ápice del incisivo superior están invertidos (la corona quedó más arriba que el ápice). ¿Intercambiarlos? Aceptar = intercambiar, Cancelar = dejarlos así.')){ const t = P.U1; P.U1 = P.U1A; P.U1A = t; }
+    if(P.L1 && P.L1A && P.L1.y > P.L1A.y && confirm('Parece que la corona y el ápice del incisivo inferior están invertidos (la corona quedó más abajo que el ápice). ¿Intercambiarlos? Aceptar = intercambiar, Cancelar = dejarlos así.')){ const t = P.L1; P.L1 = P.L1A; P.L1A = t; }
     const m = trazoMedir(P, tz.mmpx);
+    if(((m.u1na != null) && (m.u1na > 90 || m.u1na < -20)) || ((m.l1nb != null) && (m.l1nb > 90 || m.l1nb < -20))){
+        if(!confirm('Los ángulos de los incisivos salieron fuera de lo posible (U1-NA ' + m.u1na + '°, L1-NB ' + m.l1nb + '°). Revisa los 4 puntos de los incisivos: corona y ápice del superior, corona y ápice del inferior. ¿Guardar de todos modos?')) return;
+    }
     p.trazadoValores = trazoTexto(m, tz.mmpx);
-    p.trazadoPuntos = { url: tz.fuente || '', w: tz.w, h: tz.h, pts: JSON.parse(JSON.stringify(P)), mmpx: tz.mmpx || null, m: m, fecha: Date.now() };
+    p.trazadoPuntos = { url: tz.fuente || '', w: tz.w, h: tz.h, pts: JSON.parse(JSON.stringify(P)), mmpx: tz.mmpx || null, m: m, v2: true, fecha: Date.now() };
     let subida = true;
     try{
         const cv = document.createElement('canvas'); cv.width = tz.w; cv.height = tz.h;
@@ -5693,7 +5865,8 @@ async function trazoGuardar(){
 <script>
 // ============ BOT DENTIAGENDA: valoración por criterios (sin IA externa) ============
 // Los umbrales son un punto de partida razonable, NO tu criterio: se ajustan en Laboratorio IA > Criterios del bot.
-const BOT_DEF = { anbII: 4, anbIII: 0, u1pro: 26, u1retro: 18, l1pro: 29, l1retro: 21, mmProt: 6, ptsSi: 3, ptsNo: 1, edadCrec: 15, edadAlin: 16 };
+const BOT_DEF = { anbII: 4, anbIII: 0, u1pro: 26, u1retro: 18, l1pro: 29, l1retro: 21, mmProt: 6, edadCrec: 15, edadAlin: 16 };
+const BOT_REGLAS = { 'II-sup': 'Clase II con proinclinación o apiñamiento superior: extracción superior', 'II-sup-inf': 'Clase II con apiñamiento inferior severo: extracción superior e inferior', 'II-inf': 'Clase II con apiñamiento inferior severo: extracción inferior', 'II-no': 'Clase II sin proinclinación ni apiñamiento: sin extracción', 'I-apin': 'Clase I con apiñamiento moderado o severo: extracción superior e inferior', 'I-no': 'Clase I con apiñamiento leve o nulo: sin extracción', 'III-cam': 'Clase III: camuflaje con extracción inferior (y superior si hay colapso)' };
 let _botCfg = {}, _botCfgCargada = false, _botCasos = null, _botCasosCargando = false;
 const BOT_APIN = { ninguno: -1, leve: 0, moderado: 1, severo: 3 };
 function botValorar(p, d, cfg){
@@ -5716,40 +5889,38 @@ function botValorar(p, d, cfg){
         r.incInf = m.l1nb > c.l1pro ? 'pro' : (m.l1nb < c.l1retro ? 'retro' : 'normal');
         r.razones.push('Incisivos inferiores ' + { pro: 'proinclinados', retro: 'retroinclinados', normal: 'con inclinación normal' }[r.incInf] + ' (L1-NB ' + m.l1nb + '°).');
     }else if(m) r.faltan.push('Incisivo inferior (puntos L1 y L1A)');
-    // 2. Extracción de premolares
-    const aS = BOT_APIN[d.apinSup], aI = BOT_APIN[d.apinInf];
+    // 2. Extracción de premolares: reglas del consultorio (no puntos)
+    const LV = { ninguno: 0, leve: 1, moderado: 2, severo: 3 };
+    const aS = LV[d.apinSup], aI = LV[d.apinInf];
     if(aS === undefined && aI === undefined) r.faltan.push('Apiñamiento (superior e inferior)');
+    else if(aS === undefined) r.faltan.push('Apiñamiento superior');
+    else if(aI === undefined) r.faltan.push('Apiñamiento inferior');
     if(!d.perfil) r.faltan.push('Perfil facial');
-    if(m && (aS !== undefined || aI !== undefined)){
-        let pts = Math.max(aS === undefined ? -9 : aS, aI === undefined ? -9 : aI);
-        r.razones.push('Apiñamiento: ' + (d.apinSup ? 'superior ' + d.apinSup : '') + (d.apinSup && d.apinInf ? ', ' : '') + (d.apinInf ? 'inferior ' + d.apinInf : '') + ' (' + (pts >= 3 ? '+3' : (pts >= 1 ? '+1' : (pts === 0 ? '0' : '-1'))) + ').');
-        const protS = m.u1na != null && (m.u1na > c.u1pro || (m.u1nam != null && m.u1nam > c.mmProt));
-        const protI = m.l1nb != null && (m.l1nb > c.l1pro || (m.l1nbm != null && m.l1nbm > c.mmProt));
-        if(protS){ pts += 1; r.razones.push('Protrusión de incisivos superiores (+1).'); }
-        if(protI){ pts += 1; r.razones.push('Protrusión de incisivos inferiores (+1).'); }
-        if(d.perfil === 'convexo'){ pts += 1; r.razones.push('Perfil convexo (+1).'); }
-        if(d.perfil === 'concavo'){ pts -= 2; r.razones.push('Perfil cóncavo (-2).'); }
-        const ortop = crec === true && (r.rel === 'II' || r.rel === 'III');
-        if(ortop){ pts -= 1; r.razones.push('Paciente en crecimiento con discrepancia esquelética: la ortopedia puede resolver parte del problema (-1).'); }
-        r.pts = pts;
-        if(pts >= c.ptsSi){
-            r.extr = 'si';
-            const sup = aS >= 1 || r.incSup === 'pro', inf = aI >= 1 || r.incInf === 'pro';
-            let dd;
-            if(sup && inf) dd = [14, 24, 34, 44];
-            else if(sup) dd = (r.rel === 'III') ? [14, 24, 34, 44] : [14, 24];
-            else if(inf) dd = (r.rel === 'II') ? [14, 24, 34, 44] : [34, 44];
-            else dd = [14, 24, 34, 44];
-            r.dientes = dd;
-            r.razones.push('Puntuación ' + pts + ': se sugiere extracción de premolares (' + dd.join(', ') + ').');
-        }else if(pts <= c.ptsNo){
-            r.extr = 'no';
-            r.razones.push('Puntuación ' + pts + ': no se sugiere extracción de premolares.');
-        }else{
-            r.limite = true;
-            r.razones.push('Puntuación ' + pts + ': caso limítrofe, la decisión sobre premolares depende de tu criterio clínico.');
+    r.variable = false; r.regla = '';
+    const fijar = (regla, extr, dd, razon) => { r.regla = regla; r.extr = extr; r.dientes = dd; r.razones.push(razon); };
+    if(r.rel === 'II' && (aS !== undefined || r.incSup === 'pro')){
+        const sup = r.incSup === 'pro' || aS >= 1;
+        if(sup && aI === 3) fijar('II-sup-inf', 'si', [14, 24, 34, 44], 'Clase II con ' + (r.incSup === 'pro' ? 'proinclinación superior' : 'apiñamiento superior') + ' y apiñamiento inferior severo: extracción superior e inferior.');
+        else if(sup) fijar('II-sup', 'si', [14, 24], 'Clase II con ' + (r.incSup === 'pro' && aS >= 1 ? 'proinclinación y apiñamiento superior' : (r.incSup === 'pro' ? 'proinclinación superior' : 'apiñamiento superior')) + ': extracción de premolares superiores.');
+        else if(aI === 3) fijar('II-inf', 'si', [34, 44], 'Clase II con apiñamiento inferior severo: extracción inferior.');
+        else if(aS === 0 && aI !== undefined) fijar('II-no', 'no', [], 'Clase II sin proinclinación ni apiñamiento: no se sugiere extracción.');
+        else if(aS === 0) r.limite = true;
+    }else if(r.rel === 'I' && (aS !== undefined || aI !== undefined)){
+        const mx = Math.max(aS === undefined ? 0 : aS, aI === undefined ? 0 : aI);
+        if(mx >= 2) fijar('I-apin', 'si', [14, 24, 34, 44], 'Clase I con apiñamiento ' + (mx === 3 ? 'severo' : 'moderado') + ': extracción superior e inferior.');
+        else if(aS !== undefined && aI !== undefined){
+            if(r.incSup === 'pro' && r.incInf === 'pro'){ r.limite = true; r.regla = 'I-biprot'; r.razones.push('Clase I con biprotrusión y apiñamiento leve o nulo: depende de tu criterio.'); }
+            else fijar('I-no', 'no', [], 'Clase I con apiñamiento leve o nulo: no se sugiere extracción.');
         }
+    }else if(r.rel === 'III' && (aS !== undefined || aI !== undefined)){
+        r.variable = true;
+        const hay = (aS || 0) >= 1 || (aI || 0) >= 1;
+        if(hay){
+            const dd = [34, 44]; if((aS || 0) >= 2) dd.unshift(14, 24);
+            fijar('III-cam', 'si', dd, 'Clase III: camuflaje con extracción inferior' + ((aS || 0) >= 2 ? ' y superior (colapso del maxilar con apiñamiento)' : '') + '. Criterio variable: confírmalo.');
+        }else{ r.limite = true; r.regla = 'III-var'; r.razones.push('Clase III sin apiñamiento: el criterio es variable, depende de tu decisión.'); }
     }
+    if(r.extr === 'si' && crec === true) r.razones.push('Paciente en crecimiento: valora si la ortopedia resuelve parte del caso antes de extraer.');
     // 3. Aparatología
     if(crec === true && (r.rel === 'II' || r.rel === 'III')){
         r.aparatos.push('Ortopedia');
@@ -5833,27 +6004,20 @@ function botSugerencias(p, d, b, sim, cfg){
 }
 // Aprendizaje: con tus casos cerrados, ¿desde qué puntuación extraes realmente?
 function botAprender(casos, cfg){
-    const c = Object.assign({}, BOT_DEF, cfg || {});
-    const datos = [];
+    const res = { n: 0, ok: 0, porRegla: {}, desvios: [], porRel: {}, autoConExtr: [0, 0], propuesta: null };
     (casos || []).forEach(cs => {
         const e = cs.entrada, f = cs.final || {};
         if(!e || !e.m || e.m.anb == null || (f.extr !== 'si' && f.extr !== 'no')) return;
         const b = botValorar({ edadFija: e.edad || 0, trazadoPuntos: { m: e.m } }, e, cfg);
-        if(b.pts === null) return;
-        datos.push({ pts: b.pts, si: f.extr === 'si', rel: b.rel, perfil: e.perfil || '', aparatos: f.aparatos || [] });
-    });
-    const res = { n: datos.length, datos: datos, t: null, acc: null, accActual: null, propuesta: null, porRel: {}, porPerfil: {}, autoConExtr: [0, 0] };
-    if(!datos.length) return res;
-    const acierto = t => datos.filter(x => (x.pts >= t) === x.si).length / datos.length;
-    res.accActual = acierto(c.ptsSi);
-    let mejor = null;
-    for(let t = -2; t <= 7; t++){ const a = acierto(t); if(mejor === null || a > mejor.a || (a === mejor.a && Math.abs(t - c.ptsSi) < Math.abs(mejor.t - c.ptsSi))) mejor = { t: t, a: a }; }
-    res.t = mejor.t; res.acc = mejor.a;
-    if(datos.length >= 10 && mejor.t !== c.ptsSi && mejor.a > res.accActual) res.propuesta = { ptsSi: mejor.t, ptsNo: mejor.t - 1 };
-    datos.forEach(x => {
-        const rr = res.porRel[x.rel] = res.porRel[x.rel] || [0, 0]; rr[1]++; if(x.si) rr[0]++;
-        if(x.perfil){ const pp = res.porPerfil[x.perfil] = res.porPerfil[x.perfil] || [0, 0]; pp[1]++; if(x.si) pp[0]++; }
-        if(x.si){ res.autoConExtr[1]++; if(x.aparatos.includes('Autoligado')) res.autoConExtr[0]++; }
+        const rr = res.porRel[b.rel || '?'] = res.porRel[b.rel || '?'] || [0, 0]; rr[1]++; if(f.extr === 'si') rr[0]++;
+        if(f.extr === 'si'){ res.autoConExtr[1]++; if((f.aparatos || []).includes('Autoligado')) res.autoConExtr[0]++; }
+        if(!b.regla || !BOT_REGLAS[b.regla] || !b.extr) return;
+        res.n++;
+        const mismos = (x, y) => JSON.stringify((x || []).slice().sort()) === JSON.stringify((y || []).slice().sort());
+        const ok = b.extr === f.extr && (b.extr === 'no' || mismos(b.dientes, f.dientes));
+        if(ok) res.ok++;
+        const g = res.porRegla[b.regla] = res.porRegla[b.regla] || [0, 0]; g[1]++; if(ok) g[0]++;
+        if(!ok) res.desvios.push({ regla: b.regla, bot: b.extr === 'si' ? 'extraer ' + b.dientes.join(', ') : 'no extraer', tu: f.extr === 'si' ? 'extrajiste ' + (f.dientes || []).join(', ') : 'no extrajiste' });
     });
     return res;
 }
@@ -5901,6 +6065,7 @@ function botSeccion(p){
     const lin = [];
     if(b.rel) lin.push('Clase ' + b.rel + ' esquelética');
     if(b.incSup || b.incInf) lin.push('Incisivos: sup. ' + ({ normal: 'normal', pro: 'proinclinados', retro: 'retroinclinados' }[b.incSup] || '-') + ', inf. ' + ({ normal: 'normal', pro: 'proinclinados', retro: 'retroinclinados' }[b.incInf] || '-'));
+    if(b.regla && BOT_REGLAS[b.regla]) lin.push('Regla aplicada: ' + BOT_REGLAS[b.regla]);
     if(b.extr === 'si') lin.push('Extracción de premolares: sí (' + b.dientes.join(', ') + ')');
     else if(b.extr === 'no') lin.push('Extracción de premolares: no');
     else if(b.limite) lin.push('Extracción de premolares: caso limítrofe');
@@ -5908,7 +6073,7 @@ function botSeccion(p){
     const faltaTraz = !m || m.anb == null;
     const memoria = sim.n >= 3 ? `En ${sim.n} casos tuyos parecidos, extrajiste en ${sim.si} (${Math.round(100 * sim.si / sim.n)}%).` : (_botCasos && _botCasos.length ? 'Todavía no tengo suficientes casos parecidos tuyos para comparar.' : '');
     return `<div class="mesa-sec" style="border:1.5px solid var(--primary); border-radius:12px; padding:10px;">
-        <label>Valoración Bot DentiAgenda <span style="font-weight:normal; color:var(--text-muted);">te hace preguntas, sugiere y aprende de tus casos; la IA queda como complemento</span></label>
+        <label>Paso 3 · Bot DentiAgenda <span style="font-weight:normal; color:var(--text-muted);">usa tu trazado, te pregunta, sugiere y aprende de tus casos</span></label>
         ${faltaTraz ? `<div class="esc-sub" style="margin:6px 0; color:#b7791f;">Primero necesito el trazado (S, N, A y B como mínimo). <a href="#" style="color:var(--accent); font-weight:bold;" onclick="trazoAbrir('${String(mesa.nombre).replace(/'/g, "\\'")}'); return false;">Hacer trazado</a></div>` : ''}
         ${botPregunta('apinSup', 'Apiñamiento superior', apin, sg.apinSup)}
         ${botPregunta('apinInf', 'Apiñamiento inferior', apin, sg.apinInf)}
@@ -5938,30 +6103,22 @@ function botAplicar(){
     mesaCambio();
 }
 
-async function botAplicarPropuesta(ptsSi, ptsNo){
-    if(!confirm('Cambiar el umbral de extracción: sí desde ' + ptsSi + ' puntos, no desde ' + ptsNo + ' o menos. ¿Continuar?')) return;
-    try{
-        const sn = await db.collection('agenda').doc('ia_config').get();
-        const bc = Object.assign({}, (sn.exists && sn.data().bot) || {}, { ptsSi: ptsSi, ptsNo: ptsNo });
-        await db.collection('agenda').doc('ia_config').set({ bot: bc }, { merge: true });
-        _botCfgCargada = false; _botCfg = {}; alert('Umbral actualizado.'); abrirIaLab();
-    }catch(e){ alert('No pude guardar: ' + (e.message || e)); }
-}
 function botPanelAprendizaje(casos, cfg){
     const ap = botAprender(casos, cfg), MIN = 30;
-    if(!ap.n) return '<div class="esc-vacio">Aún no hay casos cerrados con trazado para aprender. Se llenan solos al aprobar o enviar un diagnóstico.</div>';
+    if(!ap.n) return '<div class="esc-vacio">Aún no hay casos cerrados con trazado que el bot haya podido valorar. Se llenan solos al aprobar o enviar un diagnóstico.</div>';
     const pc = a => a[1] ? Math.round(100 * a[0] / a[1]) + '% (' + a[0] + ' de ' + a[1] + ')' : '-';
     const L = [];
-    L.push('Casos con trazado y decisión de extracción: <b>' + ap.n + '</b>' + (ap.n < MIN ? '. Con menos de ' + MIN + ' casos mis conclusiones son tentativas.' : '.'));
-    L.push('Acierto del bot con tus umbrales actuales: <b>' + Math.round(100 * ap.accActual) + '%</b>. Mejor umbral según tus casos: extraer desde <b>' + ap.t + '</b> puntos (' + Math.round(100 * ap.acc) + '%).');
+    L.push('Casos con regla aplicable y tu decisión: <b>' + ap.n + '</b>' + (ap.n < MIN ? '. Con menos de ' + MIN + ' casos mis conclusiones son tentativas.' : '.'));
+    L.push('El bot coincidió contigo (extraer o no, y qué premolares) en <b>' + Math.round(100 * ap.ok / ap.n) + '%</b>.');
+    const reg = Object.keys(ap.porRegla).map(k => escHtml(BOT_REGLAS[k]) + ': coincide ' + pc(ap.porRegla[k]));
+    if(reg.length) L.push(reg.join('<br>'));
+    const mal = Object.keys(ap.porRegla).filter(k => ap.porRegla[k][1] >= 5 && ap.porRegla[k][0] / ap.porRegla[k][1] < 0.6);
+    if(mal.length) L.push('Reglas que no coinciden con lo que haces (revísalas conmigo): ' + mal.map(k => escHtml(BOT_REGLAS[k])).join('; ') + '.');
     const rel = Object.keys(ap.porRel).map(k => 'Clase ' + k + ': extraes en ' + pc(ap.porRel[k]));
     if(rel.length) L.push(rel.join('<br>'));
-    const pf = Object.keys(ap.porPerfil).map(k => 'perfil ' + k + ': extraes en ' + pc(ap.porPerfil[k]));
-    if(pf.length) L.push(pf.join('<br>'));
     if(ap.autoConExtr[1]) L.push('Con extracción usaste Autoligado en ' + pc(ap.autoConExtr) + ' de los casos.');
     return '<div class="esc-sub" style="line-height:1.5;">' + L.join('<br><br>') + '</div>'
-        + (ap.propuesta ? '<button class="btn-3d" style="width:100%; margin-top:8px;" onclick="botAplicarPropuesta(' + ap.propuesta.ptsSi + ',' + ap.propuesta.ptsNo + ')">Ajustar el umbral a lo que haces (' + ap.propuesta.ptsSi + ' puntos)</button>' : '')
-        + '<div class="esc-sub" style="margin-top:6px;">El bot aprende frecuencias y umbrales de tus decisiones; no sabe el motivo clínico de cada una. Nada cambia sin que lo aceptes.</div>';
+        + '<div class="esc-sub" style="margin-top:6px;">El bot sigue tus reglas y mide cuánto coinciden con lo que decides; no cambia sus reglas solo. Si una no coincide, me lo dices y la ajustamos.</div>';
 }
 </script>
 
