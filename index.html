@@ -35,7 +35,11 @@
         .floating-assistant:hover { transform: scale(1.05); }
         .floating-assistant img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
 
-        .sync-badge { position: fixed; bottom: 20px; left: 20px; z-index: 999; background: var(--bg-color); border-radius: 20px; padding: 8px 14px; font-size: 0.75rem; font-weight: bold; box-shadow: 3px 3px 8px var(--shadow-dark), -3px -3px 8px var(--shadow-light); display: flex; align-items: center; gap: 6px; }
+        .sync-badge { position: fixed; bottom: 4px; left: 8px; z-index: 999; background: transparent; border-radius: 10px; padding: 2px 6px; font-size: 0.58rem; font-weight: 600; color: var(--text-muted); opacity: .75; box-shadow: none; display: flex; align-items: center; gap: 4px; cursor: pointer; transition: opacity .3s; }
+        .sync-badge:hover { opacity: 1; }
+        .sync-badge.mini #syncText { display: none; }
+        .sync-badge.mini { padding: 4px; }
+        .sync-badge.err { opacity: 1; background: var(--bg-color); box-shadow: 2px 2px 6px var(--shadow-dark), -2px -2px 6px var(--shadow-light); }
         .sync-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--status-gray); }
         .sync-dot.on { background: var(--status-green); }
         .sync-dot.err { background: var(--status-red); }
@@ -230,7 +234,7 @@
             .badges-container { bottom: 2px; gap: 2px; }
             .modal { padding: 1.3rem; }
             .floating-assistant { width: 55px; height: 55px; bottom: 12px; right: 12px; }
-            .sync-badge { bottom: 12px; left: 12px; font-size: 0.68rem; padding: 6px 10px; }
+            .sync-badge { bottom: 3px; left: 6px; }
             .time-row { flex-direction: column; gap: 0; }
         }
         @media (max-width: 380px) {
@@ -258,7 +262,7 @@
             .badge-m, .badge-v { font-size: 0.75rem; padding: 2px 7px; }
             .modal { max-width: 34rem; }
             .floating-assistant { width: 4.6rem; height: 4.6rem; bottom: 1.5rem; right: 1.5rem; }
-            .sync-badge { bottom: 1.5rem; left: 1.5rem; font-size: 0.85rem; }
+            .sync-badge { bottom: 6px; left: 10px; font-size: 0.62rem; }
         }
     </style>
 </head>
@@ -408,6 +412,7 @@
             
             <div id="detalleCitaData" class="detalle-azul"></div>
             
+            <button class="btn-3d status-btn" style="color: var(--primary); font-weight:bold;" onclick="agendarSiguienteDesdeOpciones()">📅 Agendar siguiente cita</button>
             <button class="btn-3d status-btn" style="color: var(--accent);" onclick="verExpedienteDesdeCita()">📋 Ver expediente completo</button>
             <button class="btn-3d status-btn" style="color: var(--primary);" onclick="prepararEdicion()">Editar Cita</button>
             <button class="btn-3d status-btn" style="color: #25D366;" onclick="enviarWhatsAppConfirmacion()">Confirmar por WhatsApp</button>
@@ -617,7 +622,22 @@
             </div>
             <div id="arcosModalBody"></div>
             <button class="btn-3d btn-submit" style="background:var(--accent); color:white; margin-top:14px;" onclick="guardarArcosModal()">✅ Guardar arcos</button>
+            <button class="btn-3d btn-submit" style="margin-top:10px; background:var(--primary); color:white;" onclick="guardarArcosModal(true)">📅 Guardar y agendar siguiente cita</button>
             <button class="btn-3d btn-submit" style="margin-top:10px;" onclick="closeModal('arcosModalOverlay')">Sin cambio de arco hoy</button>
+        </div>
+    </div>
+
+    <!-- Siguiente cita: elegir en cuánto tiempo -->
+    <div class="modal-overlay" id="siguienteCitaOverlay" style="z-index:1150;">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 style="margin:0; color:var(--primary);">Siguiente cita</h2>
+                <button class="close-btn" onclick="closeModal('siguienteCitaOverlay')">X</button>
+            </div>
+            <div id="siguienteCitaPac" style="font-size:0.95rem; color:var(--primary); margin-bottom:12px;"></div>
+            <div style="font-size:0.8rem; color:var(--text-muted); margin-bottom:8px;">¿En cuánto tiempo? Después eliges la hora disponible.</div>
+            <div id="siguienteCitaChips" style="display:grid; grid-template-columns:repeat(3,1fr); gap:10px;"></div>
+            <button class="btn-3d btn-submit" style="margin-top:14px;" onclick="sigElegir(0)">Elegir otra fecha en el calendario</button>
         </div>
     </div>
 
@@ -966,10 +986,19 @@
         // VAPID key (misma del proyecto misonrisa-citas)
         const DA_VAPID_KEY = "BJbyEqKprY2XnKuxc7RH6Bje2lGH3YbU1mCYtQ5yXmL5vRLAqFRT91nLouRtATu6OJ9LK0LcuIxwMMRzJALbxqA";
 
+        let syncTimer = null;
         function setSync(state, text){
-            const dot = document.getElementById('syncDot'); const t = document.getElementById('syncText');
+            const dot = document.getElementById('syncDot'); const t = document.getElementById('syncText'); const b = document.getElementById('syncBadge');
             dot.className = 'sync-dot' + (state==='on'?' on':state==='err'?' err':'');
             t.innerText = text;
+            clearTimeout(syncTimer);
+            if(b){
+                b.classList.toggle('err', state==='err');
+                // Si todo está bien, se reduce a un puntito a los 2.5 s; si hay problema, queda visible con texto
+                if(state==='on'){ syncTimer = setTimeout(() => b.classList.add('mini'), 2500); }
+                else b.classList.remove('mini');
+                if(!b.dataset.tap){ b.dataset.tap = '1'; b.addEventListener('click', () => { b.classList.remove('mini'); clearTimeout(syncTimer); if(dot.classList.contains('on')) syncTimer = setTimeout(() => b.classList.add('mini'), 3000); }); }
+            }
         }
 
         // ===== LOGIN REAL DEL DOCTOR (Google) =====
@@ -2644,7 +2673,7 @@
             return d <= 0 ? 'hoy' : (d === 1 ? 'ayer' : 'hace ' + d + ' d');
         }
         function usaSmile(nombre){ const u = usoSmile[nombre]; return !!(u && u.ts); }
-        const DA_VERSION = 'v75';
+        const DA_VERSION = 'v78';
         window.addEventListener('load', () => document.querySelectorAll('.da-ver-txt').forEach(e => e.textContent = 'DentiAgenda ' + DA_VERSION));
         // Texto del estado de SmileLike para un paciente (usa lo guardado; abajo se refresca solo ese paciente)
         function textoEstadoSmile(nombre){
@@ -3059,12 +3088,12 @@
             const a = i.sup.actual || 'sin iniciar', b = i.inf.actual || 'sin iniciar';
             return a === b ? 'Arco: ' + a : `Sup: ${a} · Inf: ${b}`;
         }
-        let arcosCitaActual = null;
+        let arcosCitaActual = null, citaBaseArcos = null;
         function abrirArcos(idCita){
             const c = citas.find(x => String(x.id) === String(idCita));
             const pac = c && pacientes[c.paciente];
             if(!pac || !pac.ortodoncia) return;
-            arcosCitaActual = c.paciente;
+            arcosCitaActual = c.paciente; citaBaseArcos = c.fecha || null;
             const info = infoArcosPaciente(pac);
             const fila = (ar, etiqueta) => {
                 const d = info[ar];
@@ -3088,7 +3117,48 @@
             closeModal('opcionesCitaModal');
             abrirArcos(id);
         }
-        function guardarArcosModal(){
+        // ===== Siguiente cita: elegir intervalo y abrir el formulario con el paciente ya puesto =====
+        let sigNombre = null, sigBase = null;
+        const SIG_SEM = [1, 2, 3, 4, 6, 8];
+        function sigUltima(){ try{ return parseInt(localStorage.getItem('da_sig_sem'), 10) || 4; }catch(e){ return 4; } }
+        function abrirSiguienteCita(nombre, fechaBase){
+            if(!nombre) return;
+            sigNombre = nombre; sigBase = fechaBase || null;
+            document.getElementById('siguienteCitaPac').innerHTML = '<strong>' + escHtml(nombre) + '</strong>';
+            const ult = sigUltima();
+            document.getElementById('siguienteCitaChips').innerHTML = SIG_SEM.map(n =>
+                `<button class="btn-3d status-btn" style="${n === ult ? 'outline:3px solid var(--accent); font-weight:bold;' : ''}" onclick="sigElegir(${n})">${n} ${n === 1 ? 'semana' : 'semanas'}</button>`).join('');
+            document.getElementById('siguienteCitaOverlay').style.display = 'flex';
+        }
+        function agendarSiguienteDesdeOpciones(){
+            const id = citaSeleccionadaId; const c = citas.find(x => x.id === id);
+            if(!c) return;
+            closeModal('opcionesCitaModal');
+            abrirSiguienteCita(c.paciente, c.fecha);
+        }
+        function sigElegir(sem){
+            closeModal('siguienteCitaOverlay');
+            if(sem){ try{ localStorage.setItem('da_sig_sem', String(sem)); }catch(e){} }
+            agendarSiguienteDesdeArcos(sigNombre, sigBase, sem);
+        }
+        function agendarSiguienteDesdeArcos(nombre, fechaBase, sem){
+            try{
+                const pac = pacientes[nombre] || {};
+                const hoy = new Date(); hoy.setHours(12, 0, 0, 0);
+                let fISO;
+                if(sem){
+                    const base = fechaBase ? new Date(fechaBase + 'T12:00:00') : hoy;
+                    fISO = fechaAISO(new Date((base < hoy ? hoy : base).getTime() + sem * 7 * 86400000));
+                } else fISO = fechaAISO(hoy);
+                potencialParaAgendar = { nombre: nombre, telefono: pac.telefono || '', motivo: (pac.ortodoncia ? 'Ajuste de ortodoncia' : '') };
+                openDay(fISO);
+                toggleFormulario(true);
+                const inF = document.getElementById('fechaCita'); if(inF) inF.value = fISO;
+                renderFichasHora();
+                if(typeof daToast === 'function') daToast('Elige la hora para ' + nombre, 'ok');
+            }catch(e){ console.error('agendarSiguiente', e); }
+        }
+        function guardarArcosModal(agendar){
             const nombre = arcosCitaActual; if(!nombre || !pacientes[nombre]) { closeModal('arcosModalOverlay'); return; }
             let cambios = 0;
             ['sup','inf'].forEach(ar => {
@@ -3101,6 +3171,7 @@
                 if(selectedDate) openDay(selectedDate);
                 loadCalendar();
             }
+            if(agendar) abrirSiguienteCita(nombre, citaBaseArcos);
             arcosCitaActual = null;
         }
 
