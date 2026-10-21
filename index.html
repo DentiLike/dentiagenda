@@ -2644,7 +2644,7 @@
             return d <= 0 ? 'hoy' : (d === 1 ? 'ayer' : 'hace ' + d + ' d');
         }
         function usaSmile(nombre){ const u = usoSmile[nombre]; return !!(u && u.ts); }
-        const DA_VERSION = 'v73';
+        const DA_VERSION = 'v74';
         window.addEventListener('load', () => document.querySelectorAll('.da-ver-txt').forEach(e => e.textContent = 'DentiAgenda ' + DA_VERSION));
         // Texto del estado de SmileLike para un paciente (usa lo guardado; abajo se refresca solo ese paciente)
         function textoEstadoSmile(nombre){
@@ -6223,50 +6223,55 @@ const CAR_ZONAS = {
     4: { nom: 'cuadrante INFERIOR DERECHO del paciente (queda en el lado IZQUIERDO de la imagen, abajo)', dientes: '48, 47, 46, 45, 44, 43, 42, 41 (de atrás hacia el centro)', t: { x0: 0.06, y0: 0.40, w: 0.52, h: 0.50 } }
 };
 function cariesPrompt(q, conBox){
-    const z = CAR_ZONAS[q];
-    return `Eres un asistente de apoyo para un ortodoncista. La imagen es un recorte ampliado de una radiografía panorámica: ${z.nom}. Los dientes de esta zona son: ${z.dientes}. Analiza SOLO esos dientes, uno por uno, con criterio estricto. Prioriza la PRECISIÓN: es peor marcar una caries falsa que dejar pasar una dudosa (las dudosas van con confianza "baja").
+    const z = q ? CAR_ZONAS[q] : null;
+    const donde = z ? `La imagen es un recorte ampliado de una radiografía panorámica: ${z.nom}. Los dientes de esta zona son: ${z.dientes}.` : 'La imagen es una radiografía panorámica completa. Recuerda que el lado derecho del paciente queda en el lado IZQUIERDO de la imagen. Cuadrantes FDI: 1 = superior derecho, 2 = superior izquierdo, 3 = inferior izquierdo, 4 = inferior derecho.';
+    return `Eres un asistente de apoyo para un ortodoncista. ${donde}
+Revisa CADA diente presente, uno por uno, y di en qué estado está. Quiero una lista diente por diente, no solo los problemas.
 
-CARIES: señales que debes buscar en la corona de cada diente
-1. Discontinuidad del contorno de la corona: una muesca, escalón o pérdida de la línea continua del esmalte (en cara oclusal, mesial, distal o cervical), con borde irregular u orgánico, o una cavidad de forma redondeada o circular.
-2. Zona radiolúcida (más oscura) dentro de la corona, bajo o junto a esa discontinuidad, que se extiende hacia la dentina.
-3. Radiolucidez interproximal en forma de cuña o triángulo entre dos dientes, que no corresponde a un espacio normal.
-4. Radiolucidez bajo restauraciones o coronas existentes (caries recurrente).
-NO son caries: la sombra normal de la unión esmalte-cemento, la cámara pulpar y los conductos, el espacio del ligamento periodontal, la superposición de dientes vecinos, el aire de la vía aérea, ni una zona cervical oscura simétrica en varios dientes (burnout). Si la imagen está borrosa o superpuesta en un diente, no lo marques.
-Profundidad: "superficial" = solo esmalte; "media" = dentina externa o media; "profunda" = dentina interna o cercana a la cámara pulpar.
+CARIES: señales que debes buscar en la corona
+1. Discontinuidad del contorno de la corona: muesca, escalón o pérdida de la línea continua del esmalte (oclusal, mesial, distal o cervical), con borde irregular u orgánico, o una cavidad de forma redondeada o circular.
+2. Zona radiolúcida (más oscura) dentro de la corona, junto o bajo esa discontinuidad, que se extiende hacia la dentina.
+3. Radiolucidez interproximal en cuña o triángulo entre dos dientes.
+4. Radiolucidez bajo restauraciones o coronas (caries recurrente).
+Si una caries es EVIDENTE (cavidad visible o discontinuidad clara del contorno) SIEMPRE márcala, con confianza "alta". Si dudas, márcala con confianza "baja" en lugar de omitirla: el doctor la verificará.
+NO son caries: la unión esmalte-cemento normal, la cámara pulpar y los conductos, el ligamento periodontal, la superposición de dientes vecinos, ni el aire de la vía aérea.
+Profundidad: "superficial" = solo esmalte; "media" = dentina externa o media; "profunda" = dentina interna o cercana a la pulpa.
 
-DESGASTE
-- "plano": pérdida de altura de la corona con el borde incisal u oclusal recto, como cortado de un tajo (atrición, posible bruxismo); suele verse en varios dientes y simétrico.
-- "circular": pérdida de sustancia redondeada, en copa o cuña, en el cuello o en la superficie oclusal (erosión, abrasión o abfracción).
-
-En cada hallazgo escribe la "evidencia": una frase que diga exactamente qué ves (por ejemplo "muesca en la cara oclusal con radiolucidez que llega a dentina"). Si no puedes describir lo que ves, no lo incluyas.
+DESGASTE: "plano" = pérdida de altura con el borde incisal u oclusal recto, como cortado de un tajo (atrición, posible bruxismo); "circular" = pérdida redondeada o en copa o cuña (erosión, abrasión, abfracción). Si no hay desgaste, "ninguno".
 
 Responde ÚNICAMENTE con un objeto JSON válido (sin texto antes ni después, sin markdown):
 {
-  "caries": [ { "diente": 16, "superficie": "oclusal" | "mesial" | "distal" | "cervical" | "no_claro", "profundidad": "superficial" | "media" | "profunda", "confianza": "alta" | "media" | "baja", "evidencia": "qué ves", ${conBox ? '"box_2d": [ymin, xmin, ymax, xmax], ' : ''}"nota": "opcional" } ],
-  "desgaste": [ { "diente": 11, "tipo": "plano" | "circular", "severidad": "leve" | "moderado" | "severo", "confianza": "alta" | "media" | "baja", "evidencia": "qué ves" } ],
+  "dientes": [ { "diente": 16, "estado": "sano" | "caries" | "restaurado" | "restaurado_con_caries" | "ausente" | "no_valorable", "profundidad": "superficial" | "media" | "profunda" | "", "superficie": "oclusal" | "mesial" | "distal" | "cervical" | "no_claro" | "", "confianza": "alta" | "media" | "baja", "desgaste": "ninguno" | "plano" | "circular", "severidad": "leve" | "moderado" | "severo" | "", "evidencia": "qué ves en ese diente, una frase"${conBox ? ', "box_2d": [ymin, xmin, ymax, xmax]' : ''} } ],
   "calidad": "buena" | "regular" | "mala",
   "observaciones": "máximo 2 frases: qué no pudiste valorar y por qué"
 }
-${conBox ? 'box_2d son coordenadas de 0 a 1000 sobre ESTE recorte (origen arriba a la izquierda) del recuadro que encierra el diente; si no puedes ubicarlo con precisión, omite box_2d.\n' : ''}Solo dientes de esta zona (${z.dientes.replace(/ \(.*\)/, '')}). Numeración FDI permanente. Si no hay caries ni desgaste, devuelve las listas vacías.`;
+${conBox ? 'box_2d solo para dientes con caries o desgaste: coordenadas de 0 a 1000 sobre ' + (z ? 'ESTE recorte' : 'la imagen completa') + ' (origen arriba a la izquierda) del recuadro que encierra el diente; si no puedes ubicarlo con precisión, omítelo.\n' : ''}Usa numeración FDI permanente (11 a 48).${z ? ' Incluye solo los dientes de esta zona (' + z.dientes.replace(/ \(.*\)/, '') + ').' : ''}`;
 }
 const CAR_VALIDO = n => Number.isInteger(n) && n >= 11 && n <= 48 && n % 10 >= 1 && n % 10 <= 8 && Math.floor(n / 10) >= 1 && Math.floor(n / 10) <= 4;
 function cariesLimpiarZona(texto, q){
     const i = texto.indexOf('{'), f = texto.lastIndexOf('}');
     if(i < 0 || f < i) throw new Error('La IA no devolvió una lista legible.');
     let o; try{ o = JSON.parse(texto.slice(i, f + 1)); }catch(e){ throw new Error('La IA devolvió un formato inválido.'); }
-    const z = CAR_ZONAS[q], T = z.t;
+    const T = q ? CAR_ZONAS[q].t : null;
     const glob = bx => { if(!(Array.isArray(bx) && bx.length === 4 && bx.every(v => typeof v === 'number' && v >= 0 && v <= 1000))) return null;
+        if(!T) return bx.map(v => Math.round(v));
         return [Math.round((T.y0 + bx[0] / 1000 * T.h) * 1000), Math.round((T.x0 + bx[1] / 1000 * T.w) * 1000), Math.round((T.y0 + bx[2] / 1000 * T.h) * 1000), Math.round((T.x0 + bx[3] / 1000 * T.w) * 1000)]; };
-    const enZona = n => CAR_VALIDO(n) && Math.floor(n / 10) === q;
     const cf = v => ['alta', 'media', 'baja'].includes(v) ? v : 'media';
     const str = (v, n) => typeof v === 'string' ? v.trim().slice(0, n) : '';
-    const car = [], vistos = {};
-    (Array.isArray(o.caries) ? o.caries : []).forEach(x => { const d = Number(x && x.diente); if(!enZona(d) || vistos[d]) return; vistos[d] = 1;
-        car.push({ d: d, prof: CAR_PROF[x.profundidad] || 'media', sup: ['oclusal', 'mesial', 'distal', 'cervical'].includes(x.superficie) ? x.superficie : '', conf: cf(x.confianza), ev: str(x.evidencia, 180), box: glob(x.box_2d), nota: str(x.nota, 120), x: cf(x.confianza) === 'baja' }); });
-    const des = [], v2 = {};
-    (Array.isArray(o.desgaste) ? o.desgaste : []).forEach(x => { const d = Number(x && x.diente); if(!enZona(d) || v2[d]) return; v2[d] = 1;
-        des.push({ d: d, tipo: x.tipo === 'circular' ? 'circular' : 'plano', sev: ['leve', 'moderado', 'severo'].includes(x.severidad) ? x.severidad : 'leve', conf: cf(x.confianza), ev: str(x.evidencia, 180), x: cf(x.confianza) === 'baja' }); });
-    return { car: car, des: des, calidad: ['buena', 'regular', 'mala'].includes(o.calidad) ? o.calidad : '', obs: str(o.observaciones, 240) };
+    const car = [], des = [], est = [], vistos = {}; let descartados = 0;
+    (Array.isArray(o.dientes) ? o.dientes : []).forEach(x => {
+        const d = Number(x && x.diente);
+        if(!CAR_VALIDO(d) || vistos[d]) return;
+        if(q && Math.floor(d / 10) !== q){ descartados++; return; }
+        vistos[d] = 1;
+        const estado = String(x.estado || ''), conf = cf(x.confianza), ev = str(x.evidencia, 180), box = glob(x.box_2d);
+        est.push(d + ' ' + (estado || '?') + (estado.indexOf('caries') >= 0 ? ' ' + (x.profundidad || '') + ' (' + conf + ')' : '') + (x.desgaste && x.desgaste !== 'ninguno' ? ', desgaste ' + x.desgaste : ''));
+        if(estado === 'caries' || estado === 'restaurado_con_caries')
+            car.push({ d: d, prof: CAR_PROF[x.profundidad] || 'media', sup: ['oclusal', 'mesial', 'distal', 'cervical'].includes(x.superficie) ? x.superficie : '', conf: conf, ev: ev, box: box, nota: '', x: false });
+        if(x.desgaste === 'plano' || x.desgaste === 'circular')
+            des.push({ d: d, tipo: x.desgaste, sev: ['leve', 'moderado', 'severo'].includes(x.severidad) ? x.severidad : 'leve', conf: conf, ev: ev, x: conf === 'baja' });
+    });
+    return { car: car, des: des, est: est, descartados: descartados, calidad: ['buena', 'regular', 'mala'].includes(o.calidad) ? o.calidad : '', obs: str(o.observaciones, 240) };
 }
 function cariesRecorte(imgEl, T){
     const W = imgEl.naturalWidth, H = imgEl.naturalHeight;
@@ -6295,8 +6300,8 @@ async function iaCariesLocal(prov, p){
     const plan = [principal, principal]; if(String(modelos[prov]) !== principal) plan.push(String(modelos[prov]));
     const conBox = prov === 'gemini';
     const esperas = [3000, 6000];
-    const zona = async (q) => {
-        const b64 = cariesRecorte(el, CAR_ZONAS[q].t), prompt = cariesPrompt(q, conBox);
+    const zona = async (q) => zonaGenerica(cariesRecorte(el, CAR_ZONAS[q].t), cariesPrompt(q, conBox), q);
+    const zonaGenerica = async (b64, prompt, q) => {
         const llamar = async (modelo) => {
             try{
                 if(prov === 'claude') return await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true', 'content-type': 'application/json' },
@@ -6324,18 +6329,32 @@ async function iaCariesLocal(prov, p){
         else out = ((((j.choices || [])[0] || {}).message || {}).content) || '';
         return cariesLimpiarZona(out, q);
     };
-    const rs = await Promise.allSettled([1, 2, 3, 4].map(zona));
-    const ok = rs.filter(x => x.status === 'fulfilled').map(x => x.value), fallas = rs.filter(x => x.status === 'rejected');
+    const globalPasada = async () => {
+        const b64 = cariesRecorte(el, { x0: 0, y0: 0, w: 1, h: 1 });
+        return await zonaGenerica(b64, cariesPrompt(0, conBox), 0);
+    };
+    const rs = await Promise.allSettled([1, 2, 3, 4, 0].map(q => q ? zona(q) : globalPasada()));
+    const ok = rs.map((x, i) => x.status === 'fulfilled' ? { q: [1, 2, 3, 4, 0][i], v: x.value } : null).filter(Boolean);
+    const fallas = rs.filter(x => x.status === 'rejected');
     if(!ok.length) throw fallas[0].reason;
-    const lista = [].concat.apply([], ok.map(x => x.car)).sort((a, b) => a.d - b.d);
-    const desg = [].concat.apply([], ok.map(x => x.des)).sort((a, b) => a.d - b.d);
-    const obs = ok.map(x => x.obs).filter(Boolean).join(' ').slice(0, 400) + (fallas.length ? ' No se pudieron revisar ' + fallas.length + ' de 4 zonas; usa "Volver a buscar".' : '');
-    return { lista: lista, desg: desg, obs: obs.trim(), calidad: (ok.find(x => x.calidad) || {}).calidad || '', img: String(pano.url || ''), prov: prov, modelo: principal };
+    // Unión: un diente con caries en cualquier pasada se marca; si dos pasadas coinciden, confianza alta
+    const mapa = {}, mapaD = {}, rank = { alta: 3, media: 2, baja: 1 };
+    ok.forEach(o => { o.v.car.forEach(c => { (mapa[c.d] = mapa[c.d] || []).push(c); }); o.v.des.forEach(c => { (mapaD[c.d] = mapaD[c.d] || []).push(c); }); });
+    const lista = Object.keys(mapa).map(k => { const a = mapa[k].slice().sort((x, y) => rank[y.conf] - rank[x.conf]), m = Object.assign({}, a[0]);
+        if(a.length > 1){ m.conf = 'alta'; m.box = (a.find(z => z.box) || {}).box || null; m.ev = a.map(z => z.ev).filter(Boolean)[0] || m.ev; m.fuentes = a.length; }
+        m.x = m.conf === 'baja'; return m; }).sort((a, b) => a.d - b.d);
+    const desg = Object.keys(mapaD).map(k => { const a = mapaD[k].slice().sort((x, y) => rank[y.conf] - rank[x.conf]), m = Object.assign({}, a[0]); if(a.length > 1) m.conf = 'alta'; m.x = m.conf === 'baja'; return m; }).sort((a, b) => a.d - b.d);
+    const etq = { 1: 'Zona sup. derecha', 2: 'Zona sup. izquierda', 3: 'Zona inf. izquierda', 4: 'Zona inf. derecha', 0: 'Panorámica completa' };
+    const diag = 'Modelo: ' + principal + '\n' + ok.map(o => etq[o.q] + (o.v.descartados ? ' (' + o.v.descartados + ' fuera de zona descartados)' : '') + ': ' + (o.v.est.join('; ') || 'sin dientes listados') + (o.v.calidad ? ' [calidad ' + o.v.calidad + ']' : '')).join('\n') + (fallas.length ? '\nFallaron ' + fallas.length + ' pasadas: ' + fallas.map(f => String(f.reason && f.reason.message || f.reason)).join(' | ') : '');
+    const obs = ok.map(o => o.v.obs).filter(Boolean).join(' ').slice(0, 400) + (fallas.length ? ' No se completaron ' + fallas.length + ' de 5 pasadas; usa "Volver a buscar".' : '');
+    const revisados = Math.max.apply(null, ok.map(o => o.v.est.length));
+    return { lista: lista, desg: desg, obs: obs.trim(), calidad: (ok.map(o => o.v.calidad).find(Boolean)) || '', img: String(pano.url || ''), prov: prov, modelo: principal, diag: diag.slice(0, 3500), revisados: revisados };
 }
+
 // Aplica el resultado de la IA a tu decisión final (marca "Caries" y deja la lista para verificar)
 function cariesAplicar(res){
     const d = mesa.d;
-    d.cariesDet = res.lista.map(x => Object.assign({}, x, { ia: true })); d.cariesImg = res.img; d.cariesObs = res.obs; d.cariesProv = res.prov; d.cariesOk = false; d.cariesErr = '';
+    d.cariesDet = res.lista.map(x => Object.assign({}, x, { ia: true })); d.cariesImg = res.img; d.cariesObs = res.obs; d.cariesProv = res.prov; d.cariesOk = false; d.cariesErr = ''; d.cariesDiag = res.diag || ''; d.cariesRev = res.revisados || 0;
     d.desgDet = (res.desg || []).map(x => Object.assign({}, x));
     if(d.cariesDet.some(x => !x.x) && !d.hall.includes('caries')) d.hall.push('caries');
     // Desgaste plano en 2 o más dientes (o uno severo) = posible bruxismo
@@ -6365,6 +6384,10 @@ function cariesAgregar(){
     d.cariesDet.sort((a, b) => a.d - b.d);
     if(!d.hall.includes('caries')) d.hall.push('caries');
     cariesCambio(); daToast('Diente ' + n + ' agregado a las caries', 'ok');
+}
+function cariesCopiarDiag(){
+    const t = (mesa.d.cariesDiag || '');
+    try{ navigator.clipboard.writeText(t).then(() => daToast('Detalle copiado: pégalo en el chat para ajustar', 'ok'), () => daToast('No se pudo copiar', 'err')); }catch(e){ daToast('No se pudo copiar', 'err'); }
 }
 function cariesConfirmar(){ mesa.d.cariesOk = true; mesaCambio(); daToast('Lista de caries confirmada por ti', 'ok'); }
 async function cariesBuscar(){
@@ -6409,8 +6432,9 @@ function cariesPanel(){
             ${d.cariesImg && det.some(x => x.box && !x.x) ? '<button class="esc-mini" onclick="cariesVer()">Ver en la radiografía</button>' : ''}
             <button class="esc-mini${d.cariesOk ? ' on' : ''}" onclick="cariesConfirmar()">${d.cariesOk ? '✔ Lista confirmada' : 'Confirmo esta lista'}</button></div>
             ${des}
+            ${d.cariesDiag ? '<details class="ft-plegable"><summary>Detalle técnico de la revisión</summary><div class="esc-sub" style="white-space:pre-wrap;">' + escHtml(d.cariesDiag) + '</div><button class="esc-mini" style="margin-top:6px;" onclick="cariesCopiarDiag()">Copiar detalle</button></details>' : ''}
             ${d.cariesObs ? `<div class="esc-sub" style="margin-top:6px;">Observación de la IA: ${escHtml(d.cariesObs)}</div>` : ''}`
-        : (busca ? '' : '<div class="esc-sub" style="margin-top:4px;">' + (d.cariesProv ? 'La IA no encontró caries en la panorámica.' + ((d.desgDet || []).length ? ' Desgaste: ' + d.desgDet.filter(x => !x.x).map(x => x.d + ' ' + x.tipo).join(', ') + '.' : '') : 'Aún no se ha revisado. Se hace sola al analizar con IA, o toca el botón.') + ' También puedes agregar dientes a mano:</div><div style="display:flex; gap:6px; margin-top:6px;"><input id="carNuevo" type="number" min="11" max="48" class="inset-3d" style="width:90px;" placeholder="Diente"><button class="esc-mini" onclick="cariesAgregar()">Agregar diente</button></div>')}
+        : (busca ? '' : '<div class="esc-sub" style="margin-top:4px;">' + (d.cariesProv ? 'La IA revisó ' + (d.cariesRev || 0) + ' dientes y no marcó caries.' + (d.cariesDiag ? ' <details class="ft-plegable"><summary>Ver cómo calificó cada diente</summary><div class="esc-sub" style="white-space:pre-wrap;">' + escHtml(d.cariesDiag) + '</div><button class="esc-mini" style="margin-top:6px;" onclick="cariesCopiarDiag()">Copiar detalle</button></details>' : '') + ((d.desgDet || []).length ? ' Desgaste: ' + d.desgDet.filter(x => !x.x).map(x => x.d + ' ' + x.tipo).join(', ') + '.' : '') : 'Aún no se ha revisado. Se hace sola al analizar con IA, o toca el botón.') + ' También puedes agregar dientes a mano:</div><div style="display:flex; gap:6px; margin-top:6px;"><input id="carNuevo" type="number" min="11" max="48" class="inset-3d" style="width:90px;" placeholder="Diente"><button class="esc-mini" onclick="cariesAgregar()">Agregar diente</button></div>')}
     </div>`;
 }
 </script>
