@@ -2644,7 +2644,7 @@
             return d <= 0 ? 'hoy' : (d === 1 ? 'ayer' : 'hace ' + d + ' d');
         }
         function usaSmile(nombre){ const u = usoSmile[nombre]; return !!(u && u.ts); }
-        const DA_VERSION = 'v74';
+        const DA_VERSION = 'v75';
         window.addEventListener('load', () => document.querySelectorAll('.da-ver-txt').forEach(e => e.textContent = 'DentiAgenda ' + DA_VERSION));
         // Texto del estado de SmileLike para un paciente (usa lo guardado; abajo se refresca solo ese paciente)
         function textoEstadoSmile(nombre){
@@ -6217,10 +6217,10 @@ function botPanelAprendizaje(casos, cfg){
 // ============ CARIES: la IA revisa la radiografía diente por diente y las marca; tú verificas ============
 const CAR_PROF = { superficial: 'superficial', media: 'media', profunda: 'profunda' };
 const CAR_ZONAS = {
-    1: { nom: 'cuadrante SUPERIOR DERECHO del paciente (queda en el lado IZQUIERDO de la imagen, arriba)', dientes: '18, 17, 16, 15, 14, 13, 12, 11 (de atrás hacia el centro)', t: { x0: 0.06, y0: 0.10, w: 0.52, h: 0.50 } },
-    2: { nom: 'cuadrante SUPERIOR IZQUIERDO del paciente (queda en el lado DERECHO de la imagen, arriba)', dientes: '21, 22, 23, 24, 25, 26, 27, 28 (del centro hacia atrás)', t: { x0: 0.42, y0: 0.10, w: 0.52, h: 0.50 } },
-    3: { nom: 'cuadrante INFERIOR IZQUIERDO del paciente (queda en el lado DERECHO de la imagen, abajo)', dientes: '31, 32, 33, 34, 35, 36, 37, 38 (del centro hacia atrás)', t: { x0: 0.42, y0: 0.40, w: 0.52, h: 0.50 } },
-    4: { nom: 'cuadrante INFERIOR DERECHO del paciente (queda en el lado IZQUIERDO de la imagen, abajo)', dientes: '48, 47, 46, 45, 44, 43, 42, 41 (de atrás hacia el centro)', t: { x0: 0.06, y0: 0.40, w: 0.52, h: 0.50 } }
+    1: { nom: 'cuadrante SUPERIOR DERECHO del paciente (queda en el lado IZQUIERDO de la imagen, arriba)', dientes: '18, 17, 16, 15, 14, 13, 12, 11 (de atrás hacia el centro)', t: { x0: 0.24, y0: 0.30, w: 0.38, h: 0.30 } },
+    2: { nom: 'cuadrante SUPERIOR IZQUIERDO del paciente (queda en el lado DERECHO de la imagen, arriba)', dientes: '21, 22, 23, 24, 25, 26, 27, 28 (del centro hacia atrás)', t: { x0: 0.46, y0: 0.30, w: 0.38, h: 0.30 } },
+    3: { nom: 'cuadrante INFERIOR IZQUIERDO del paciente (queda en el lado DERECHO de la imagen, abajo)', dientes: '31, 32, 33, 34, 35, 36, 37, 38 (del centro hacia atrás)', t: { x0: 0.46, y0: 0.48, w: 0.38, h: 0.36 } },
+    4: { nom: 'cuadrante INFERIOR DERECHO del paciente (queda en el lado IZQUIERDO de la imagen, abajo)', dientes: '48, 47, 46, 45, 44, 43, 42, 41 (de atrás hacia el centro)', t: { x0: 0.24, y0: 0.48, w: 0.38, h: 0.36 } }
 };
 function cariesPrompt(q, conBox){
     const z = q ? CAR_ZONAS[q] : null;
@@ -6302,12 +6302,13 @@ async function iaCariesLocal(prov, p){
     const esperas = [3000, 6000];
     const zona = async (q) => zonaGenerica(cariesRecorte(el, CAR_ZONAS[q].t), cariesPrompt(q, conBox), q);
     const zonaGenerica = async (b64, prompt, q) => {
+        let sinThink = false;
         const llamar = async (modelo) => {
             try{
                 if(prov === 'claude') return await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true', 'content-type': 'application/json' },
                     body: JSON.stringify({ model: modelo, max_tokens: 3000, messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b64 } }, { type: 'text', text: prompt }] }] }) });
                 if(prov === 'gemini') return await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(modelo) + ':generateContent', { method: 'POST', headers: { 'x-goog-api-key': key, 'content-type': 'application/json' },
-                    body: JSON.stringify({ contents: [{ role: 'user', parts: [{ inline_data: { mime_type: 'image/jpeg', data: b64 } }, { text: prompt }] }], generationConfig: { responseMimeType: 'application/json', maxOutputTokens: 8192 } }) });
+                    body: JSON.stringify({ contents: [{ role: 'user', parts: [{ inline_data: { mime_type: 'image/jpeg', data: b64 } }, { text: prompt }] }], generationConfig: Object.assign({ responseMimeType: 'application/json', maxOutputTokens: 32768 }, (/gemini-3/.test(modelo) && !sinThink) ? { thinkingConfig: { thinkingLevel: 'high' } } : {}) }) });
                 return await fetch('https://api.x.ai/v1/chat/completions', { method: 'POST', headers: { 'Authorization': 'Bearer ' + key, 'content-type': 'application/json' },
                     body: JSON.stringify({ model: modelo, messages: [{ role: 'user', content: [{ type: 'image_url', image_url: { url: 'data:image/jpeg;base64,' + b64, detail: 'high' } }, { type: 'text', text: prompt }] }] }) });
             }catch(e){ throw new Error('RED_' + prov); }
@@ -6317,6 +6318,7 @@ async function iaCariesLocal(prov, p){
             try{ resp = await llamar(plan[i]); }catch(e){ ultimoErr = e; resp = null; if(i < plan.length - 1){ await new Promise(ok => setTimeout(ok, esperas[i] || 1000)); continue; } break; }
             texto = await resp.text();
             if(resp.ok) break;
+            if(resp.status === 400 && !sinThink && prov === 'gemini' && /think/i.test(texto)){ sinThink = true; i--; continue; }
             if([429, 500, 502, 503, 504].indexOf(resp.status) >= 0 && i < plan.length - 1){ await new Promise(ok => setTimeout(ok, esperas[i] || 1000)); continue; }
             break;
         }
