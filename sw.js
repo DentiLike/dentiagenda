@@ -1,7 +1,7 @@
 // Service Worker ÚNICO de DentiAgenda: arranque instantáneo (caché) + notificaciones push (FCM).
 // ⚠️ La app debe registrar SOLO este archivo. Dos service workers en el mismo alcance
 //    se reemplazan entre sí y las notificaciones dejan de mostrarse.
-const CACHE_NAME = "dentiagenda-v79";
+const CACHE_NAME = "dentiagenda-v80";
 const ASSETS = ["./", "./index.html", "./manifest.json", "./badge.png"];
 
 
@@ -93,7 +93,7 @@ self.addEventListener("install", (e) => {
 });
 
 self.addEventListener("activate", (e) => {
-  e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))));
+  e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE_NAME && k.indexOf("dentiagenda-detector") !== 0).map((k) => caches.delete(k)))));
   self.clients.claim();
 });
 
@@ -101,6 +101,11 @@ self.addEventListener("fetch", (e) => {
   if (e.request.method !== "GET") return;
   const u = e.request.url;
   if (u.includes("firestore") || u.includes("firebase") || u.includes("googleapis") || u.includes("gstatic")) return;
+  // Detector local (modelo y motor, ~27 MB): se guarda la primera vez y no se vuelve a descargar nunca
+  if (u.includes("/detector/")) {
+    e.respondWith(caches.open("dentiagenda-detector-v1").then((c) => c.match(e.request).then((m) => m || fetch(e.request).then((res) => { if (res && res.status === 200) c.put(e.request, res.clone()); return res; }))));
+    return;
+  }
 
   if (e.request.mode === "navigate") {
     e.respondWith(caches.match("./index.html").then((cached) => {
