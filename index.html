@@ -2673,7 +2673,7 @@
             return d <= 0 ? 'hoy' : (d === 1 ? 'ayer' : 'hace ' + d + ' d');
         }
         function usaSmile(nombre){ const u = usoSmile[nombre]; return !!(u && u.ts); }
-        const DA_VERSION = 'v80';
+        const DA_VERSION = 'v81';
         window.addEventListener('load', () => document.querySelectorAll('.da-ver-txt').forEach(e => e.textContent = 'DentiAgenda ' + DA_VERSION));
         // Texto del estado de SmileLike para un paciente (usa lo guardado; abajo se refresca solo ese paciente)
         function textoEstadoSmile(nombre){
@@ -5448,15 +5448,17 @@ async function iaLlamarLocal(prov, p, extra){
         try{ resp = await llamar(usado); }catch(e){ ultimoErr = e; resp = null; if(i < plan.length - 1){ await new Promise(ok => setTimeout(ok, esperas[i] || 1000)); continue; } break; }
         texto = await resp.text();
         if(resp.ok) break;
-        if([429, 500, 502, 503, 504].indexOf(resp.status) >= 0 && i < plan.length - 1){ await new Promise(ok => setTimeout(ok, esperas[i] || 1000)); continue; }
+        let espera = esperas[i] || 1000;
+        if(resp.status === 429){
+            const c = iaClas429(texto);
+            if(c.dia || c.cero){ let j = i + 1; while(j < plan.length && plan[j] === plan[i]) j++; if(j < plan.length){ i = j - 1; continue; } break; }   // reintentar el mismo modelo no sirve: pasa al de respaldo o termina
+            if(c.retry) espera = Math.min(30000, c.retry * 1000 + 500);
+        }
+        if([429, 500, 502, 503, 504].indexOf(resp.status) >= 0 && i < plan.length - 1){ await new Promise(ok => setTimeout(ok, espera)); continue; }
         break;
     }
     if(!resp) throw ultimoErr || new Error('RED_' + prov);
-    if(!resp.ok){
-        let det = ''; try{ const j = JSON.parse(texto); det = (j.error && (j.error.message || j.error)) || ''; }catch(e){}
-        const sat = [429, 500, 502, 503, 504].indexOf(resp.status) >= 0;
-        throw new Error(IA_NOMBRE[prov] + (sat ? ' sigue saturado tras ' + intentos + ' intentos (código ' + resp.status + '). Prueba en unos minutos o configura un modelo de respaldo en Laboratorio IA.' : ' respondió ' + resp.status + (det ? ': ' + String(det).slice(0, 200) : '')));
-    }
+    if(!resp.ok) throw new Error(iaErrorHttp(prov, resp.status, texto, usado, intentos));
     const j = JSON.parse(texto);
     let out;
     if(prov === 'claude') out = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
@@ -5470,6 +5472,24 @@ async function iaLlamarLocal(prov, p, extra){
 }
 function iaAyudaCors(){
     alert('Tu almacenamiento (Storage) aún no permite que DentiAgenda lea las radiografías desde el navegador. Es un permiso que se da una sola vez:\n\n1) Abre https://console.cloud.google.com/ con tu cuenta, proyecto misonrisa-citas.\n2) Arriba a la derecha toca el icono >_ (Activar Cloud Shell).\n3) Pega estas dos líneas (Enter después de cada una):\n\necho \'[{"origin":["*"],"method":["GET"],"maxAgeSeconds":3600}]\' > cors.json\n\ngsutil cors set cors.json gs://misonrisa-citas.firebasestorage.app\n\n4) Vuelve aquí y analiza otra vez.');
+}
+function iaClas429(texto){
+    let retry = 0; const t = String(texto || '');
+    try{ const j = JSON.parse(t); ((j.error && j.error.details) || []).forEach(x => { if(x && x.retryDelay) retry = parseFloat(x.retryDelay) || 0; }); }catch(e){}
+    return { retry: retry, dia: /PerDay|per day|daily/i.test(t), cero: /limit:\s*0\b/i.test(t) };
+}
+function iaErrorHttp(prov, status, texto, modelo, intentos){
+    const nom = IA_NOMBRE[prov] || prov; let det = '';
+    try{ const j = JSON.parse(texto); det = String((j.error && (j.error.message || j.error)) || ''); }catch(e){ det = String(texto || ''); }
+    det = det.replace(/\s+/g, ' ').slice(0, 220);
+    if(status === 429){
+        const c = iaClas429(texto);
+        if(c.cero) return nom + ': tu llave no tiene cupo para el modelo ' + modelo + ' (límite 0). Suele pasar con el plan gratuito. Cambia el modelo en Laboratorio IA o activa la facturación en Google AI Studio. Google dice: ' + det;
+        if(c.dia) return nom + ': se agotó el límite DIARIO de tu llave para ' + modelo + '. Se renueva solo (medianoche, hora del Pacífico) o activa la facturación en Google AI Studio. Google dice: ' + det;
+        return nom + ': límite de uso por minuto alcanzado (' + modelo + ') tras ' + intentos + ' intentos. Espera un minuto y vuelve a intentar. Google dice: ' + det;
+    }
+    if([500, 502, 503, 504].indexOf(status) >= 0) return nom + ' está saturado (código ' + status + ') tras ' + intentos + ' intentos. Prueba en unos minutos o configura un modelo de respaldo en Laboratorio IA.';
+    return nom + ' respondió ' + status + (det ? ': ' + det : '');
 }
 function iaMensajeError(e){
     const code = (e && e.code) || '', msg = (e && e.message) || String(e);
@@ -5522,15 +5542,22 @@ function iaBloqueInner(){
     }).join('');
     const rr = (typeof iaResActual === 'function') ? iaResActual() : null;
     const nCar = (mesa.d.cariesDet || []).filter(x => !x.x).length;
+    const F = ia.fase, FL = [['lectura', 'Lectura del caso (IA)'], ['caries', 'Caries y ausencias (IA)'], ['det', 'Detector de la panorámica'], ['bot', 'Bot de reglas']];
+    const FT = { run: ['trabajando', 'var(--accent)'], ok: ['listo', '#2f855a'], err: ['falló', '#c53030'], skip: ['omitido', 'var(--text-muted)'], espera: ['en espera', 'var(--text-muted)'] };
+    const progreso = F ? `<div style="margin-top:8px; padding:6px 8px; border-radius:8px; background:rgba(0,0,0,.04);">${FL.map(f => { const x = F[f[0]] || { e: 'espera' }, t = FT[x.e] || FT.espera; return `<div style="font-size:0.78rem; margin:2px 0; display:flex; gap:6px; align-items:baseline;"><b style="min-width:158px;">${f[1]}</b><span style="color:${t[1]};${x.e === 'run' ? ' font-weight:bold;' : ''}">${t[0]}${x.e === 'run' ? '…' : ''}</span>${x.t && x.t !== 'listo' ? `<span class="esc-sub" style="flex:1; min-width:0;${x.e === 'err' ? ' color:#c53030;' : ''}">${escHtml(String(x.t).slice(0, 260))}</span>` : ''}</div>`; }).join('')}</div>` : '';
+    const dd = mesa.d, hayCajas = dd.cariesImg && ((dd.cariesDet || []).some(x => !x.x && x.box) || (dd.impDet || []).some(x => !x.x && x.box));
+    const panoIn = dd.cariesImg && !cargando ? `<div style="margin-top:8px;"><div style="position:relative; cursor:zoom-in;" onclick="cariesVer()"><img src="${escAttr(dd.cariesImg)}" style="width:100%; display:block; border-radius:8px;">${hayCajas ? cariesCajasHtml() : ''}</div><div class="esc-sub" style="margin-top:3px;">${hayCajas ? 'Rojo: caries profunda · naranja: media · amarillo: superficial · azul punteado: impactado. Toca para ampliar. Los recuadros son aproximados: verifica.' : 'Sin hallazgos que dibujar en la panorámica.'}</div></div>` : '';
     const estado = cargando ? '' : (rr ? `<div class="esc-sub" style="margin-top:8px; color:#2f855a;"><b>Lectura lista.</b> ${(rr.r.hall || []).length} hallazgo(s) marcado(s)${nCar ? ' · ' + nCar + ' diente(s) con caries' : ''}. Revisa y confirma en el paso 3.</div>` : (conLlave.length ? '' : '<div class="esc-sub" style="margin-top:8px; color:#b7791f;">Aún no hay llave de IA en este dispositivo: cárgala en Mi consultorio → Laboratorio IA.</div>'));
     return `<div class="mesa-sec" style="border:1.5px dashed var(--accent); border-radius:12px; padding:10px;">
-        <label>Análisis con IA <span style="font-weight:normal; color:var(--text-muted);">lee las radiografías, marca hallazgos y caries; tú verificas</span></label>
+        <label>Análisis: IA + bot <span style="font-weight:normal; color:var(--text-muted);">la IA lee el caso, el detector marca la panorámica y el bot aplica tus reglas; tú verificas</span></label>
         <div style="display:flex; gap:6px;">
             ${conLlave.length > 1 ? `<select class="inset-3d" style="flex:1; min-width:0;" onchange="mesa.ia.prov=this.value">${opt('claude', 'Claude')}${opt('gemini', 'Gemini')}${opt('grok', 'Grok')}${opt('todos', 'Los 3 (comparar)')}</select>` : ''}
-            <button class="btn-3d${cargando ? ' ia-trabajando' : ''}" style="flex:1; padding:0.8rem;" ${cargando ? 'disabled' : ''} onclick="iaAnalizar()">${cargando ? 'Analizando… <span id="iaSeg">' + Math.round((Date.now() - (ia.t0 || Date.now())) / 1000) + ' s</span>' : (rr ? 'Volver a analizar' : 'Analizar caso con IA')}</button>
+            <button class="btn-3d${cargando ? ' ia-trabajando' : ''}" style="flex:1; padding:0.8rem;" ${cargando ? 'disabled' : ''} onclick="iaAnalizar()">${cargando ? 'Analizando… <span id="iaSeg">' + Math.round((Date.now() - (ia.t0 || Date.now())) / 1000) + ' s</span>' : (rr ? 'Volver a analizar' : 'Analizar caso (IA + bot)')}</button>
         </div>
         ${cargando ? `<div class="esc-sub" style="margin-top:6px;">Trabajando con ${ia.cargando.map(k => IA_NOMBRE[k]).join(', ')}. No hace falta volver a tocar el botón: tarda entre 10 y 60 segundos.</div>` : ''}
+        ${progreso}
         ${estado}
+        ${panoIn}
         ${tarjetas ? `<details class="ft-plegable"><summary>Ver lectura detallada de la IA</summary>${tarjetas}</details>` : ''}
     </div>`;
 }
@@ -5584,15 +5611,22 @@ async function iaAnalizar(reanalizar){
             if((p.trazado || String(p.trazadoValores || '').trim()) && !iaLlaveLocal(pv)) throw new Error('Para usar el trazado y los valores necesitas la llave de ' + IA_NOMBRE[pv] + ' guardada en este dispositivo (Laboratorio IA).');
             if(extra && !iaLlaveLocal(pv)) throw new Error('Para usar tus respuestas necesitas la llave de ' + IA_NOMBRE[pv] + ' guardada en este dispositivo (Laboratorio IA).');
             const eb = (m.bot && iaLlaveLocal(pv)) ? botTextoParaIA(m.bot) : '';
-            m.ia.res[pv] = await iaLlamarServidor(pv, p, [extra, eb].filter(Boolean).join('\n'));
+            const fs = m.ia.fase = { lectura: { e: 'run' }, caries: { e: 'espera' }, det: { e: 'espera' }, bot: { e: m.bot ? 'ok' : 'espera', t: m.bot ? 'listo' : '' } };
+            const fase = (k, e, t) => { fs[k] = { e: e, t: t || '' }; if(mesa === m) iaRepintar(); };
+            let okMain = false, errMain = null;
+            try{
+                m.ia.res[pv] = await iaLlamarServidor(pv, p, [extra, eb].filter(Boolean).join('\n'));
+                okMain = true; fase('lectura', 'ok', 'listo');
+            }catch(e){ errMain = e; console.error('IA', pv, e); m.ia.res[pv] = { error: iaMensajeError(e) }; fase('lectura', 'err', iaMensajeError(e)); }
             if(mesa === m){
+                const sinCupo = !okMain && /DIARIO|límite 0/.test(String(errMain && errMain.message));
                 try{
-                    if(mesa === m) daToast('Análisis listo. Ahora reviso caries, impactados y ausencias en la panorámica…');
-                    const cr = await iaCariesTodo(pv, p);
+                    const cr = await iaCariesTodo(pv, p, { fase: fase, soloDetector: sinCupo });
                     if(mesa === m && (!iaResActual() || iaResActual().k === pv)){ cariesAplicar(cr); }
                 }catch(e){ if(mesa === m) mesa.d.cariesErr = e.message === 'NO_PANO' ? 'No hay una panorámica subida para revisar caries.' : iaMensajeError(e); console.error('caries', e); }
             }
-            if(mesa === m) iaAutoHall(pv);
+            if(mesa === m && okMain) iaAutoHall(pv);
+            else if(mesa === m){ try{ mesaAutoTextos(); }catch(e){} const nd = (mesa.d.cariesDet || []).filter(x => !x.x).length + (mesa.d.impDet || []).filter(x => !x.x).length; daToast(nd ? 'La IA no pudo leer el caso, pero el detector marcó ' + nd + ' hallazgo(s) en la panorámica. Revísalos.' : 'La IA no pudo leer el caso (revisa el aviso en rojo).', nd ? 'ok' : 'err'); }
             if(m.ia.resp) m.ia.resp[pv] = [];
         }
         catch(e){ console.error('IA', pv, e); m.ia.res[pv] = { error: iaMensajeError(e) }; }
@@ -6398,9 +6432,13 @@ async function detRevisar(p){
     const todas = await detDetectar(el, 0.15);
     return { todas: todas, pano: pano, ms: Date.now() - t0 };
 }
-async function iaCariesTodo(prov, p){
-    const key = iaLlaveLocal(prov);
-    const [rg, rd] = await Promise.allSettled([key ? iaCariesLocal(prov, p) : Promise.reject(new Error('SIN_LLAVE')), detRevisar(p)]);
+async function iaCariesTodo(prov, p, op){
+    op = op || {}; const fase = op.fase || (() => {});
+    const key = iaLlaveLocal(prov), sinIA = !key || op.soloDetector;
+    const tIA = async () => { fase('caries', 'run'); try{ const v = await iaCariesLocal(prov, p); fase('caries', 'ok', (v.lista || []).length + ' caries · ' + (v.revisados || 0) + ' dientes revisados'); return v; }catch(e){ fase('caries', 'err', iaMensajeError(e)); throw e; } };
+    const tDet = async () => { fase('det', 'run'); try{ const v = await detRevisar(p); fase('det', 'ok', v.todas.filter(x => (x.clase === 'Deep Caries' || x.clase === 'Impacted') && x.conf >= DET_UMBRAL.dudosa).length + ' hallazgo(s) en ' + (v.ms / 1000).toFixed(1) + ' s'); return v; }catch(e){ fase('det', 'err', e.message === 'NO_PANO' ? 'No hay panorámica subida' : String(e.message || e)); throw e; } };
+    if(sinIA) fase('caries', 'skip', op.soloDetector ? 'omitido: la IA está sin cupo' : 'sin llave de IA en este dispositivo');
+    const [rg, rd] = await Promise.allSettled([sinIA ? Promise.reject(new Error('SIN_LLAVE')) : tIA(), tDet()]);
     const g = rg.status === 'fulfilled' ? rg.value : null, dt = rd.status === 'fulfilled' ? rd.value : null;
     const eg = rg.status === 'rejected' && rg.reason && rg.reason.message !== 'SIN_LLAVE' ? rg.reason : null, ed = rd.status === 'rejected' ? rd.reason : null;
     if(!g && !dt) throw (eg || ed || new Error('NO_PANO'));
@@ -6436,7 +6474,9 @@ const CAR_ZONAS = {
     1: { nom: 'cuadrante SUPERIOR DERECHO del paciente (queda en el lado IZQUIERDO de la imagen, arriba)', dientes: '18, 17, 16, 15, 14, 13, 12, 11 (de atrás hacia el centro)', t: { x0: 0.24, y0: 0.30, w: 0.38, h: 0.30 } },
     2: { nom: 'cuadrante SUPERIOR IZQUIERDO del paciente (queda en el lado DERECHO de la imagen, arriba)', dientes: '21, 22, 23, 24, 25, 26, 27, 28 (del centro hacia atrás)', t: { x0: 0.46, y0: 0.30, w: 0.38, h: 0.30 } },
     3: { nom: 'cuadrante INFERIOR IZQUIERDO del paciente (queda en el lado DERECHO de la imagen, abajo)', dientes: '31, 32, 33, 34, 35, 36, 37, 38 (del centro hacia atrás)', t: { x0: 0.46, y0: 0.48, w: 0.38, h: 0.36 } },
-    4: { nom: 'cuadrante INFERIOR DERECHO del paciente (queda en el lado IZQUIERDO de la imagen, abajo)', dientes: '48, 47, 46, 45, 44, 43, 42, 41 (de atrás hacia el centro)', t: { x0: 0.24, y0: 0.48, w: 0.38, h: 0.36 } }
+    4: { nom: 'cuadrante INFERIOR DERECHO del paciente (queda en el lado IZQUIERDO de la imagen, abajo)', dientes: '48, 47, 46, 45, 44, 43, 42, 41 (de atrás hacia el centro)', t: { x0: 0.24, y0: 0.48, w: 0.38, h: 0.36 } },
+    5: { quads: [1, 2], nom: 'ARCADA SUPERIOR completa del paciente (los dientes de arriba, de lado a lado de la imagen; el lado derecho del paciente queda a la IZQUIERDA de la imagen)', dientes: '18, 17, 16, 15, 14, 13, 12, 11 (lado izquierdo de la imagen) y 21, 22, 23, 24, 25, 26, 27, 28 (lado derecho de la imagen)', t: { x0: 0.24, y0: 0.30, w: 0.60, h: 0.30 } },
+    6: { quads: [3, 4], nom: 'ARCADA INFERIOR completa del paciente (los dientes de abajo, de lado a lado de la imagen; el lado derecho del paciente queda a la IZQUIERDA de la imagen)', dientes: '48, 47, 46, 45, 44, 43, 42, 41 (lado izquierdo de la imagen) y 31, 32, 33, 34, 35, 36, 37, 38 (lado derecho de la imagen)', t: { x0: 0.24, y0: 0.48, w: 0.60, h: 0.36 } }
 };
 function cariesPrompt(q, conBox){
     const z = q ? CAR_ZONAS[q] : null;
@@ -6478,7 +6518,7 @@ function cariesLimpiarZona(texto, q){
     (Array.isArray(o.dientes) ? o.dientes : []).forEach(x => {
         const d = Number(x && x.diente);
         if(!CAR_VALIDO(d) || vistos[d]) return;
-        if(q && Math.floor(d / 10) !== q){ descartados++; return; }
+        if(q && !(CAR_ZONAS[q].quads || [q]).includes(Math.floor(d / 10))){ descartados++; return; }
         vistos[d] = 1;
         const estado = String(x.estado || ''), conf = cf(x.confianza), ev = str(x.evidencia, 180), box = glob(x.box_2d);
         if(box) todos.push({ d: d, box: box });
@@ -6530,17 +6570,24 @@ async function iaCariesLocal(prov, p){
                     body: JSON.stringify({ model: modelo, messages: [{ role: 'user', content: [{ type: 'image_url', image_url: { url: 'data:image/jpeg;base64,' + b64, detail: 'high' } }, { type: 'text', text: prompt }] }] }) });
             }catch(e){ throw new Error('RED_' + prov); }
         };
-        let resp = null, texto = '', ultimoErr = null;
+        let resp = null, texto = '', ultimoErr = null, intentosZ = 0, usadoZ = principal;
         for(let i = 0; i < plan.length; i++){
+            usadoZ = plan[i]; intentosZ = i + 1;
             try{ resp = await llamar(plan[i]); }catch(e){ ultimoErr = e; resp = null; if(i < plan.length - 1){ await new Promise(ok => setTimeout(ok, esperas[i] || 1000)); continue; } break; }
             texto = await resp.text();
             if(resp.ok) break;
             if(resp.status === 400 && !sinThink && prov === 'gemini' && /think/i.test(texto)){ sinThink = true; i--; continue; }
-            if([429, 500, 502, 503, 504].indexOf(resp.status) >= 0 && i < plan.length - 1){ await new Promise(ok => setTimeout(ok, esperas[i] || 1000)); continue; }
+            let espera = esperas[i] || 1000;
+            if(resp.status === 429){
+                const c = iaClas429(texto);
+                if(c.dia || c.cero){ let j = i + 1; while(j < plan.length && plan[j] === plan[i]) j++; if(j < plan.length){ i = j - 1; continue; } break; }
+                if(c.retry) espera = Math.min(30000, c.retry * 1000 + 500);
+            }
+            if([429, 500, 502, 503, 504].indexOf(resp.status) >= 0 && i < plan.length - 1){ await new Promise(ok => setTimeout(ok, espera)); continue; }
             break;
         }
         if(!resp) throw ultimoErr || new Error('RED_' + prov);
-        if(!resp.ok) throw new Error(IA_NOMBRE[prov] + ' respondió ' + resp.status);
+        if(!resp.ok) throw new Error(iaErrorHttp(prov, resp.status, texto, usadoZ, intentosZ));
         const j = JSON.parse(texto);
         let out;
         if(prov === 'claude') out = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
@@ -6552,8 +6599,9 @@ async function iaCariesLocal(prov, p){
         const b64 = cariesRecorte(el, { x0: 0, y0: 0, w: 1, h: 1 });
         return await zonaGenerica(b64, cariesPrompt(0, conBox), 0);
     };
-    const rs = await Promise.allSettled([1, 2, 3, 4, 0].map(q => q ? zona(q) : globalPasada()));
-    const ok = rs.map((x, i) => x.status === 'fulfilled' ? { q: [1, 2, 3, 4, 0][i], v: x.value } : null).filter(Boolean);
+    const QS = [5, 6];
+    const rs = await Promise.allSettled(QS.map(q => zona(q)));
+    const ok = rs.map((x, i) => x.status === 'fulfilled' ? { q: QS[i], v: x.value } : null).filter(Boolean);
     const fallas = rs.filter(x => x.status === 'rejected');
     if(!ok.length) throw fallas[0].reason;
     // Unión: un diente con caries en cualquier pasada se marca; si dos pasadas coinciden, confianza alta
@@ -6563,9 +6611,9 @@ async function iaCariesLocal(prov, p){
         if(a.length > 1){ m.conf = 'alta'; m.box = (a.find(z => z.box) || {}).box || null; m.ev = a.map(z => z.ev).filter(Boolean)[0] || m.ev; m.fuentes = a.length; }
         m.x = m.conf === 'baja'; return m; }).sort((a, b) => a.d - b.d);
     const desg = Object.keys(mapaD).map(k => { const a = mapaD[k].slice().sort((x, y) => rank[y.conf] - rank[x.conf]), m = Object.assign({}, a[0]); if(a.length > 1) m.conf = 'alta'; m.x = m.conf === 'baja'; return m; }).sort((a, b) => a.d - b.d);
-    const etq = { 1: 'Zona sup. derecha', 2: 'Zona sup. izquierda', 3: 'Zona inf. izquierda', 4: 'Zona inf. derecha', 0: 'Panorámica completa' };
+    const etq = { 1: 'Zona sup. derecha', 2: 'Zona sup. izquierda', 3: 'Zona inf. izquierda', 4: 'Zona inf. derecha', 5: 'Arcada superior', 6: 'Arcada inferior', 0: 'Panorámica completa' };
     const diag = 'Modelo: ' + principal + '\n' + ok.map(o => etq[o.q] + (o.v.descartados ? ' (' + o.v.descartados + ' fuera de zona descartados)' : '') + ': ' + (o.v.est.join('; ') || 'sin dientes listados') + (o.v.calidad ? ' [calidad ' + o.v.calidad + ']' : '')).join('\n') + (fallas.length ? '\nFallaron ' + fallas.length + ' pasadas: ' + fallas.map(f => String(f.reason && f.reason.message || f.reason)).join(' | ') : '');
-    const obs = ok.map(o => o.v.obs).filter(Boolean).join(' ').slice(0, 400) + (fallas.length ? ' No se completaron ' + fallas.length + ' de 5 pasadas; usa "Volver a buscar".' : '');
+    const obs = ok.map(o => o.v.obs).filter(Boolean).join(' ').slice(0, 400) + (fallas.length ? ' No se completaron ' + fallas.length + ' de ' + QS.length + ' pasadas; usa "Volver a buscar".' : '');
     const revisados = Math.max.apply(null, ok.map(o => o.v.est.length));
     const todosM = {}, ausM = {};
     ok.filter(o => o.q > 0).forEach(o => { o.v.todos.forEach(t => { if(!todosM[t.d]) todosM[t.d] = t; }); o.v.aus.forEach(n => { ausM[n] = 1; }); });
@@ -6639,16 +6687,21 @@ async function cariesBuscar(){
     }catch(e){ mesa.d.cariesErr = e.message === 'NO_PANO' ? 'No hay una panorámica subida para revisar.' : iaMensajeError(e); daToast('No se pudo revisar caries', 'err'); }
     mesa._carBusca = false; daOcupado(-1); renderMesaDecisiones();
 }
-function cariesVer(){
-    const d = mesa.d; if(!d.cariesImg) return;
+function cariesCajasHtml(){
+    const d = mesa.d;
     const col = { profunda: '#e53e3e', media: '#dd8b00', superficial: '#d6b600' };
     const cajas = (d.cariesDet || []).filter(x => !x.x && x.box).map(x => { const b = x.box; return `<div style="position:absolute; left:${b[1] / 10}%; top:${b[0] / 10}%; width:${(b[3] - b[1]) / 10}%; height:${(b[2] - b[0]) / 10}%; border:2px solid ${col[x.prof]}; box-sizing:border-box;"><span style="position:absolute; top:-18px; left:0; background:${col[x.prof]}; color:#fff; font-size:11px; font-weight:bold; padding:1px 5px; border-radius:4px; white-space:nowrap;">${x.d}${x.prof === 'profunda' ? ' prof.' : ''}</span></div>`; }).join('');
     const cajasImp = (d.impDet || []).filter(x => !x.x && x.box).map(x => { const b = x.box; return `<div style="position:absolute; left:${b[1] / 10}%; top:${b[0] / 10}%; width:${(b[3] - b[1]) / 10}%; height:${(b[2] - b[0]) / 10}%; border:2px dashed #3182ce; box-sizing:border-box;"><span style="position:absolute; bottom:-18px; left:0; background:#3182ce; color:#fff; font-size:11px; font-weight:bold; padding:1px 5px; border-radius:4px; white-space:nowrap;">${x.d} impactado</span></div>`; }).join('');
+    return cajas + cajasImp;
+}
+function cariesVer(){
+    const d = mesa.d; if(!d.cariesImg) return;
+    const cajasT = cariesCajasHtml();
     let m = document.getElementById('cariesVer'); if(m) m.remove();
     m = document.createElement('div'); m.id = 'cariesVer';
     m.style.cssText = 'position:fixed; inset:0; z-index:7000; background:rgba(0,0,0,.88); overflow:auto; padding:30px 8px 20px;';
     m.onclick = () => m.remove();
-    m.innerHTML = `<div style="color:#fff; font-size:0.8rem; text-align:center; margin-bottom:10px;">Toca para cerrar. Rojo: profunda · naranja: media · amarillo: superficial · azul punteado: impactado. Los recuadros son aproximados: verifica en la radiografía.</div><div style="position:relative; width:max(100%, 900px); margin:0 auto;"><img src="${escAttr(d.cariesImg)}" style="width:100%; display:block;">${cajas}${cajasImp}</div>`;
+    m.innerHTML = `<div style="color:#fff; font-size:0.8rem; text-align:center; margin-bottom:10px;">Toca para cerrar. Rojo: profunda · naranja: media · amarillo: superficial · azul punteado: impactado. Los recuadros son aproximados: verifica en la radiografía.</div><div style="position:relative; width:max(100%, 900px); margin:0 auto;"><img src="${escAttr(d.cariesImg)}" style="width:100%; display:block;">${cajasT}</div>`;
     document.body.appendChild(m);
 }
 function cariesPanel(){
