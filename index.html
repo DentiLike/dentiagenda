@@ -2673,7 +2673,7 @@
             return d <= 0 ? 'hoy' : (d === 1 ? 'ayer' : 'hace ' + d + ' d');
         }
         function usaSmile(nombre){ const u = usoSmile[nombre]; return !!(u && u.ts); }
-        const DA_VERSION = 'v82';
+        const DA_VERSION = 'v83';
         window.addEventListener('load', () => document.querySelectorAll('.da-ver-txt').forEach(e => e.textContent = 'DentiAgenda ' + DA_VERSION));
         // Texto del estado de SmileLike para un paciente (usa lo guardado; abajo se refresca solo ese paciente)
         function textoEstadoSmile(nombre){
@@ -4877,16 +4877,37 @@ function mesaToggle(campo, valor){ const a = mesa.d[campo]; const i = a.indexOf(
 function mesaDiente(num){ const a = mesa.d.dientes; const i = a.indexOf(num); if(i >= 0) a.splice(i, 1); else a.push(num); mesaCambio(); }
 function mesaAutoTextos(){ if(!mesa.editado) mesaRegenerar(true); if(!mesa.informeEditado) mesaRegenerarInforme(true); }
 function mesaCambio(){ renderMesaDecisiones(); mesaAutoTextos(); }
+function trazoEtiquetas(m){
+    if(!m) return [];
+    const t = [], cl = trazoClase(m);
+    if(cl) t.push('Clase ' + cl);
+    if(m.snmp != null) t.push(m.snmp > 37 ? 'Dolicofacial' : (m.snmp < 27 ? 'Braquifacial' : 'Mesofacial'));
+    const iS = trazoIncl(m.u1na, 26, 18), iI = trazoIncl(m.l1nb, 29, 21);
+    if(iS === 'pro') t.push('Protrusión maxilar'); if(iS === 'retro') t.push('Retroinclinación sup.');
+    if(iI === 'pro') t.push('Protrusión mand.'); if(iI === 'retro') t.push('Retroinclinación inf.');
+    return t;
+}
+function trazoTarjeta(nombre, p){
+    const tzd = p.trazado, tp = p.trazadoPuntos, url = (tzd && tzd.url) || (window._trazLocal || {})[nombre] || '';
+    if(!url) return '';
+    const fecha = (tp && tp.fecha) || (tzd && tzd.fecha), et = trazoEtiquetas(tp && tp.m);
+    return `<div style="margin-top:8px; border-radius:10px; overflow:hidden; background:#111;">
+        <img src="${escAttr(url)}" style="width:100%; display:block; cursor:zoom-in;" onclick="mesaZoom(this.src)" alt="Trazado cefalométrico">
+        <div style="background:var(--bg, #fff); padding:6px 8px;">
+            <div style="font-size:0.82rem; font-weight:bold; color:var(--text-main);">${escHtml(nombre)} · Steiner${fecha ? ' · ' + new Date(fecha).toLocaleDateString('es-MX') : ''}</div>
+            ${et.length ? `<div style="font-size:0.8rem; font-weight:bold; color:var(--accent); margin-top:2px;">${et.map(escHtml).join(' · ')}</div>` : ''}
+        </div></div>`;
+}
 function trazadoSeccion(p){
     const tzd = p.trazado;
     return `<div class="mesa-sec" style="border:1.5px dashed var(--primary); border-radius:12px; padding:10px;">
         <label>Trazado y valores <span style="font-weight:normal; color:var(--text-muted);">solo tú lo ves</span></label>
         <div style="display:flex; gap:8px; align-items:center; margin-bottom:6px;">
-            ${tzd ? `<img src="${escAttr(tzd.url)}" style="width:54px; height:54px; border-radius:8px; object-fit:cover; cursor:pointer;" onclick="mesaZoom(this.src)">` : ''}
-            <button class="esc-mini" onclick="trazoAbrir()">Hacer trazado aquí</button>
+            <button class="esc-mini" onclick="trazoAbrir()">${p.trazadoPuntos ? 'Abrir / editar trazado' : 'Hacer trazado aquí'}</button>
             <button class="esc-mini" onclick="mesaSubirTrazado()">${tzd ? 'Reemplazar imagen' : 'Subir trazado (imagen)'}</button>
             ${tzd ? '<button class="esc-mini" onclick="mesaQuitarTrazado()">🗑️</button>' : ''}
         </div>
+        ${mesa ? trazoTarjeta(mesa.nombre, p) : ''}
         <textarea class="inset-3d" rows="3" style="width:100%; font-size:0.8rem;" placeholder="Valores del trazado (opcional): SNA 82, SNB 78, ANB 4, SN-GoGn 34, 1-NA 26° 5 mm, 1-NB 30° 6 mm, interincisal 120°…" oninput="mesaValoresInput(this.value)" onchange="mesaValoresGuardar()">${escHtml(p.trazadoValores || '')}</textarea>
         <div class="esc-sub" style="margin-top:4px;">Si los hay, la IA los usa con prioridad sobre su propia lectura de la lateral. La imagen se ajusta sola de tamaño (sin deformarla).</div>
     </div>`;
@@ -4902,8 +4923,7 @@ function renderTrazadoPerfil(nombre){
         return;
     }
     const fecha = (tp && tp.fecha) || (tzd && tzd.fecha);
-    box.innerHTML = `<div style="display:flex; gap:10px; align-items:flex-start;">
-            ${tzd ? `<img src="${escAttr(tzd.url)}" style="width:84px; height:84px; border-radius:8px; object-fit:cover; cursor:pointer;" onclick="window.open('${escAttr(tzd.url)}','_blank')">` : ''}
+    box.innerHTML = trazoTarjeta(nombre, p) + `<div style="display:flex; gap:10px; align-items:flex-start; margin-top:8px;">
             <div style="flex:1; font-size:0.8rem; color:var(--text-main); line-height:1.45;">${vals ? escHtml(vals) : '<i>Sin valores escritos.</i>'}
                 ${fecha ? `<div style="color:var(--text-muted); margin-top:4px;">${new Date(fecha).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })}</div>` : ''}</div>
         </div>
@@ -6096,8 +6116,9 @@ async function trazoGuardar(){
     try{
         const cv = document.createElement('canvas'); cv.width = tz.w; cv.height = tz.h;
         const ctx = cv.getContext('2d'); ctx.drawImage(tz.img, 0, 0);
-        trazoPintarSobre(ctx, tz.w, tz.h, Math.max(1, tz.w / 900), true, m);
+        trazoPintarSobre(ctx, tz.w, tz.h, Math.max(1.5, tz.w / 420), true, m);
         const dataUrl = cv.toDataURL('image/jpeg', 0.85);
+        window._trazLocal = window._trazLocal || {}; window._trazLocal[tz.nombre] = dataUrl;
         if(!storage){ await cargarExtrasFirebase(); }
         if(!storage) throw new Error('Storage no disponible');
         const id = 'trazado_' + Date.now();
