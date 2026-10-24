@@ -2673,7 +2673,7 @@
             return d <= 0 ? 'hoy' : (d === 1 ? 'ayer' : 'hace ' + d + ' d');
         }
         function usaSmile(nombre){ const u = usoSmile[nombre]; return !!(u && u.ts); }
-        const DA_VERSION = 'v83';
+        const DA_VERSION = 'v84';
         window.addEventListener('load', () => document.querySelectorAll('.da-ver-txt').forEach(e => e.textContent = 'DentiAgenda ' + DA_VERSION));
         // Texto del estado de SmileLike para un paciente (usa lo guardado; abajo se refresca solo ese paciente)
         function textoEstadoSmile(nombre){
@@ -4895,6 +4895,7 @@ function trazoTarjeta(nombre, p){
         <img src="${escAttr(url)}" style="width:100%; display:block; cursor:zoom-in;" onclick="mesaZoom(this.src)" alt="Trazado cefalométrico">
         <div style="background:var(--bg, #fff); padding:6px 8px;">
             <div style="font-size:0.82rem; font-weight:bold; color:var(--text-main);">${escHtml(nombre)} · Steiner${fecha ? ' · ' + new Date(fecha).toLocaleDateString('es-MX') : ''}</div>
+            ${tp && tp.auto ? `<div style="font-size:0.76rem; color:#b7791f; margin-top:2px;">Trazado automático sin verificar${(tp.dudosos || []).length ? ' (revisa ' + tp.dudosos.join(', ') + ')' : ''}. <a href="#" style="color:var(--accent); font-weight:bold;" onclick="trazoAbrir('${escAttr(String(nombre).replace(/'/g, "\\'"))}'); return false;">Revisar puntos</a></div>` : ''}
             ${et.length ? `<div style="font-size:0.8rem; font-weight:bold; color:var(--accent); margin-top:2px;">${et.map(escHtml).join(' · ')}</div>` : ''}
         </div></div>`;
 }
@@ -5066,7 +5067,7 @@ function mesaPasosHtml(p){
     const et = p.diag && p.diag.etapa;
     const pa = (n, nom, ok, txt, alerta) => `<div class="mesa-paso${ok ? ' hecho' : (alerta ? ' alerta' : '')}${(mesa.paso || 1) === n ? ' act' : ''}" data-p="${n}" onclick="mesaPaso(${n})">${n}. ${nom}<small>${txt}</small></div>`;
     return `<div class="mesa-pasos">
-        ${pa(1, 'Analizar', !!ia, cargando ? 'analizando' : (ia ? (nCar ? nCar + ' caries' : 'lista') : 'pendiente'), cargando)}
+        ${pa(1, 'Analizar', !!ia || !!mesa.rap, cargando || mesa._rap ? 'analizando' : ((ia || mesa.rap) ? (nCar ? nCar + ' caries' : 'listo') : 'pendiente'), cargando || mesa._rap)}
         ${pa(2, 'Trazado', tz && !(b.faltan || []).filter(x => !/Calibración/.test(x)).length, !tz ? 'pendiente' : ((b.faltan || []).filter(x => !/Calibración/.test(x)).length ? 'faltan datos' : 'listo'), tz)}
         ${pa(3, 'Revisar', (ia || b.rel) && !disc && filas.length > 0, disc ? disc + ' discrepan' : (filas.length ? 'sin conflictos' : 'pendiente'), disc > 0)}
         ${pa(4, 'Enviar', et === 'listo' || et === 'enviado', et === 'enviado' ? 'enviado' : (et === 'listo' ? 'aprobado' : (et === 'borrador' ? 'borrador' : 'pendiente')))}
@@ -5100,7 +5101,9 @@ function renderMesaDecisiones(){
 
         ${pane(1, `
             <div class="mesa-estudios">${est.length ? est.map(e => `<img src="${escAttr(e.url)}" alt="${escAttr(e.nombre || '')}" onclick="mesaZoom(this.src)">`).join('') : '<div class="esc-vacio">Sin estudios subidos.</div>'}</div>
-            <div id="iaBloque">${iaBloqueInner()}</div>`)}
+            <div id="rapBloque">${rapidoInner()}</div>
+            <details class="ft-plegable" style="margin-top:10px;"${(mesa.ia.cargando || []).length || iaResActual() ? ' open' : ''}><summary>Complemento: análisis con IA (opcional, tarda 1 a 2 minutos)</summary>
+            <div id="iaBloque">${iaBloqueInner()}</div></details>`)}
 
         ${pane(2, `${hTraz}${hBot}`)}
 
@@ -6370,6 +6373,92 @@ function botSeccion(p){
         <button class="esc-mini" style="margin-top:8px; width:100%;" onclick="botAplicar(); mesaPaso(3)">Usar esta valoración y revisar</button>
     </div>`;
 }
+// ============ ANÁLISIS RÁPIDO: detector de panorámica + trazado automático + bot (todo local, segundos) ============
+function rapidoLateral(p){
+    const est = p.estudios || [], lat = est.filter(e => /later|tele|ceph|cef[aá]l|perfil/i.test(e.nombre || ''));
+    return lat.length ? lat[lat.length - 1] : null;
+}
+async function trazoAutoGuardar(nombre, est){
+    const p = pacientes[nombre]; if(!p || !est) throw new Error('SIN_LATERAL');
+    let r; try{ r = await fetch(est.url); }catch(e){ throw new Error('No pude leer la lateral desde el navegador (permiso de Storage).'); }
+    if(!r.ok) throw new Error('No se pudo leer la lateral (' + r.status + ').');
+    const blob = await r.blob(), img = new Image(), u = URL.createObjectURL(blob);
+    await new Promise((ok, ko) => { img.onload = ok; img.onerror = () => ko(new Error('La lateral no es una imagen válida.')); img.src = u; });
+    const res = await cephDetectar(img), P = {}, dud = [];
+    TRAZO_PUNTOS.forEach(pt => { const q = res[CEPH.mapa[pt.id]]; if(q){ P[pt.id] = { x: q.x, y: q.y }; if(q.conf < 0.35) dud.push(pt.id); } });
+    const m = trazoMedir(P, null), w = img.naturalWidth, h = img.naturalHeight;
+    p.trazadoValores = trazoTexto(m, null);
+    p.trazadoPuntos = { url: est.url, w: w, h: h, pts: P, mmpx: null, m: m, v2: true, fecha: Date.now(), auto: true, dudosos: dud };
+    const prev = tz; tz = { pts: P, calib: null };
+    try{
+        const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+        const ctx = cv.getContext('2d'); ctx.drawImage(img, 0, 0);
+        trazoPintarSobre(ctx, w, h, Math.max(1.5, w / 420), true, m);
+        const dataUrl = cv.toDataURL('image/jpeg', 0.85);
+        window._trazLocal = window._trazLocal || {}; window._trazLocal[nombre] = dataUrl;
+        tz = prev;
+        try{
+            if(!storage) await cargarExtrasFirebase();
+            if(storage){
+                const id = 'trazado_' + Date.now(), ref = storage.ref().child(`estudios_pacientes/${encodeURIComponent(nombre)}/${id}.jpg`);
+                await ref.putString(dataUrl, 'data_url');
+                p.trazado = { id: id, url: await ref.getDownloadURL(), fecha: Date.now() };
+            }
+        }catch(e){ console.error('trazo auto subir', e); }
+    }finally{ tz = prev; }
+    mesaValoresGuardar();
+    return { m: m, dud: dud };
+}
+async function rapidoAnalizar(){
+    const mm = mesa; if(!mm || mm._rap) return;
+    const p = pacientes[mm.nombre]; if(!p) return;
+    const fs = mm.rap = { det: { e: 'run' }, traz: { e: 'espera' }, bot: { e: 'espera' } };
+    mm._rap = true;
+    const fase = (k, e, t) => { fs[k] = { e: e, t: t || '' }; if(mesa === mm){ const el = document.getElementById('rapBloque'); if(el) el.innerHTML = rapidoInner(); } };
+    fase('det', 'run');
+    const tDet = (async () => {
+        try{
+            const cr = await iaCariesTodo('gemini', p, { soloDetector: true });
+            if(mesa === mm) cariesAplicar(cr);
+            const n = (cr.lista || []).length, ni = (cr.imp || []).length;
+            fase('det', 'ok', n + ' caries profunda(s) · ' + ni + ' impactado(s)');
+        }catch(e){ fase('det', e.message === 'NO_PANO' ? 'skip' : 'err', e.message === 'NO_PANO' ? 'no hay panorámica subida' : String(e.message || e)); }
+    })();
+    const tTraz = (async () => {
+        const tp = p.trazadoPuntos;
+        if(tp && tp.m && tp.m.anb != null){ fase('traz', 'skip', tp.auto ? 'ya había un trazado automático' : 'ya tienes tu trazado'); return; }
+        const lat = rapidoLateral(p);
+        if(!lat){ fase('traz', 'skip', 'no encontré una lateral (nombra el estudio "Lateral")'); return; }
+        fase('traz', 'run');
+        try{ const r = await trazoAutoGuardar(mm.nombre, lat); fase('traz', 'ok', 'Clase ' + (trazoClase(r.m) || '?') + ' · ANB ' + r.m.anb + '°' + (r.dud.length ? ' · revisa ' + r.dud.join(', ') : '')); }
+        catch(e){ console.error('traz auto', e); fase('traz', 'err', String(e.message || e)); }
+    })();
+    await Promise.all([tDet, tTraz]);
+    if(mesa === mm){
+        try{ botSeccion(p); botAplicar(); fase('bot', mesa.bot && mesa.bot.rel ? 'ok' : 'skip', mesa.bot && mesa.bot.rel ? 'valoración aplicada; revisa en el paso 3' : 'falta el trazado para valorar'); }
+        catch(e){ fase('bot', 'err', String(e.message || e)); }
+        mm._rap = false;
+        try{ mesaAutoTextos(); }catch(e){}
+        renderMesaDecisiones();
+        daToast('Análisis rápido listo. Revisa los hallazgos y el trazado.', 'ok');
+    }else mm._rap = false;
+}
+function rapidoInner(){
+    const F = mesa.rap, run = !!mesa._rap;
+    const FL = [['det', 'Detector de la panorámica'], ['traz', 'Trazado automático (lateral)'], ['bot', 'Bot de reglas']];
+    const FT = { run: ['trabajando', 'var(--accent)'], ok: ['listo', '#2f855a'], err: ['falló', '#c53030'], skip: ['omitido', 'var(--text-muted)'], espera: ['en espera', 'var(--text-muted)'] };
+    const prog = F ? `<div style="margin-top:8px; padding:6px 8px; border-radius:8px; background:rgba(0,0,0,.04);">${FL.map(f => { const x = F[f[0]] || { e: 'espera' }, t = FT[x.e] || FT.espera; return `<div style="font-size:0.78rem; margin:2px 0; display:flex; gap:6px; align-items:baseline;"><b style="min-width:172px;">${f[1]}</b><span style="color:${t[1]};${x.e === 'run' ? ' font-weight:bold;' : ''}">${t[0]}${x.e === 'run' ? '…' : ''}</span>${x.t ? `<span class="esc-sub" style="flex:1; min-width:0;${x.e === 'err' ? ' color:#c53030;' : ''}">${escHtml(String(x.t).slice(0, 200))}</span>` : ''}</div>`; }).join('')}</div>` : '';
+    const dd = mesa.d, hayCajas = dd.cariesImg && ((dd.cariesDet || []).some(x => !x.x && x.box) || (dd.impDet || []).some(x => !x.x && x.box));
+    const pano = dd.cariesImg && !run ? `<div style="margin-top:8px;"><div style="position:relative; cursor:zoom-in;" onclick="cariesVer()"><img src="${escAttr(dd.cariesImg)}" style="width:100%; display:block; border-radius:8px;">${hayCajas ? cariesCajasHtml() : ''}</div><div class="esc-sub" style="margin-top:3px;">${hayCajas ? 'Rojo: caries profunda · azul punteado: impactado. Toca para ampliar. Verifica.' : 'El detector no marcó caries profundas ni impactados.'}</div></div>` : '';
+    const p = pacientes[mesa.nombre] || {}, traz = !run && F ? trazoTarjeta(mesa.nombre, p) : '';
+    return `<div class="mesa-sec" style="border:1.5px solid var(--primary); border-radius:12px; padding:10px;">
+        <label>Análisis rápido <span style="font-weight:normal; color:var(--text-muted);">detector + trazado automático + bot; segundos, sin internet de IA</span></label>
+        <button class="btn-3d${run ? ' ia-trabajando' : ''}" style="width:100%; padding:0.8rem;" ${run ? 'disabled' : ''} onclick="rapidoAnalizar()">${run ? 'Analizando…' : (F ? 'Volver a analizar' : 'Analizar caso (bot)')}</button>
+        ${prog}${pano}${traz}
+        ${F && !run ? '<button class="esc-mini" style="margin-top:8px; width:100%;" onclick="mesaPaso(3)">Ir a revisar</button>' : ''}
+    </div>`;
+}
+
 function botAplicar(){
     const b = mesa.bot; if(!b) return;
     const d = mesa.d;
