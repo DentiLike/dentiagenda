@@ -2673,7 +2673,7 @@
             return d <= 0 ? 'hoy' : (d === 1 ? 'ayer' : 'hace ' + d + ' d');
         }
         function usaSmile(nombre){ const u = usoSmile[nombre]; return !!(u && u.ts); }
-        const DA_VERSION = 'v81';
+        const DA_VERSION = 'v82';
         window.addEventListener('load', () => document.querySelectorAll('.da-ver-txt').forEach(e => e.textContent = 'DentiAgenda ' + DA_VERSION));
         // Texto del estado de SmileLike para un paciente (usa lo guardado; abajo se refresca solo ese paciente)
         function textoEstadoSmile(nombre){
@@ -5884,6 +5884,7 @@ function trazoPintarShell(est, sel){
             </select>
             <button class="esc-mini" onclick="trazoAbrirArchivo()">📂 Abrir desde mi equipo</button>
         </div>
+        <button id="trazoAutoBtn" class="btn-3d" style="width:100%; padding:0.7rem; margin:2px 0 6px;" onclick="trazoAuto()">Colocar puntos automáticamente</button>
         <div id="trazoInfo" class="esc-sub" style="font-weight:bold; color:var(--accent); margin:4px 0;">Cargando imagen…</div>
         <div id="trazoChips" class="mesa-chips" style="margin-bottom:6px;"></div>
         <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:6px;">
@@ -5898,9 +5899,71 @@ function trazoPintarShell(est, sel){
         <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
             <button class="btn-3d btn-submit" style="flex:1; min-width:150px;" onclick="trazoGuardar()">💾 Guardar en el paciente</button>
         </div>
-        <p class="esc-sub" style="margin-top:6px;">Toca la radiografía para colocar cada punto en orden. Para corregir uno: toca su botón y luego el lugar correcto. Los mm requieren calibrar con una distancia conocida (regla de la imagen). Referencia de Steiner: ajusta a edad y grupo del paciente. Apoyo, no diagnóstico.</p>`;
+        <p class="esc-sub" style="margin-top:6px;">Toca la radiografía para colocar cada punto en orden. Para corregir uno: toca su botón y luego el lugar correcto. Los mm requieren calibrar con una distancia conocida (regla de la imagen). Referencia de Steiner: ajusta a edad y grupo del paciente. Apoyo, no diagnóstico.</p>
+        <p class="esc-sub" style="margin-top:4px; font-size:0.7rem;">Puntos automáticos: modelo cephalometry-landmarks (MuhammadNabeelSh, CC BY 4.0) entrenado con el dataset Aariz (Khalid et al., CC BY 4.0). No es un dispositivo médico: verifica cada punto.</p>`;
     const cv = document.getElementById('trazoCanvas');
     cv.onclick = trazoClick;
+}
+
+// ============ Puntos cefalométricos automáticos (HRNet-W32, dataset Aariz/CEPHA29, CC BY 4.0) ============
+const CEPH = { partes: ['detector/ceph29-a.bin', 'detector/ceph29-b.bin'], sesion: null, cargando: null,
+    canales: 'A ANS Ar B Co Gn Go LIA LIT LMT LPM Li Ls Me N Ns Or PNS Pn Po Pog Pogs R S Sn UIA UIT UMT UPM'.split(' '),
+    mapa: { S: 'S', N: 'N', A: 'A', B: 'B', Pog: 'Pog', Me: 'Me', Go: 'Go', ANS: 'ANS', PNS: 'PNS', U1: 'UIT', U1A: 'UIA', L1: 'LIT', L1A: 'LIA' } };
+async function cephSesion(){
+    if(CEPH.sesion) return CEPH.sesion;
+    if(!CEPH.cargando){
+        CEPH.cargando = (async () => {
+            await detCargarScript(DET.libs + 'ort.wasm.min.js');
+            ort.env.wasm.wasmPaths = DET.libs; ort.env.wasm.numThreads = 1; ort.env.wasm.proxy = false;
+            const bufs = await Promise.all(CEPH.partes.map(async u => { const r = await fetch(u); if(!r.ok) throw new Error('No se encontró el modelo de puntos (' + u + ').'); return new Uint8Array(await r.arrayBuffer()); }));
+            const tot = bufs.reduce((a, b) => a + b.length, 0), all = new Uint8Array(tot); let o = 0; bufs.forEach(b => { all.set(b, o); o += b.length; });
+            CEPH.sesion = await ort.InferenceSession.create(all, { executionProviders: ['wasm'] });
+            return CEPH.sesion;
+        })().catch(e => { CEPH.cargando = null; throw e; });
+    }
+    return CEPH.cargando;
+}
+// Devuelve { id_canal: {x, y, conf} } en píxeles de la imagen original
+async function cephDetectar(imgEl){
+    const ses = await cephSesion(), S = 768;
+    const w = imgEl.naturalWidth, h = imgEl.naturalHeight, k = S / Math.max(w, h), nw = Math.round(w * k), nh = Math.round(h * k), ox = Math.floor((S - nw) / 2), oy = Math.floor((S - nh) / 2);
+    const cv = document.createElement('canvas'); cv.width = S; cv.height = S;
+    const cx = cv.getContext('2d', { willReadFrequently: true }); cx.fillStyle = '#000'; cx.fillRect(0, 0, S, S); cx.imageSmoothingQuality = 'high'; cx.drawImage(imgEl, ox, oy, nw, nh);
+    const px = cx.getImageData(0, 0, S, S).data, n = S * S, data = new Float32Array(3 * n);
+    const M = [0.485, 0.456, 0.406], D = [0.229, 0.224, 0.225];
+    for(let i = 0; i < n; i++) for(let c = 0; c < 3; c++) data[c * n + i] = (px[i * 4 + c] / 255 - M[c]) / D[c];
+    const out = await ses.run({ input: new ort.Tensor('float32', data, [1, 3, S, S]) });
+    const hm = out.heatmaps.data, G = 192, res = {};
+    CEPH.canales.forEach((nom, ch) => {
+        const b = ch * G * G; let mi = 0, mv = -1e9;
+        for(let i = 0; i < G * G; i++){ const v = hm[b + i]; if(v > mv){ mv = v; mi = i; } }
+        let r0 = Math.floor(mi / G), c0 = mi % G, dx = 0, dy = 0;
+        const at = (rr, cc) => hm[b + rr * G + cc];
+        if(c0 > 0 && c0 < G - 1){ const l = at(r0, c0 - 1), rr = at(r0, c0 + 1), den = l - 2 * mv + rr; if(den < 0) dx = Math.max(-0.5, Math.min(0.5, 0.5 * (l - rr) / den)); }
+        if(r0 > 0 && r0 < G - 1){ const u = at(r0 - 1, c0), d = at(r0 + 1, c0), den = u - 2 * mv + d; if(den < 0) dy = Math.max(-0.5, Math.min(0.5, 0.5 * (u - d) / den)); }
+        const X = ((c0 + dx) * 4 + 2 - ox) / k, Y = ((r0 + dy) * 4 + 2 - oy) / k;
+        res[nom] = { x: Math.max(0, Math.min(w - 1, X)), y: Math.max(0, Math.min(h - 1, Y)), conf: mv };
+    });
+    return res;
+}
+async function trazoAuto(){
+    if(!tz || !tz.img){ daToast('Primero abre una radiografía lateral.', 'err'); return; }
+    if(tz._auto) return;
+    if(Object.keys(tz.pts).length && !confirm('Ya hay puntos colocados. ¿Reemplazarlos por los del detector? (luego puedes corregir cualquiera)')) return;
+    const info = document.getElementById('trazoInfo'), btn = document.getElementById('trazoAutoBtn'), t0 = Date.now();
+    tz._auto = true; if(btn){ btn.disabled = true; btn.classList.add('ia-trabajando'); btn.textContent = 'Colocando puntos…'; }
+    if(info) info.textContent = 'Colocando puntos automáticamente… la primera vez descarga el modelo (30 MB) y tarda más.';
+    try{
+        const yo = tz, res = await cephDetectar(tz.img);
+        if(tz !== yo) return;
+        tz.pts = {}; tz.hist = []; tz.calib = null; const dud = []; tz.autoConf = {};
+        TRAZO_PUNTOS.forEach(p => { const q = res[CEPH.mapa[p.id]]; if(!q) return; tz.pts[p.id] = { x: q.x, y: q.y }; tz.hist.push(p.id); tz.autoConf[p.id] = q.conf; if(q.conf < 0.35) dud.push(p.id); });
+        trazoSiguiente(); trazoChips(); trazoDibujar(); trazoResultados();
+        const sg = ((Date.now() - t0) / 1000).toFixed(1);
+        if(info) info.textContent = 'Puntos colocados en ' + sg + ' s. ' + (dud.length ? 'Revisa sobre todo: ' + dud.join(', ') + ' (el detector dudó). ' : '') + 'Para corregir uno: toca su botón y luego el lugar correcto. Después guarda.';
+        daToast('Puntos colocados. Revísalos antes de guardar.', 'ok');
+    }catch(e){ console.error('ceph', e); if(info) info.textContent = 'No se pudieron colocar los puntos: ' + (e.message || e); daToast('No se pudieron colocar los puntos', 'err'); }
+    finally{ if(tz) tz._auto = false; if(btn){ btn.disabled = false; btn.classList.remove('ia-trabajando'); btn.textContent = 'Colocar puntos automáticamente'; } }
 }
 function trazoAbrirArchivo(){
     const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*';
