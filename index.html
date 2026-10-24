@@ -1302,6 +1302,7 @@
                     config: config,
                     potenciales: potenciales,
                     papelera: (typeof papelera !== 'undefined' ? papelera : []),
+                    bloqueos: bloqueos,   // los bloqueos viajan con la agenda para que todos los dispositivos los respeten
                     escritoPor: sello   // sello para reconocer mi propio eco
                 });
                 setSync('on','Sincronizado');
@@ -1344,6 +1345,8 @@
                 papelera = Array.isArray(data.papelera) ? data.papelera : [];
                 try{ guardarPapeleraLocal(); }catch(e){}
                 if(data.config) config = data.config;
+                if(Array.isArray(data.bloqueos)){ bloqueos = data.bloqueos; localStorage.setItem('denti_bloqueos_v16', JSON.stringify(bloqueos)); try{ if(document.getElementById('bloqueosModal').style.display === 'flex') renderBloqueos(); }catch(e){} }
+                else if(bloqueos.length) setTimeout(() => guardarAgendaEnNube(), 800);   // la nube aún no los tiene: súbelos desde aquí
                 reinsertarFotos();
                 localStorage.setItem('denti_citas_v16', JSON.stringify(citas));
                 localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes));
@@ -1354,6 +1357,7 @@
                 loadCalendar(); updateDatalists(); loadConfig(); renderPotenciales(); actualizarBadgeMateriales(); try{ actualizarBadgeEscritorio(); }catch(e){}
                 if(document.getElementById('materialesModal').style.display === 'flex') renderMateriales();
                 setSync('on','Sincronizado');
+                publicarDisponibilidad();   // republica los huecos con los bloqueos ya sincronizados
             }, (err)=>{ console.error('snapshot error', err); setSync('err','Error de conexión'); });
         }
 
@@ -1571,6 +1575,7 @@
                     <div style="font-weight:bold;">${escHtml(s.nombre)} ${etiqueta}</div>
                     <div style="font-size:0.85rem; color:var(--text-muted);">${escHtml(s.telefono)} · ${escHtml(s.motivo)}</div>
                     ${detalle}${htmlAvisoColocacion(s)}
+                    ${horaBloqueada(s.fecha, s.horaInicio) ? '<div style="margin-top:6px; padding:6px 8px; border-radius:8px; background:#fde8e8; color:#c53030; font-size:0.82rem; font-weight:bold;">Ojo: ese horario lo tienes BLOQUEADO. Si no puedes atenderlo, rechaza o propón otro.</div>' : ''}
                     <div style="display:flex; gap:8px; margin-top:8px;">
                         <button class="btn-3d" style="flex:1; color:var(--status-green);" onclick="aceptarSolicitud('${escHtml(s.id)}')">✅ ${esReag ? 'Mover la cita' : 'Aceptar'}</button>
                         <button class="btn-3d" style="flex:1; color:var(--status-red);" onclick="rechazarSolicitud('${escHtml(s.id)}')">❌ Rechazar</button>
@@ -1720,7 +1725,7 @@
         // ===== Bloqueo de horarios =====
         function guardarBloqueos(){
             localStorage.setItem('denti_bloqueos_v16', JSON.stringify(bloqueos));
-            publicarDisponibilidad();
+            if(fbOK && authListo) guardarAgendaEnNube(); else publicarDisponibilidad();   // guardar en la nube también publica la disponibilidad
         }
         function agregarBloqueoDia(){
             const f = document.getElementById('bloqFecha').value;
@@ -2673,7 +2678,7 @@
             return d <= 0 ? 'hoy' : (d === 1 ? 'ayer' : 'hace ' + d + ' d');
         }
         function usaSmile(nombre){ const u = usoSmile[nombre]; return !!(u && u.ts); }
-        const DA_VERSION = 'v84';
+        const DA_VERSION = 'v85';
         window.addEventListener('load', () => document.querySelectorAll('.da-ver-txt').forEach(e => e.textContent = 'DentiAgenda ' + DA_VERSION));
         // Texto del estado de SmileLike para un paciente (usa lo guardado; abajo se refresca solo ese paciente)
         function textoEstadoSmile(nombre){
