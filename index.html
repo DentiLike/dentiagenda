@@ -2678,7 +2678,7 @@
             return d <= 0 ? 'hoy' : (d === 1 ? 'ayer' : 'hace ' + d + ' d');
         }
         function usaSmile(nombre){ const u = usoSmile[nombre]; return !!(u && u.ts); }
-        const DA_VERSION = 'v85';
+        const DA_VERSION = 'v86';
         window.addEventListener('load', () => document.querySelectorAll('.da-ver-txt').forEach(e => e.textContent = 'DentiAgenda ' + DA_VERSION));
         // Texto del estado de SmileLike para un paciente (usa lo guardado; abajo se refresca solo ese paciente)
         function textoEstadoSmile(nombre){
@@ -4888,9 +4888,34 @@ function trazoEtiquetas(m){
     if(cl) t.push('Clase ' + cl);
     if(m.snmp != null) t.push(m.snmp > 37 ? 'Dolicofacial' : (m.snmp < 27 ? 'Braquifacial' : 'Mesofacial'));
     const iS = trazoIncl(m.u1na, 26, 18), iI = trazoIncl(m.l1nb, 29, 21);
-    if(iS === 'pro') t.push('Protrusión maxilar'); if(iS === 'retro') t.push('Retroinclinación sup.');
-    if(iI === 'pro') t.push('Protrusión mand.'); if(iI === 'retro') t.push('Retroinclinación inf.');
+    if(iS) t.push({ pro: 'Inc. sup. proinclinado', retro: 'Inc. sup. retroinclinado', normal: 'Inc. sup. normal' }[iS]);
+    if(iI) t.push({ pro: 'Inc. inf. proinclinado', retro: 'Inc. inf. retroinclinado', normal: 'Inc. inf. normal' }[iI]);
     return t;
+}
+// Interpretación esquelética y dental del trazado, con valores y norma
+function trazoInterpHtml(m){
+    if(!m) return '';
+    const col = { normal: '#2f855a', aumentado: '#c05621', disminuido: '#2b6cb0' };
+    const val = k => { const v = m[k], R = TRAZO_REF[k]; if(v == null || !R) return ''; const e = trazoEstado(k, v);
+        return `<div style="display:flex; justify-content:space-between; gap:6px; font-size:0.78rem; padding:1px 0;"><span>${R[2]}${R[3] === ' mm' ? ' (mm)' : ''}</span><span><b>${v}${R[3]}</b> <span style="color:${col[e] || 'inherit'};">${e}</span></span></div>`; };
+    const inc = (v, hi, lo) => ({ pro: 'proinclinado', retro: 'retroinclinado', normal: 'bien inclinado' }[trazoIncl(v, hi, lo)] || '');
+    const esq = [], den = [], cl = trazoClase(m);
+    if(cl){
+        let t = 'Clase ' + cl + ' esquelética (ANB ' + m.anb + '°)';
+        const sna = trazoEstado('sna', m.sna), snb = trazoEstado('snb', m.snb);
+        const mx = sna === 'aumentado' ? 'maxilar protrusivo' : (sna === 'disminuido' ? 'maxilar retrusivo' : 'maxilar en norma');
+        const md = snb === 'aumentado' ? 'mandíbula protrusiva' : (snb === 'disminuido' ? 'mandíbula retrusiva' : 'mandíbula en norma');
+        esq.push(t + (m.sna != null && m.snb != null ? ': ' + mx + ' (SNA ' + m.sna + '°), ' + md + ' (SNB ' + m.snb + '°).' : '.'));
+    }
+    if(m.snmp != null) esq.push('Patrón ' + (m.snmp > 37 ? 'dolicofacial, hiperdivergente' : (m.snmp < 27 ? 'braquifacial, hipodivergente' : 'mesofacial, normodivergente')) + ' (SN-GoMe ' + m.snmp + '°).');
+    if(m.snpp != null) esq.push('Plano palatino ' + ({ normal: 'en norma', aumentado: 'inclinado hacia abajo y atrás', disminuido: 'rotado hacia arriba' }[trazoEstado('snpp', m.snpp)] || '') + ' (SN-PP ' + m.snpp + '°).');
+    if(m.u1na != null) den.push('Incisivo superior ' + inc(m.u1na, 26, 18) + ' respecto a NA (' + m.u1na + '°' + (m.u1nam != null ? ', ' + m.u1nam + ' mm' + (trazoEstado('u1nam', m.u1nam) === 'aumentado' ? ', adelantado' : (trazoEstado('u1nam', m.u1nam) === 'disminuido' ? ', retrasado' : '')) : '') + ').');
+    if(m.l1nb != null) den.push('Incisivo inferior ' + inc(m.l1nb, 29, 21) + ' respecto a NB (' + m.l1nb + '°' + (m.l1nbm != null ? ', ' + m.l1nbm + ' mm' + (trazoEstado('l1nbm', m.l1nbm) === 'aumentado' ? ', adelantado' : (trazoEstado('l1nbm', m.l1nbm) === 'disminuido' ? ', retrasado' : '')) : '') + ').');
+    if(m.ii != null){ const e = trazoEstado('ii', m.ii); den.push('Ángulo interincisal ' + m.ii + '°: ' + (e === 'disminuido' ? 'incisivos protruidos entre sí (biprotrusión dental)' : (e === 'aumentado' ? 'incisivos verticalizados entre sí' : 'relación entre incisivos en norma')) + '.'); }
+    if(m.pognb != null) den.push('Pog-NB ' + m.pognb + ' mm (mentón ' + ({ normal: 'en norma', aumentado: 'prominente', disminuido: 'poco prominente' }[trazoEstado('pognb', m.pognb)] || '') + ').');
+    if(m.u1na != null && m.l1nb != null && m.u1nam == null) den.push('Para los mm (U1-NA, L1-NB, Pog-NB) calibra el trazado con la regla.');
+    const bloque = (t, L, ks) => L.length ? `<div style="margin-top:8px;"><div style="font-size:0.8rem; font-weight:bold; color:var(--primary);">${t}</div>${L.map(x => `<div style="font-size:0.8rem; margin:2px 0;">${escHtml(x)}</div>`).join('')}<div style="margin-top:4px; padding:4px 6px; border-radius:6px; background:rgba(0,0,0,.04);">${ks.map(val).join('')}</div></div>` : '';
+    return bloque('Esquelético', esq, ['sna', 'snb', 'anb', 'snmp', 'snpp']) + bloque('Dental', den, ['u1na', 'u1nam', 'l1nb', 'l1nbm', 'ii', 'pognb']);
 }
 function trazoTarjeta(nombre, p){
     const tzd = p.trazado, tp = p.trazadoPuntos, url = (tzd && tzd.url) || (window._trazLocal || {})[nombre] || '';
@@ -4902,6 +4927,7 @@ function trazoTarjeta(nombre, p){
             <div style="font-size:0.82rem; font-weight:bold; color:var(--text-main);">${escHtml(nombre)} · Steiner${fecha ? ' · ' + new Date(fecha).toLocaleDateString('es-MX') : ''}</div>
             ${tp && tp.auto ? `<div style="font-size:0.76rem; color:#b7791f; margin-top:2px;">Trazado automático sin verificar${(tp.dudosos || []).length ? ' (revisa ' + tp.dudosos.join(', ') + ')' : ''}. <a href="#" style="color:var(--accent); font-weight:bold;" onclick="trazoAbrir('${escAttr(String(nombre).replace(/'/g, "\\'"))}'); return false;">Revisar puntos</a></div>` : ''}
             ${et.length ? `<div style="font-size:0.8rem; font-weight:bold; color:var(--accent); margin-top:2px;">${et.map(escHtml).join(' · ')}</div>` : ''}
+            ${trazoInterpHtml(tp && tp.m)}
         </div></div>`;
 }
 function trazadoSeccion(p){
