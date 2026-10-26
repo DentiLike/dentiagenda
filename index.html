@@ -1250,6 +1250,36 @@
         let miUltimaEscritura = 0;   // marca de tiempo de MI última escritura
         let editandoAhora = false;   // true mientras el doctor edita un expediente
 
+
+        // ===== Fusión segura de citas entre dispositivos (evita que un dispositivo con datos viejos borre citas nuevas) =====
+        // base = cómo estaban las citas en la nube la última vez que ESTE dispositivo las vio.
+        let citasBase = null; try{ citasBase = JSON.parse(localStorage.getItem('denti_citas_base_v16') || 'null'); }catch(e){ citasBase = null; }
+        let citasBorradas = []; try{ citasBorradas = JSON.parse(localStorage.getItem('denti_citas_borradas_v16') || '[]'); }catch(e){ citasBorradas = []; }
+        if(!Array.isArray(citasBorradas)) citasBorradas = [];
+        function guardarCitasBase(lista){ citasBase = JSON.parse(JSON.stringify(lista || [])); try{ localStorage.setItem('denti_citas_base_v16', JSON.stringify(citasBase)); }catch(e){} }
+        function guardarBorradasLocal(){ try{ localStorage.setItem('denti_citas_borradas_v16', JSON.stringify(citasBorradas)); }catch(e){} }
+        function nombreDispositivo(){
+            const u = navigator.userAgent || '';
+            if(/iPad|Tablet|SM-T|SM-X|Tab/i.test(u)) return 'tableta';
+            if(/iPhone|Android.*Mobile|Mobile/i.test(u)) return 'celular';
+            if(/Android/i.test(u)) return 'tableta';
+            return 'computadora';
+        }
+        // Fusión de 3 vías por id: base (lo último visto de la nube), local (este dispositivo) y remoto (la nube ahora)
+        function fusionarCitas(base, local, remoto){
+            const B = {}, L = {}, R = {}, ids = new Set(), borradasAhora = [];
+            (base || []).forEach(c => { B[c.id] = c; }); (local || []).forEach(c => { L[c.id] = c; ids.add(c.id); }); (remoto || []).forEach(c => { R[c.id] = c; ids.add(c.id); });
+            (base || []).forEach(c => ids.add(c.id));
+            const J = x => JSON.stringify(x), out = [];
+            ids.forEach(id => {
+                const b = B[id], l = L[id], r = R[id];
+                if(l && r){ out.push(b && J(l) === J(b) ? r : l); return; }          // los dos la tienen: gana quien la cambió (si no la cambié yo, la de la nube)
+                if(l && !r){ if(b && J(l) === J(b)) return; out.push(l); return; }   // no está en la nube: si yo no la toqué, la borró otro dispositivo; si es nueva o la cambié, se queda
+                if(!l && r){ if(b){ if(J(r) === J(b)) { borradasAhora.push(r); return; } out.push(r); return; } out.push(r); return; }   // la borré yo (estaba en mi base) salvo que otro la haya cambiado; si es nueva de otro dispositivo, se queda
+            });
+            return { citas: out, borradas: borradasAhora };
+        }
+        let _guardandoNube = Promise.resolve();
         function separarFotos(){
             // Las fotos que ya son URL de Storage (livianas) SÍ viajan normal en el documento.
             // Solo las fotos viejas en base64 (pesadas, de antes de tener Storage) se quedan aparte.
@@ -1274,7 +1304,11 @@
             });
         }
 
-        async function guardarAgendaEnNube(){
+        function guardarAgendaEnNube(){
+            _guardandoNube = _guardandoNube.then(() => guardarAgendaEnNubeReal()).catch(() => {});
+            return _guardandoNube;
+        }
+        async function guardarAgendaEnNubeReal(){
             if(!fbOK || !authListo || !syncGlobalActivo) return;
             try{
                 // Protección: si el directorio de pacientes en memoria aparece vacío pero
@@ -1295,8 +1329,21 @@
                 const pacientesSinFoto = separarFotos();
                 const sello = Date.now();
                 miUltimaEscritura = sello;
-                await db.collection('agenda').doc('principal').set({
-                    citas: citas,
+                const ref = db.collection('agenda').doc('principal');
+                let fus = null, borrLog = citasBorradas;
+                await db.runTransaction(async (t) => {
+                    const sn = await t.get(ref);
+                    const rem = sn.exists ? (sn.data() || {}) : {};
+                    const rc = Array.isArray(rem.citas) ? rem.citas : null;
+                    fus = rc ? fusionarCitas(citasBase || rc, citas, rc) : { citas: citas.slice(), borradas: [] };
+                    const ahora = Date.now(), lim = ahora - 45 * 86400000, disp = nombreDispositivo();
+                    const remLog = Array.isArray(rem.citasBorradas) ? rem.citasBorradas : [];
+                    const vistos = {}; borrLog = [];
+                    remLog.concat(citasBorradas).concat(fus.borradas.map(c => ({ cita: c, t: ahora, disp: disp }))).forEach(x => { if(!x || !x.cita) return; const k = x.cita.id + '_' + x.t; if(vistos[k] || x.t < lim) return; vistos[k] = 1; borrLog.push(x); });
+                    borrLog = borrLog.slice(-300);
+                    t.set(ref, {
+                    citas: fus.citas,
+                    citasBorradas: borrLog,
                     pacientes: pacientesSinFoto,
                     motivos: motivos,
                     config: config,
@@ -1304,12 +1351,35 @@
                     papelera: (typeof papelera !== 'undefined' ? papelera : []),
                     bloqueos: bloqueos,   // los bloqueos viajan con la agenda para que todos los dispositivos los respeten
                     escritoPor: sello   // sello para reconocer mi propio eco
+                    });
                 });
+                citasBorradas = borrLog; guardarBorradasLocal();
+                const cambio = JSON.stringify(fus.citas) !== JSON.stringify(citas);
+                citas = fus.citas; guardarCitasBase(citas);
+                localStorage.setItem('denti_citas_v16', JSON.stringify(citas));
+                if(cambio){ try{ loadCalendar(); }catch(e){} }
                 setSync('on','Sincronizado');
                 publicarDisponibilidad(); // actualizar huecos libres tras cambios de citas
-            }catch(e){ console.error('guardar agenda error', e); setSync('err','Error al sincronizar'); }
+                window._nubePendiente = false;
+            }catch(e){ console.error('guardar agenda error', e); setSync('err','Error al sincronizar'); window._nubePendiente = true; }
         }
+        // Si no se pudo subir (sin señal), se reintenta solo al volver la conexión o al regresar a la app
+        window.addEventListener('online', () => { if(window._nubePendiente) guardarAgendaEnNube(); });
+        document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible' && window._nubePendiente) guardarAgendaEnNube(); });
 
+        function avisoCitaBorrada(c, disp){
+            const txt = 'Se borró la cita de ' + (c.paciente || '?') + ' (' + formatearFechaLegible(c.fecha) + ', ' + formatearHoraAmPm(c.horaInicio) + ') desde tu ' + (disp || 'otro dispositivo') + '. Si no fuiste tú, restáurala en Escritorio > Papelera > Citas borradas.';
+            try{ daToast(txt, 'err'); }catch(e){}
+            try{ if(window.Notification && Notification.permission === 'granted') new Notification('DentiAgenda: cita borrada', { body: txt }); }catch(e){}
+        }
+        function restaurarCitaBorrada(i){
+            const lista = citasBorradas.slice().sort((a, b) => b.t - a.t), x = lista[i]; if(!x || !x.cita) return;
+            if(citas.some(c => String(c.id) === String(x.cita.id))){ daToast('Esa cita ya está en tu agenda', 'ok'); return; }
+            if(!confirm('¿Restaurar la cita de ' + x.cita.paciente + ' (' + formatearFechaLegible(x.cita.fecha) + ', ' + formatearHoraAmPm(x.cita.horaInicio) + ')?')) return;
+            citas.push(x.cita); citasBorradas = citasBorradas.filter(y => y !== x); guardarBorradasLocal();
+            localStorage.setItem('denti_citas_v16', JSON.stringify(citas)); loadCalendar(); guardarAgendaEnNube();
+            daToast('Cita restaurada', 'ok'); try{ renderEscritorio(); }catch(e){}
+        }
         function escucharAgendaEnTiempoReal(){
             if(!fbOK || !authListo) return;
             db.collection('agenda').doc('principal').onSnapshot((doc)=>{
@@ -1329,8 +1399,38 @@
                     syncGlobalActivo = true;
                     return;
                 }
-                // Cambio legítimo de otro dispositivo: aplícalo
-                citas = data.citas || [];
+                // Cambio legítimo de otro dispositivo: aplícalo (sin perder lo que solo está aquí)
+                const remCitas = Array.isArray(data.citas) ? data.citas : [];
+                if(Array.isArray(data.citasBorradas)){ citasBorradas = data.citasBorradas; guardarBorradasLocal(); }
+                const idsRem = new Set(remCitas.map(c => String(c.id)));
+                const soloAqui = citas.filter(c => !idsRem.has(String(c.id)));
+                const borradaLog = (c) => (data.citasBorradas || []).filter(x => x && x.cita && String(x.cita.id) === String(c.id)).pop();
+                if(citasBase){
+                    // Lo que estaba en la nube y ya no: lo borró otro dispositivo. Te aviso.
+                    const idsBase = new Set(citasBase.map(c => String(c.id)));
+                    const quitadas = soloAqui.filter(c => idsBase.has(String(c.id)));
+                    quitadas.forEach(c => { const lg = borradaLog(c); avisoCitaBorrada(c, lg ? lg.disp : 'otro dispositivo'); });
+                    // Lo que es nuevo de este dispositivo y aún no sube: se conserva y se sube
+                    const nuevasAqui = soloAqui.filter(c => !idsBase.has(String(c.id)));
+                    citas = remCitas.concat(nuevasAqui);
+                    if(nuevasAqui.length) setTimeout(() => guardarAgendaEnNube(), 600);
+                }else{
+                    // Primera vez con esta versión: si aquí hay citas recientes que la nube no tiene, pregunto si recuperarlas
+                    const hace = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
+                    const rec = soloAqui.filter(c => String(c.fecha || '') >= hace && !borradaLog(c));
+                    citas = remCitas;
+                    if(rec.length){
+                        setTimeout(() => {
+                            const txt = rec.slice(0, 12).map(c => '- ' + c.paciente + ' · ' + formatearFechaLegible(c.fecha) + ' ' + formatearHoraAmPm(c.horaInicio)).join('\n');
+                            if(confirm('Este dispositivo tiene ' + rec.length + ' cita(s) que NO están en la nube (pudieron perderse al sincronizar):\n\n' + txt + '\n\n¿Recuperarlas en tu agenda?')){
+                                const ya = new Set(citas.map(c => String(c.id))); rec.forEach(c => { if(!ya.has(String(c.id))) citas.push(c); });
+                                localStorage.setItem('denti_citas_v16', JSON.stringify(citas)); loadCalendar(); guardarAgendaEnNube();
+                                daToast('Citas recuperadas: ' + rec.length, 'ok');
+                            }
+                        }, 1500);
+                    }
+                }
+                guardarCitasBase(remCitas);
                 const pacientesEntrantes = data.pacientes || {};
                 if(Object.keys(pacientesEntrantes).length === 0 && Object.keys(pacientes).length > 0){
                     // La nube llegó con el directorio vacío pero localmente sí hay pacientes.
@@ -2678,7 +2778,7 @@
             return d <= 0 ? 'hoy' : (d === 1 ? 'ayer' : 'hace ' + d + ' d');
         }
         function usaSmile(nombre){ const u = usoSmile[nombre]; return !!(u && u.ts); }
-        const DA_VERSION = 'v86';
+        const DA_VERSION = 'v87';
         window.addEventListener('load', () => document.querySelectorAll('.da-ver-txt').forEach(e => e.textContent = 'DentiAgenda ' + DA_VERSION));
         // Texto del estado de SmileLike para un paciente (usa lo guardado; abajo se refresca solo ese paciente)
         function textoEstadoSmile(nombre){
@@ -4729,6 +4829,12 @@ function renderEscritorio(){
             <h3><span>🗑️ Papelera</span><small>${papelera.length}</small></h3>
             <div class="esc-sub" style="margin:-4px 0 8px;">Potenciales que no acudieron. Se limpia sola a los ${PAPELERA_DIAS} días.</div>
             ${papelera.length ? papCards : '<div class="esc-vacio">Vacía 👌</div>'}
+            <div style="font-weight:bold; font-size:0.85rem; margin:12px 0 4px;">Citas borradas (últimos 45 días)</div>
+            <div class="esc-sub" style="margin-bottom:6px;">Cada cita que se borra queda aquí con el dispositivo desde donde se borró. Si no fuiste tú, restáurala.</div>
+            ${(citasBorradas || []).length ? citasBorradas.slice().sort((a, b) => b.t - a.t).map((x, i) => `<div class="esc-card" style="cursor:default;">
+                <div class="esc-ph">📅</div>
+                <div class="esc-info"><div class="esc-nom">${escHtml((x.cita && x.cita.paciente) || '?')}</div><div class="esc-sub">${escHtml(formatearFechaLegible(x.cita.fecha))} · ${escHtml(formatearHoraAmPm(x.cita.horaInicio))}<br>borrada ${escHtml(new Date(x.t).toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }))} desde tu ${escHtml(x.disp || '?')}</div></div>
+                <button class="esc-mini" onclick="restaurarCitaBorrada(${i})">↩ Restaurar</button></div>`).join('') : '<div class="esc-vacio">Ninguna 👌</div>'}
         </div>
         <button class="btn-3d" style="width:100%; margin-bottom:10px; font-size:0.85rem; color:var(--accent);" onclick="abrirIaLab()">🧪 Laboratorio IA · modelos y tablero de aciertos</button>
         <p class="esc-sub" style="text-align:center;">Los potenciales sin estudios siguen en 🎯 Px Potencial. Al subir sus estudios aparecen aquí.</p>`;
