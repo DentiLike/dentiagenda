@@ -264,7 +264,10 @@
             .floating-assistant { width: 4.6rem; height: 4.6rem; bottom: 1.5rem; right: 1.5rem; }
             .sync-badge { bottom: 6px; left: 10px; font-size: 0.62rem; }
         }
-    </style>
+    .fdi-n{font-size:9px; line-height:1; font-weight:bold; color:#fff; background:rgba(15,23,42,.6); padding:2px 3px; border-radius:3px; cursor:pointer; z-index:2}
+  #cariesVer .fdi-n{font-size:14px; padding:3px 5px; background:rgba(15,23,42,.75)}
+  .fdi-n:hover{background:var(--accent)}
+</style>
 </head>
 <body>
     <div id="splashCarga" style="position:fixed; inset:0; z-index:9999; background:#e0e5ec; display:flex; flex-direction:column; align-items:center; justify-content:center; transition:opacity .4s ease;">
@@ -2778,7 +2781,7 @@
             return d <= 0 ? 'hoy' : (d === 1 ? 'ayer' : 'hace ' + d + ' d');
         }
         function usaSmile(nombre){ const u = usoSmile[nombre]; return !!(u && u.ts); }
-        const DA_VERSION = 'v89';
+        const DA_VERSION = 'v90';
         window.addEventListener('load', () => document.querySelectorAll('.da-ver-txt').forEach(e => e.textContent = 'DentiAgenda ' + DA_VERSION));
         // Texto del estado de SmileLike para un paciente (usa lo guardado; abajo se refresca solo ese paciente)
         function textoEstadoSmile(nombre){
@@ -6858,7 +6861,7 @@ function fdiNumerar(B, W, H){
             const post = it.slice(3).map(x => x.w).sort((a, b) => b - a), ref = post.length >= 2 ? (post[0] + post[1]) / 2 : (post[0] || Math.max.apply(null, it.map(x => x.w)));
             let nm = m; for(let k = m - 1; k >= 3; k--){ if(it[k].w >= 0.75 * ref) nm = k; else break; }
             let mo = m - nm; if(mo > 3){ nm += mo - 3; mo = 3; }
-            const gap = []; for(let k = 0; k < m - 1; k++) gap.push((it[k + 1].d - it[k].d) > 1.45 * (it[k].w + it[k + 1].w) / 2);
+            const gap = []; for(let k = 0; k < m - 1; k++) gap.push(((it[k + 1].d - it[k].d) > 1.45 * (it[k].w + it[k + 1].w) / 2) || (((it[k + 1].d - it[k + 1].w / 2) - (it[k].d + it[k].w / 2)) > 0.45 * Math.min(it[k].w, it[k + 1].w)));
             let nums = [];
             if(nm >= 5){ nums = [1, 2, 3, 4, 5]; for(let k = 5; k < nm; k++) nums.push(0); }
             else{
@@ -7070,6 +7073,36 @@ function detRenum(tipo, i){
 }
 function impQuitar(i){ const x = (mesa.d.impDet || [])[i]; if(!x) return; x.x = !x.x; cariesCambio(); daToast(x.x ? 'Impactado ' + x.d + ' descartado' : 'Impactado ' + x.d + ' restaurado', 'ok'); }
 // El doctor dice cuál diente falta (o cuál está retenido) en un cuadrante; renumera los dientes de ese lado
+// Toca un número de diente sobre la panorámica para corregirlo: los dientes que siguen hacia atrás en ese cuadrante se renumeran solos
+function fdiRenumerar(i){
+    const d = mesa.d, L = d.dientesNum || [], t = L[i]; if(!t) return;
+    const v = prompt('Este diente lo numeré como ' + t.d + '. ¿Qué número es? (por ejemplo 47)\nLos dientes que siguen hacia atrás en ese cuadrante se renumeran solos y las ausencias se recalculan.', String(t.d));
+    if(v === null) return;
+    const n = parseInt(v, 10);
+    if(!(n >= 11 && n <= 48 && n % 10 >= 1 && n % 10 <= 8 && Math.floor(n / 10) >= 1 && Math.floor(n / 10) <= 4)){ alert('Número de diente no válido (11 a 48).'); return; }
+    const q = Math.floor(n / 10), izq = q === 1 || q === 4, sup = q <= 2;   // en la imagen: cuadrantes 1 y 4 a la izquierda
+    const cxB = x => (x.box[1] + x.box[3]) / 2, tcx = cxB(t);
+    // mismos lado y arcada, más hacia atrás que este diente
+    // los de la misma arcada que quedan más hacia atrás (en la imagen: a la izquierda para 1 y 4, a la derecha para 2 y 3)
+    const atras = L.filter(x => x !== t && (Math.floor(x.d / 10) <= 2) === sup && (izq ? cxB(x) < tcx : cxB(x) > tcx)).sort((a, b) => izq ? cxB(b) - cxB(a) : cxB(a) - cxB(b));
+    t.d = n; let sig = n % 10 + 1;
+    atras.forEach(x => { x.d = sig <= 8 ? q * 10 + sig : 0; sig++; });
+    d.dientesNum = L.filter(x => x.d);
+    // caries e impactados toman el número del diente al que pertenecen
+    const asignar = c => { if(!c.box) return; let mej = null, mi = 0; d.dientesNum.forEach(x => { const a = [x.box[1], x.box[0], x.box[3], x.box[2]], b = [c.box[1], c.box[0], c.box[3], c.box[2]], io = detIou(a, b); if(io > mi){ mi = io; mej = x; } }); if(mej && mi >= 0.12){ c.d = mej.d; c.est = false; } };
+    (d.cariesDet || []).forEach(asignar); (d.impDet || []).forEach(asignar);
+    // ausencias del cuadrante: lo que no está, sin terceros molares ni retenidos
+    const pres = new Set(d.dientesNum.filter(x => Math.floor(x.d / 10) === q).map(x => x.d % 10));
+    (d.impDet || []).filter(x => !x.x && Math.floor(x.d / 10) === q).forEach(x => pres.add(x.d % 10));
+    d.ausDet = (d.ausDet || []).filter(x => Math.floor(x.d / 10) !== q);
+    for(let k = 1; k <= 7; k++) if(!pres.has(k)) d.ausDet.push({ d: q * 10 + k, txt: String(q * 10 + k), amb: false, x: false, src: 'doctor' });
+    d.ausDet.sort((a, b) => a.d - b.d);
+    if(d.ausDet.some(x => !x.x)){ if(!d.hall.includes('ausencias')) d.hall.push('ausencias'); } else { d.hall = d.hall.filter(h => h !== 'ausencias'); if(d.hallDientes) delete d.hallDientes.ausencias; }
+    cariesCambio();
+    const ver = document.getElementById('cariesVer'); if(ver){ ver.remove(); cariesVer(); }
+    daToast('Diente ' + n + ' corregido; renumeré el cuadrante ' + q, 'ok');
+}
+
 function ausCorregir(i){
     const d = mesa.d, x = (d.ausDet || [])[i]; if(!x) return;
     const q = Math.floor(x.d / 10);
@@ -7137,8 +7170,8 @@ function cariesCajasHtml(){
     const col = { profunda: '#e53e3e', media: '#dd8b00', superficial: '#d6b600' };
     const cajas = (d.cariesDet || []).filter(x => !x.x && x.box).map(x => { const b = x.box; return `<div style="position:absolute; left:${b[1] / 10}%; top:${b[0] / 10}%; width:${(b[3] - b[1]) / 10}%; height:${(b[2] - b[0]) / 10}%; border:2px solid ${col[x.prof]}; box-sizing:border-box;"><span style="position:absolute; top:-18px; left:0; background:${col[x.prof]}; color:#fff; font-size:11px; font-weight:bold; padding:1px 5px; border-radius:4px; white-space:nowrap;">${x.d}${x.prof === 'profunda' ? ' prof.' : ''}</span></div>`; }).join('');
     const cajasImp = (d.impDet || []).filter(x => !x.x && x.box).map(x => { const b = x.box; return `<div style="position:absolute; left:${b[1] / 10}%; top:${b[0] / 10}%; width:${(b[3] - b[1]) / 10}%; height:${(b[2] - b[0]) / 10}%; border:2px dashed #3182ce; box-sizing:border-box;"><span style="position:absolute; bottom:-18px; left:0; background:#3182ce; color:#fff; font-size:11px; font-weight:bold; padding:1px 5px; border-radius:4px; white-space:nowrap;">${x.d} impactado</span></div>`; }).join('');
-    const nums = (d.dientesNum || []).map(t => { const b = t.box, sup = Math.floor(t.d / 10) <= 2, x = (b[1] + b[3]) / 20, y = sup ? b[2] / 10 : b[0] / 10;   // junto a la corona
-        return `<span style="position:absolute; left:${x}%; top:${y}%; transform:translate(-50%, ${sup ? '-115%' : '15%'}); font-size:9px; line-height:1; font-weight:bold; color:#fff; background:rgba(15,23,42,.55); padding:1px 2px; border-radius:3px; pointer-events:none;">${t.d}</span>`; }).join('');
+    const nums = (d.dientesNum || []).map((t, i) => { const b = t.box, sup = Math.floor(t.d / 10) <= 2, x = (b[1] + b[3]) / 20, y = sup ? b[2] / 10 : b[0] / 10;   // junto a la corona; tócalo para corregir el número
+        return `<span class="fdi-n" onclick="event.stopPropagation(); fdiRenumerar(${i})" style="position:absolute; left:${x}%; top:${y}%; transform:translate(-50%, ${sup ? '-115%' : '15%'});">${t.d}</span>`; }).join('');
     return nums + cajas + cajasImp;
 }
 function cariesVer(){
@@ -7148,7 +7181,7 @@ function cariesVer(){
     m = document.createElement('div'); m.id = 'cariesVer';
     m.style.cssText = 'position:fixed; inset:0; z-index:7000; background:rgba(0,0,0,.88); overflow:auto; padding:30px 8px 20px;';
     m.onclick = () => m.remove();
-    m.innerHTML = `<div style="color:#fff; font-size:0.8rem; text-align:center; margin-bottom:10px;">Toca para cerrar. Rojo: profunda · naranja: media · amarillo: superficial · azul punteado: impactado. Los recuadros son aproximados: verifica en la radiografía.</div><div style="position:relative; width:max(100%, 900px); margin:0 auto;"><img src="${escAttr(d.cariesImg)}" style="width:100%; display:block;">${cajasT}</div>`;
+    m.innerHTML = `<div style="color:#fff; font-size:0.8rem; text-align:center; margin-bottom:10px;">Toca un número para corregirlo. Toca fuera para cerrar. Rojo: profunda · naranja: media · amarillo: superficial · azul punteado: impactado. Los recuadros son aproximados: verifica en la radiografía.</div><div style="position:relative; width:max(100%, 900px); margin:0 auto;"><img src="${escAttr(d.cariesImg)}" style="width:100%; display:block;">${cajasT}</div>`;
     document.body.appendChild(m);
 }
 function cariesPanel(){
