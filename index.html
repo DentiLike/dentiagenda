@@ -2778,7 +2778,7 @@
             return d <= 0 ? 'hoy' : (d === 1 ? 'ayer' : 'hace ' + d + ' d');
         }
         function usaSmile(nombre){ const u = usoSmile[nombre]; return !!(u && u.ts); }
-        const DA_VERSION = 'v87';
+        const DA_VERSION = 'v89';
         window.addEventListener('load', () => document.querySelectorAll('.da-ver-txt').forEach(e => e.textContent = 'DentiAgenda ' + DA_VERSION));
         // Texto del estado de SmileLike para un paciente (usa lo guardado; abajo se refresca solo ese paciente)
         function textoEstadoSmile(nombre){
@@ -6557,8 +6557,8 @@ async function rapidoAnalizar(){
         try{
             const cr = await iaCariesTodo('gemini', p, { soloDetector: true });
             if(mesa === mm) cariesAplicar(cr);
-            const n = (cr.lista || []).length, ni = (cr.imp || []).length;
-            fase('det', 'ok', n + ' caries profunda(s) · ' + ni + ' impactado(s)');
+            const n = (cr.lista || []).length, ni = (cr.imp || []).length, na = (cr.aus || []).length;
+            fase('det', 'ok', n + ' caries profunda(s) · ' + ni + ' impactado(s) · ' + (na ? na + ' posible(s) ausencia(s)' : 'sin ausencias'));
         }catch(e){ fase('det', e.message === 'NO_PANO' ? 'skip' : 'err', e.message === 'NO_PANO' ? 'no hay panorámica subida' : String(e.message || e)); }
     })();
     const tTraz = (async () => {
@@ -6585,8 +6585,9 @@ function rapidoInner(){
     const FL = [['det', 'Detector de la panorámica'], ['traz', 'Trazado automático (lateral)'], ['bot', 'Bot de reglas']];
     const FT = { run: ['trabajando', 'var(--accent)'], ok: ['listo', '#2f855a'], err: ['falló', '#c53030'], skip: ['omitido', 'var(--text-muted)'], espera: ['en espera', 'var(--text-muted)'] };
     const prog = F ? `<div style="margin-top:8px; padding:6px 8px; border-radius:8px; background:rgba(0,0,0,.04);">${FL.map(f => { const x = F[f[0]] || { e: 'espera' }, t = FT[x.e] || FT.espera; return `<div style="font-size:0.78rem; margin:2px 0; display:flex; gap:6px; align-items:baseline;"><b style="min-width:172px;">${f[1]}</b><span style="color:${t[1]};${x.e === 'run' ? ' font-weight:bold;' : ''}">${t[0]}${x.e === 'run' ? '…' : ''}</span>${x.t ? `<span class="esc-sub" style="flex:1; min-width:0;${x.e === 'err' ? ' color:#c53030;' : ''}">${escHtml(String(x.t).slice(0, 200))}</span>` : ''}</div>`; }).join('')}</div>` : '';
-    const dd = mesa.d, hayCajas = dd.cariesImg && ((dd.cariesDet || []).some(x => !x.x && x.box) || (dd.impDet || []).some(x => !x.x && x.box));
-    const pano = dd.cariesImg && !run ? `<div style="margin-top:8px;"><div style="position:relative; cursor:zoom-in;" onclick="cariesVer()"><img src="${escAttr(dd.cariesImg)}" style="width:100%; display:block; border-radius:8px;">${hayCajas ? cariesCajasHtml() : ''}</div><div class="esc-sub" style="margin-top:3px;">${hayCajas ? 'Rojo: caries profunda · azul punteado: impactado. Toca para ampliar. Verifica.' : 'El detector no marcó caries profundas ni impactados.'}</div></div>` : '';
+    const dd = mesa.d, hayCajas = dd.cariesImg && ((dd.cariesDet || []).some(x => !x.x && x.box) || (dd.impDet || []).some(x => !x.x && x.box) || (dd.dientesNum || []).length);
+    const ausTxt = (dd.ausDet || []).filter(x => !x.x).map(x => x.txt || String(x.d));
+    const pano = dd.cariesImg && !run ? `<div style="margin-top:8px;"><div style="position:relative; cursor:zoom-in;" onclick="cariesVer()"><img src="${escAttr(dd.cariesImg)}" style="width:100%; display:block; border-radius:8px;">${hayCajas ? cariesCajasHtml() : ''}</div><div class="esc-sub" style="margin-top:3px;">${hayCajas ? 'Números: diente detectado · rojo: caries profunda · azul punteado: impactado. Toca para ampliar. Verifica.' : 'El detector no marcó caries profundas ni impactados.'}${ausTxt.length ? '<div style="margin-top:4px; color:#b7791f; font-weight:bold;">Posibles ausencias: ' + escHtml(ausTxt.join(', ')) + ' (sin terceros molares; verifica)</div>' : ''}</div></div>` : '';
     const p = pacientes[mesa.nombre] || {}, traz = !run && F ? trazoTarjeta(mesa.nombre, p) : '';
     return `<div class="mesa-sec" style="border:1.5px solid var(--primary); border-radius:12px; padding:10px;">
         <label>Análisis rápido <span style="font-weight:normal; color:var(--text-muted);">detector + trazado automático + bot; segundos, sin internet de IA</span></label>
@@ -6740,7 +6741,8 @@ async function detRevisar(p){
     const pano = cariesElegirPano(p); if(!pano) throw new Error('NO_PANO');
     const el = await cariesPanoEl(pano), t0 = Date.now();
     const todas = await detDetectar(el, 0.15);
-    return { todas: todas, pano: pano, ms: Date.now() - t0 };
+    let fdi = null; try{ fdi = await fdiRevisar(el); }catch(e){ console.warn('numerador de dientes', e); fdi = { error: String(e.message || e) }; }
+    return { todas: todas, pano: pano, ms: Date.now() - t0, fdi: fdi };
 }
 async function iaCariesTodo(prov, p, op){
     op = op || {}; const fase = op.fase || (() => {});
@@ -6756,7 +6758,8 @@ async function iaCariesTodo(prov, p, op){
     return detFusionar(g, dt, eg, ed);
 }
 function detFusionar(g, dt, eg, ed){
-    const lista = g ? g.lista.map(x => Object.assign({}, x)) : [], todos = g ? (g.todos || []) : [], imp = [];
+    const fdiOk = dt && dt.fdi && !dt.fdi.error && (dt.fdi.dientes || []).length >= 8;
+    const lista = g ? g.lista.map(x => Object.assign({}, x)) : [], todos = fdiOk ? dt.fdi.dientes : (g ? (g.todos || []) : []), imp = [];
     let url = g ? g.img : '';
     if(dt){
         url = url || String(dt.pano.url || '');
@@ -6774,9 +6777,113 @@ function detFusionar(g, dt, eg, ed){
         });
     }
     lista.sort((a, b) => a.d - b.d); imp.sort((a, b) => a.d - b.d);
-    const diagD = dt ? 'Detector local (YOLOv8, ' + dt.ms + ' ms). Todo lo que vio, también lo que no se usa:\n' + (dt.todas.length ? dt.todas.map(x => '  ' + x.clase + ' ' + Math.round(x.conf * 100) + ' %').join('\n') : '  sin detecciones') : (ed ? 'Detector local no disponible: ' + (ed.message || ed) : '');
+    const diagF = dt && dt.fdi ? (dt.fdi.error ? 'Numerador de dientes no disponible: ' + dt.fdi.error : 'Numerador de dientes: ' + dt.fdi.n + ' dientes detectados (' + dt.fdi.ms + ' ms). Numerados: ' + dt.fdi.dientes.map(t => t.d).sort((a, b) => a - b).join(' ') + '. Ausencias deducidas: ' + (dt.fdi.aus.map(x => x.txt).join(', ') || 'ninguna') + '.') : '';
+    const diagD = (diagF ? diagF + '\n\n' : '') + (dt ? 'Detector local (YOLOv8, ' + dt.ms + ' ms). Todo lo que vio, también lo que no se usa:\n' + (dt.todas.length ? dt.todas.map(x => '  ' + x.clase + ' ' + Math.round(x.conf * 100) + ' %').join('\n') : '  sin detecciones') : (ed ? 'Detector local no disponible: ' + (ed.message || ed) : ''));
     const obs = [g ? g.obs : '', eg ? 'La lectura de la IA no se pudo completar (' + iaMensajeError(eg) + '); solo hay resultado del detector.' : '', ed ? 'El detector local no se pudo ejecutar (' + (ed.message || ed) + '); solo hay resultado de la IA.' : ''].filter(Boolean).join(' ');
-    return { lista: lista, desg: g ? g.desg : [], obs: obs.trim(), calidad: g ? g.calidad : '', img: url, prov: g ? g.prov : 'detector', modelo: g ? g.modelo : 'detector', diag: [g ? g.diag : '', diagD].filter(Boolean).join('\n\n').slice(0, 4500), revisados: g ? g.revisados : 0, imp: imp, aus: g ? (g.aus || []).filter(n => n % 10 !== 8).map(n => ({ d: n, x: false })) : [] };
+    return { lista: lista, desg: g ? g.desg : [], obs: obs.trim(), calidad: g ? g.calidad : '', img: url, prov: g ? g.prov : 'detector', modelo: g ? g.modelo : 'detector', diag: [g ? g.diag : '', diagD].filter(Boolean).join('\n\n').slice(0, 4500), revisados: g ? g.revisados : 0, imp: imp, dientes: fdiOk ? dt.fdi.dientes : [],
+        aus: (() => { const a = fdiOk ? dt.fdi.aus.map(x => ({ d: x.d, txt: x.txt, amb: !!x.amb, x: false, src: 'detector' })) : [];
+            if(g) (g.aus || []).filter(n => n % 10 !== 8 && !a.some(y => y.d === n || String(y.txt).indexOf(String(n)) >= 0)).forEach(n => a.push({ d: n, txt: String(n), x: false, src: 'ia' }));
+            return a.sort((p, q) => p.d - q.d); })() };
+}
+
+// ===== Numerador de dientes (YOLOv8m-seg de Dental_008, solo cajas; DENTEX CC BY-NC-SA): detecta cada diente y deduce ausencias =====
+const FDI = { partes: ['detector/dientes-a.bin', 'detector/dientes-b.bin'], sesion: null, cargando: null };
+async function fdiSesion(){
+    if(FDI.sesion) return FDI.sesion;
+    if(!FDI.cargando){
+        FDI.cargando = (async () => {
+            await detCargarScript(DET.libs + 'ort.wasm.min.js');
+            ort.env.wasm.wasmPaths = DET.libs; ort.env.wasm.numThreads = 1; ort.env.wasm.proxy = false;
+            const bufs = await Promise.all(FDI.partes.map(async u => { const r = await fetch(u); if(!r.ok) throw new Error('No se encontró el numerador de dientes (' + u + ').'); return new Uint8Array(await r.arrayBuffer()); }));
+            const tot = bufs.reduce((a, b) => a + b.length, 0), all = new Uint8Array(tot); let o = 0; bufs.forEach(b => { all.set(b, o); o += b.length; });
+            FDI.sesion = await ort.InferenceSession.create(all, { executionProviders: ['wasm'] });
+            return FDI.sesion;
+        })().catch(e => { FDI.cargando = null; throw e; });
+    }
+    return FDI.cargando;
+}
+// Cajas de cada diente en píxeles de la imagen: [x0, y0, x1, y1]
+async function fdiDetectar(imgEl){
+    const ses = await fdiSesion(), S = 640, w = imgEl.naturalWidth, h = imgEl.naturalHeight;
+    const k = S / Math.max(w, h), nw = Math.round(w * k), nh = Math.round(h * k), ox = Math.floor((S - nw) / 2), oy = Math.floor((S - nh) / 2);
+    const cv = document.createElement('canvas'); cv.width = S; cv.height = S;
+    const cx = cv.getContext('2d', { willReadFrequently: true }); cx.fillStyle = 'rgb(114,114,114)'; cx.fillRect(0, 0, S, S); cx.imageSmoothingQuality = 'high'; cx.drawImage(imgEl, ox, oy, nw, nh);
+    const px = cx.getImageData(0, 0, S, S).data, n = S * S, data = new Float32Array(3 * n);
+    for(let i = 0; i < n; i++){ data[i] = px[i * 4] / 255; data[n + i] = px[i * 4 + 1] / 255; data[2 * n + i] = px[i * 4 + 2] / 255; }
+    const out = await ses.run({ images: new ort.Tensor('float32', data, [1, 3, S, S]) });
+    const o = out.output0, A = o.data, N = o.dims[2];
+    let cand = [];
+    for(let i = 0; i < N; i++){ const sc = A[4 * N + i]; if(sc < 0.25) continue; const bx = A[i], by = A[N + i], bw = A[2 * N + i], bh = A[3 * N + i]; cand.push({ s: sc, b: [bx - bw / 2, by - bh / 2, bx + bw / 2, by + bh / 2] }); }
+    cand.sort((a, b) => b.s - a.s); const keep = [];
+    cand.forEach(c => { if(keep.every(q => detIou(q.b, c.b) < 0.7)) keep.push(c); });
+    return keep.map(c => [(c.b[0] - ox) / k, (c.b[1] - oy) / k, (c.b[2] - ox) / k, (c.b[3] - oy) / k]);
+}
+function fdiPolyfit2(x, y){   // mínimos cuadrados y = a x² + b x + c
+    let S = [0, 0, 0, 0, 0], T = [0, 0, 0];
+    x.forEach((xi, i) => { const p = [1, xi, xi * xi, xi * xi * xi, xi * xi * xi * xi]; for(let k = 0; k < 5; k++) S[k] += p[k]; T[0] += y[i]; T[1] += xi * y[i]; T[2] += xi * xi * y[i]; });
+    const M = [[S[0], S[1], S[2]], [S[1], S[2], S[3]], [S[2], S[3], S[4]]], v = T.slice();
+    for(let c = 0; c < 3; c++){ let p = c; for(let r = c + 1; r < 3; r++) if(Math.abs(M[r][c]) > Math.abs(M[p][c])) p = r; [M[c], M[p]] = [M[p], M[c]]; [v[c], v[p]] = [v[p], v[c]];
+        if(Math.abs(M[c][c]) < 1e-12) return null; for(let r = 0; r < 3; r++){ if(r === c) continue; const f = M[r][c] / M[c][c]; for(let k = c; k < 3; k++) M[r][k] -= f * M[c][k]; v[r] -= f * v[c]; } }
+    const c0 = v[0] / M[0][0], c1 = v[1] / M[1][1], c2 = v[2] / M[2][2];
+    return xx => c0 + c1 * xx + c2 * xx * xx;
+}
+// Numera cada diente (FDI) y deduce ausencias, sin contar terceros molares
+function fdiNumerar(B, W, H){
+    const n = B.length, cx = B.map(b => (b[0] + b[2]) / 2), cy = B.map(b => (b[1] + b[3]) / 2), ws = B.map(b => b[2] - b[0]);
+    if(n < 4) return { num: [], aus: [], notas: ['Muy pocos dientes detectados para numerar.'] };
+    // 1) arcada superior / inferior: corte por el mayor salto en altura y luego ajuste a la curva de oclusión
+    const sy = cy.slice().sort((a, b) => a - b); let gk = 0; for(let i = 1; i < sy.length - 1; i++) if(sy[i + 1] - sy[i] > sy[gk + 1] - sy[gk]) gk = i;
+    let up = cy.map(v => v < (sy[gk] + sy[gk + 1]) / 2);
+    for(let it = 0; it < 6; it++){
+        const iu = up.map((u, i) => u ? i : -1).filter(i => i >= 0), il = up.map((u, i) => u ? -1 : i).filter(i => i >= 0);
+        if(iu.length < 3 || il.length < 3) break;
+        const fu = fdiPolyfit2(iu.map(i => cx[i] / W), iu.map(i => cy[i] / H)), fl = fdiPolyfit2(il.map(i => cx[i] / W), il.map(i => cy[i] / H)); if(!fu || !fl) break;
+        const nu = cx.map((x, i) => cy[i] / H < (fu(x / W) + fl(x / W)) / 2);
+        if(nu.every((v, i) => v === up[i])) break; up = nu;
+    }
+    const num = new Array(n).fill(0), aus = [], notas = [];
+    let c0 = W / 2;
+    [[true, 1, 2], [false, 4, 3]].forEach(([esSup, qL, qR]) => {
+        const idx = up.map((u, i) => u === esSup ? i : -1).filter(i => i >= 0).sort((a, b) => cx[a] - cx[b]);
+        if(idx.length < 2) return;
+        // 2) línea media: el espacio entre dos dientes más cercano al centro que deje las dos mitades parejas
+        const wi = idx.map(i => ws[i]).sort((a, b) => a - b).slice(0, Math.max(2, Math.floor(idx.length / 3))); const wInc = wi[Math.floor(wi.length / 2)];
+        let ml = c0, best = 1e9;
+        for(let k = 0; k < idx.length - 1; k++){ const m = (cx[idx[k]] + cx[idx[k + 1]]) / 2, nl = k + 1, nr = idx.length - nl, sc = Math.abs(m - c0) / wInc + 0.5 * Math.abs(nl - nr); if(sc < best){ best = sc; ml = m; } }
+        c0 = ml;
+        const L = idx.filter(i => cx[i] < ml).map(i => ({ i: i, d: ml - cx[i], w: ws[i] })).sort((a, b) => a.d - b.d);
+        const R = idx.filter(i => cx[i] >= ml).map(i => ({ i: i, d: cx[i] - ml, w: ws[i] })).sort((a, b) => a.d - b.d);
+        [[L, qL], [R, qR]].forEach(([it, q]) => {
+            const m = it.length; if(!m){ aus.push({ d: q * 10 + 1, txt: 'cuadrante ' + q + ' sin dientes detectados' }); return; }
+            const post = it.slice(3).map(x => x.w).sort((a, b) => b - a), ref = post.length >= 2 ? (post[0] + post[1]) / 2 : (post[0] || Math.max.apply(null, it.map(x => x.w)));
+            let nm = m; for(let k = m - 1; k >= 3; k--){ if(it[k].w >= 0.75 * ref) nm = k; else break; }
+            let mo = m - nm; if(mo > 3){ nm += mo - 3; mo = 3; }
+            const gap = []; for(let k = 0; k < m - 1; k++) gap.push((it[k + 1].d - it[k].d) > 1.45 * (it[k].w + it[k + 1].w) / 2);
+            let nums = [];
+            if(nm >= 5){ nums = [1, 2, 3, 4, 5]; for(let k = 5; k < nm; k++) nums.push(0); }
+            else{
+                let falta = 5 - nm, sig = 1;
+                for(let k = 0; k < nm; k++){ nums.push(sig); sig++; if(k < nm - 1 && gap[k] && falta > 0){ aus.push({ d: q * 10 + sig, txt: String(q * 10 + sig) }); sig++; falta--; } }
+                if(falta === 1) aus.push({ d: q * 10 + 5, txt: q + '4 o ' + q + '5', amb: true });
+                else if(falta > 1) aus.push({ d: q * 10 + 4, txt: falta + ' dientes entre ' + q + '1 y ' + q + '5', amb: true });
+            }
+            const gm = nm > 0 && mo > 0 && gap[nm - 1];
+            let mols = [];
+            if(mo === 3) mols = [6, 7, 8];
+            else if(mo === 2){ if(gm){ mols = [7, 8]; aus.push({ d: q * 10 + 6, txt: String(q * 10 + 6) }); } else mols = [6, 7]; }
+            else if(mo === 1){ if(gm){ mols = [7]; aus.push({ d: q * 10 + 6, txt: String(q * 10 + 6) }); } else{ mols = [6]; aus.push({ d: q * 10 + 7, txt: q * 10 + 7 + ' (o sin erupcionar)', amb: true }); } }
+            else aus.push({ d: q * 10 + 6, txt: q + '6 y ' + q + '7', amb: true });
+            nums = nums.concat(mols);
+            it.forEach((x, k) => { num[x.i] = nums[k] ? q * 10 + nums[k] : 0; });
+        });
+    });
+    return { num: num, aus: aus.sort((a, b) => a.d - b.d), notas: notas };
+}
+async function fdiRevisar(el){
+    const t0 = Date.now(), B = await fdiDetectar(el), W = el.naturalWidth, H = el.naturalHeight, r = fdiNumerar(B, W, H);
+    // mismo formato que la lectura de la IA: box = [y0, x0, y1, x1] de 0 a 1000
+    const dientes = B.map((b, i) => ({ d: r.num[i], box: [Math.round(b[1] / H * 1000), Math.round(b[0] / W * 1000), Math.round(b[3] / H * 1000), Math.round(b[2] / W * 1000)] })).filter(t => t.d);
+    return { dientes: dientes, aus: r.aus, n: B.length, ms: Date.now() - t0 };
 }
 
 const CAR_PROF = { superficial: 'superficial', media: 'media', profunda: 'profunda' };
@@ -6935,7 +7042,7 @@ function cariesAplicar(res){
     const d = mesa.d;
     d.cariesDet = res.lista.map(x => Object.assign({}, x, { ia: true })); d.cariesImg = res.img; d.cariesObs = res.obs; d.cariesProv = res.prov; d.cariesOk = false; d.cariesErr = ''; d.cariesDiag = res.diag || ''; d.cariesRev = res.revisados || 0;
     d.desgDet = (res.desg || []).map(x => Object.assign({}, x));
-    d.impDet = (res.imp || []).map(x => Object.assign({}, x)); d.ausDet = (res.aus || []).map(x => Object.assign({}, x));
+    d.impDet = (res.imp || []).map(x => Object.assign({}, x)); d.ausDet = (res.aus || []).map(x => Object.assign({}, x)); d.dientesNum = (res.dientes || []).slice();
     if(d.cariesDet.some(x => !x.x) && !d.hall.includes('caries')) d.hall.push('caries');
     if(d.impDet.some(x => !x.x) && !d.hall.includes('retenidos')) d.hall.push('retenidos');
     if(d.ausDet.some(x => !x.x) && !d.hall.includes('ausencias')) d.hall.push('ausencias');
@@ -6951,7 +7058,7 @@ function cariesSync(){
     const g = (d.desgDet || []).filter(x => !x.x).map(x => x.d).sort((a, b) => a - b);
     if(g.length) d.hallDientes.bruxismo = g.join(', ');
     const im = (d.impDet || []).filter(x => !x.x).map(x => x.d).sort((a, b) => a - b); if(im.length) d.hallDientes.retenidos = im.join(', ');
-    const au = (d.ausDet || []).filter(x => !x.x).map(x => x.d).sort((a, b) => a - b); if(au.length) d.hallDientes.ausencias = au.join(', ');
+    const au = (d.ausDet || []).filter(x => !x.x).sort((a, b) => a.d - b.d).map(x => x.txt || String(x.d)); if(au.length) d.hallDientes.ausencias = au.join(', ');
 }
 function detRenum(tipo, i){
     const lista = tipo === 'imp' ? mesa.d.impDet : mesa.d.cariesDet, x = (lista || [])[i]; if(!x) return;
@@ -6962,7 +7069,35 @@ function detRenum(tipo, i){
     x.d = n; x.est = false; lista.sort((a, b) => a.d - b.d); cariesCambio(); daToast('Diente corregido a ' + n, 'ok');
 }
 function impQuitar(i){ const x = (mesa.d.impDet || [])[i]; if(!x) return; x.x = !x.x; cariesCambio(); daToast(x.x ? 'Impactado ' + x.d + ' descartado' : 'Impactado ' + x.d + ' restaurado', 'ok'); }
-function ausQuitar(i){ const x = (mesa.d.ausDet || [])[i]; if(!x) return; x.x = !x.x; cariesCambio(); daToast(x.x ? 'Ausencia ' + x.d + ' descartada' : 'Ausencia ' + x.d + ' restaurada', 'ok'); }
+// El doctor dice cuál diente falta (o cuál está retenido) en un cuadrante; renumera los dientes de ese lado
+function ausCorregir(i){
+    const d = mesa.d, x = (d.ausDet || [])[i]; if(!x) return;
+    const q = Math.floor(x.d / 10);
+    const v = prompt('Cuadrante ' + q + ': ¿qué diente falta? Escribe su número (por ejemplo ' + q + '4).\nSi no falta sino que está retenido o impactado fuera de la arcada, agrega R (por ejemplo ' + q + '3R).', '');
+    if(v === null) return;
+    const m = String(v).trim().toUpperCase().match(/^([1-4])([1-7])\s*(R)?$/);
+    if(!m || Number(m[1]) !== q){ alert('Escribe un número del cuadrante ' + q + ' (de ' + q + '1 a ' + q + '7), con R si está retenido.'); return; }
+    const k = Number(m[2]), ret = !!m[3], nuevo = q * 10 + k;
+    // la numeración automática supuso que faltaba el último no molar (x5): los dientes desde k hasta 4 se recorren uno
+    const asumido = x.amb ? (x.d % 10) : k;
+    const mover = n => { if(Math.floor(n / 10) !== q) return n; const t = n % 10; if(asumido > k && t >= k && t < asumido) return n + 1; if(asumido < k && t > asumido && t <= k) return n - 1; return n; };
+    (d.dientesNum || []).forEach(t => { t.d = mover(t.d); });
+    (d.cariesDet || []).forEach(c => { if(!c.est) c.d = mover(c.d); });
+    (d.impDet || []).forEach(c => { if(!c.est) c.d = mover(c.d); });
+    d.ausDet.splice(i, 1);
+    if(ret){
+        d.impDet = d.impDet || [];
+        if(!d.impDet.some(y => y.d === nuevo)) d.impDet.push({ d: nuevo, conf: 1, est: false, x: false, ev: 'Marcado por el doctor: retenido o impactado fuera de la arcada' });
+        d.impDet.sort((a, b) => a.d - b.d);
+        if(!d.hall.includes('retenidos')) d.hall.push('retenidos');
+    }else{
+        d.ausDet.push({ d: nuevo, txt: String(nuevo), amb: false, x: false, src: 'doctor' }); d.ausDet.sort((a, b) => a.d - b.d);
+    }
+    if(!d.ausDet.some(y => !y.x)){ d.hall = d.hall.filter(h => h !== 'ausencias'); if(d.hallDientes) delete d.hallDientes.ausencias; }
+    cariesCambio();
+    daToast(ret ? nuevo + ' marcado como retenido; renumeré el cuadrante ' + q : 'Ausencia corregida a ' + nuevo + '; renumeré el cuadrante ' + q, 'ok');
+}
+function ausQuitar(i){ const x = (mesa.d.ausDet || [])[i]; if(!x) return; x.x = !x.x; cariesCambio(); daToast(x.x ? 'Ausencia ' + (x.txt || x.d) + ' descartada' : 'Ausencia ' + (x.txt || x.d) + ' restaurada', 'ok'); }
 function desgQuitar(i){ const x = (mesa.d.desgDet || [])[i]; if(!x) return; x.x = !x.x; cariesCambio(); daToast(x.x ? 'Desgaste del diente ' + x.d + ' descartado' : 'Desgaste del diente ' + x.d + ' restaurado', 'ok'); }
 function cariesCambio(){ cariesSync(); mesa.d.cariesOk = false; mesaCambio(); }
 function cariesProf(i, v){ const x = mesa.d.cariesDet[i]; if(!x) return; x.prof = v; cariesCambio(); }
@@ -7002,7 +7137,9 @@ function cariesCajasHtml(){
     const col = { profunda: '#e53e3e', media: '#dd8b00', superficial: '#d6b600' };
     const cajas = (d.cariesDet || []).filter(x => !x.x && x.box).map(x => { const b = x.box; return `<div style="position:absolute; left:${b[1] / 10}%; top:${b[0] / 10}%; width:${(b[3] - b[1]) / 10}%; height:${(b[2] - b[0]) / 10}%; border:2px solid ${col[x.prof]}; box-sizing:border-box;"><span style="position:absolute; top:-18px; left:0; background:${col[x.prof]}; color:#fff; font-size:11px; font-weight:bold; padding:1px 5px; border-radius:4px; white-space:nowrap;">${x.d}${x.prof === 'profunda' ? ' prof.' : ''}</span></div>`; }).join('');
     const cajasImp = (d.impDet || []).filter(x => !x.x && x.box).map(x => { const b = x.box; return `<div style="position:absolute; left:${b[1] / 10}%; top:${b[0] / 10}%; width:${(b[3] - b[1]) / 10}%; height:${(b[2] - b[0]) / 10}%; border:2px dashed #3182ce; box-sizing:border-box;"><span style="position:absolute; bottom:-18px; left:0; background:#3182ce; color:#fff; font-size:11px; font-weight:bold; padding:1px 5px; border-radius:4px; white-space:nowrap;">${x.d} impactado</span></div>`; }).join('');
-    return cajas + cajasImp;
+    const nums = (d.dientesNum || []).map(t => { const b = t.box, sup = Math.floor(t.d / 10) <= 2, x = (b[1] + b[3]) / 20, y = sup ? b[2] / 10 : b[0] / 10;   // junto a la corona
+        return `<span style="position:absolute; left:${x}%; top:${y}%; transform:translate(-50%, ${sup ? '-115%' : '15%'}); font-size:9px; line-height:1; font-weight:bold; color:#fff; background:rgba(15,23,42,.55); padding:1px 2px; border-radius:3px; pointer-events:none;">${t.d}</span>`; }).join('');
+    return nums + cajas + cajasImp;
 }
 function cariesVer(){
     const d = mesa.d; if(!d.cariesImg) return;
@@ -7025,7 +7162,8 @@ function cariesPanel(){
     const des = (d.desgDet || []).length ? `<div class="esc-sub" style="margin-top:8px;"><b>Desgaste dental</b> (toca para descartar):</div><div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:4px;">${d.desgDet.map((x, i) => `<button class="esc-mini${x.x ? '' : ' on'}" title="${escAttr(x.ev || '')}" onclick="desgQuitar(${i})">${x.d} · ${x.tipo === 'plano' ? 'plano' : 'circular'} · ${x.sev}</button>`).join('')}</div>${d.hall.includes('bruxismo') ? '<div class="esc-sub" style="margin-top:4px;">Se marcó <b>posible bruxismo</b> por el desgaste plano en varios dientes.</div>' : ''}` : '';
     const prof = det.filter(x => !x.x && x.prof === 'profunda').map(x => x.d);
     const impH = (d.impDet || []).length ? `<div class="esc-sub" style="margin-top:8px;"><b>Dientes impactados</b> (detector; toca para descartar):</div><div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:4px;">${d.impDet.map((x, i) => `<button class="esc-mini${x.x ? '' : ' on'}" title="${escAttr(x.ev || '')}" onclick="impQuitar(${i})">${x.d}${x.est ? ' (verifica)' : ''}${x.x ? ' · dudoso' : ''}</button>${x.est ? `<button class="esc-mini" title="El número se estimó por posición" onclick="detRenum('imp', ${i})">#?</button>` : ''}`).join('')}</div>` : '';
-    const ausH = (d.ausDet || []).length ? `<div class="esc-sub" style="margin-top:8px;"><b>Ausencias dentales</b> (lectura de la IA, sin terceros molares; verifica):</div><div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:4px;">${d.ausDet.map((x, i) => `<button class="esc-mini${x.x ? '' : ' on'}" onclick="ausQuitar(${i})">${x.d}</button>`).join('')}</div>` : '';
+    const ausH = (d.ausDet || []).length ? `<div class="esc-sub" style="margin-top:8px;"><b>Ausencias dentales</b> (numerador de dientes; sin terceros molares; toca para descartar):</div><div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:4px;">${d.ausDet.map((x, i) => `<span style="display:inline-flex; gap:3px;"><button class="esc-mini${x.x ? '' : ' on'}" onclick="ausQuitar(${i})">${escHtml(x.txt || String(x.d))}</button>${x.x ? '' : `<button class="esc-mini" title="Decir cuál diente es" onclick="ausCorregir(${i})">${x.amb ? '¿cuál?' : 'corregir'}</button>`}</span>`).join('')}</div>
+            <div class="esc-sub" style="margin-top:3px;">Si el diente no falta sino que está retenido fuera de la arcada (por ejemplo un canino horizontal), toca "¿cuál?" y escribe su número con R, por ejemplo 23R. Renumero los demás dientes de ese cuadrante.</div>` : '';
     const extraH = impH + ausH;
     return `<div style="margin-top:8px; padding:8px; border-radius:10px; border:1.5px solid ${det.length ? 'var(--accent)' : 'var(--shadow-dark)'};">
         <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; flex-wrap:wrap;"><b style="font-size:0.85rem;">Hallazgos en la panorámica (IA y detector)</b>
