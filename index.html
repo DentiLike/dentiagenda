@@ -2781,7 +2781,7 @@
             return d <= 0 ? 'hoy' : (d === 1 ? 'ayer' : 'hace ' + d + ' d');
         }
         function usaSmile(nombre){ const u = usoSmile[nombre]; return !!(u && u.ts); }
-        const DA_VERSION = 'v91';
+        const DA_VERSION = 'v92';
         window.addEventListener('load', () => document.querySelectorAll('.da-ver-txt').forEach(e => e.textContent = 'DentiAgenda ' + DA_VERSION));
         // Texto del estado de SmileLike para un paciente (usa lo guardado; abajo se refresca solo ese paciente)
         function textoEstadoSmile(nombre){
@@ -5026,6 +5026,65 @@ function trazoInterpHtml(m){
     const bloque = (t, L, ks) => L.length ? `<div style="margin-top:8px;"><div style="font-size:0.8rem; font-weight:bold; color:var(--primary);">${t}</div>${L.map(x => `<div style="font-size:0.8rem; margin:2px 0;">${escHtml(x)}</div>`).join('')}<div style="margin-top:4px; padding:4px 6px; border-radius:6px; background:rgba(0,0,0,.04);">${ks.map(val).join('')}</div></div>` : '';
     return bloque('Esquelético', esq, ['sna', 'snb', 'anb', 'snmp', 'snpp']) + bloque('Dental', den, ['u1na', 'u1nam', 'l1nb', 'l1nbm', 'ii', 'pognb']);
 }
+// Biotipo de Ricketts (VERT): promedio de 5 factores en desviaciones; + braquifacial, - dolicofacial
+function trazoVert(m, edad){
+    const F = [['r_eje', 1], ['r_prof', 1], ['r_pm', -1], ['r_afi', -1], ['r_arco', 1]], z = [];
+    F.forEach(([k, sg]) => { const n = trazoNorma(k, edad); if(m[k] != null && n) z.push(sg * (m[k] - n[0]) / n[1]); });
+    if(z.length < 3) return null;
+    const v = Math.round(z.reduce((a, b) => a + b, 0) / z.length * 100) / 100;
+    const t = v <= -1.5 ? 'dolicofacial severo' : v <= -0.5 ? 'dolicofacial' : v < 0.5 ? 'mesofacial' : v < 1.5 ? 'braquifacial' : 'braquifacial severo';
+    return { v: v, t: t, n: z.length };
+}
+// Jarabak, Ricketts y diagnóstico tentativo (con los hallazgos de la panorámica si están a la mano)
+function trazoAnalisisHtml(m, edad, dPano){
+    if(!m) return '';
+    const col = { normal: '#2f855a', aumentado: '#c05621', disminuido: '#2b6cb0' };
+    const fila = k => { const v = m[k], R = trazoNorma(k, edad); if(v == null || !R) return ''; const e = trazoEstadoX(k, v, edad);
+        return `<div style="display:flex; justify-content:space-between; gap:6px; font-size:0.78rem; padding:1px 0;"><span>${escHtml(R[2])}</span><span><b>${v}${R[3]}</b>${R[0] != null ? ` <span class="esc-sub">(${R[0]}${R[1] != null ? ' ± ' + R[1] : ''})</span> <span style="color:${col[e] || 'inherit'};">${e}</span>` : ''}</span></div>`; };
+    const caja = (t, sub, L, ks) => { const f = ks.map(fila).join(''); if(!f && !L.length) return '';
+        return `<div style="margin-top:10px;"><div style="font-size:0.84rem; font-weight:bold; color:var(--primary);">${t}${sub ? ' <span class="esc-sub" style="font-weight:normal;">' + sub + '</span>' : ''}</div>${L.map(x => `<div style="font-size:0.8rem; margin:2px 0;">${escHtml(x)}</div>`).join('')}${f ? `<div style="margin-top:4px; padding:4px 6px; border-radius:6px; background:rgba(0,0,0,.04);">${f}</div>` : ''}</div>`; };
+    // ---- Jarabak
+    const J = [];
+    if(m.j_ind != null) J.push('Índice de Jarabak ' + m.j_ind + ' %: ' + (m.j_ind < 59 ? 'crecimiento VERTICAL (rotación horaria, hiperdivergente).' : m.j_ind > 65 ? 'crecimiento HORIZONTAL (rotación antihoraria, hipodivergente).' : 'crecimiento neutro.'));
+    if(m.j_suma != null) J.push('Suma de Björk ' + m.j_suma + '°: ' + (m.j_suma > 402 ? 'patrón de rotación horaria (vertical).' : m.j_suma < 390 ? 'patrón de rotación antihoraria (horizontal).' : 'en norma.'));
+    if(m.j_gsup != null && m.j_ginf != null) J.push('Goníaco superior ' + m.j_gsup + '° / inferior ' + m.j_ginf + '°' + (m.j_ginf > 75 ? ': el inferior abierto favorece crecimiento vertical.' : m.j_gsup > 55 ? ': el superior abierto favorece crecimiento horizontal.' : '.'));
+    if(m.j_cuerpo != null) J.push('Cuerpo mandibular / base anterior ' + m.j_cuerpo + (m.j_cuerpo < 0.95 ? ': cuerpo mandibular corto.' : m.j_cuerpo > 1.05 ? ': cuerpo mandibular largo.' : ': proporción 1:1, en norma.'));
+    const jH = caja('Jarabak', m.j_sn == null ? '(los mm necesitan calibrar con la regla)' : '', J, ['j_silla', 'j_art', 'j_gon', 'j_gsup', 'j_ginf', 'j_suma', 'j_ind', 'j_cuerpo', 'j_sn', 'j_sar', 'j_argo', 'j_gome', 'j_sgo', 'j_nme']);
+    // ---- Ricketts
+    const Rk = [], vt = trazoVert(m, edad), es = k => trazoEstadoX(k, m[k], edad);
+    if(vt) Rk.push('Biotipo (VERT ' + (vt.v > 0 ? '+' : '') + vt.v + ', ' + vt.n + ' factores): ' + vt.t + '.');
+    if(m.r_conv != null) Rk.push('Convexidad ' + m.r_conv + ' mm: ' + ({ aumentado: 'perfil convexo, tendencia a Clase II esquelética', disminuido: 'perfil cóncavo, tendencia a Clase III esquelética', normal: 'relación maxilomandibular en norma' }[es('r_conv')] || '') + '.');
+    if(m.r_prof != null) Rk.push('Profundidad facial ' + m.r_prof + '°: mandíbula ' + ({ aumentado: 'adelantada', disminuido: 'retrasada', normal: 'en norma' }[es('r_prof')] || '') + ' respecto a Frankfort.');
+    if(m.r_profmax != null) Rk.push('Profundidad maxilar ' + m.r_profmax + '°: maxilar ' + ({ aumentado: 'adelantado', disminuido: 'retrasado', normal: 'en norma' }[es('r_profmax')] || '') + '.');
+    if(m.r_l1apog != null) Rk.push('Incisivo inferior a A-Pog ' + m.r_l1apog + ' mm: ' + ({ aumentado: 'adelantado (protrusión dental inferior)', disminuido: 'retrasado', normal: 'en norma' }[es('r_l1apog')] || '') + '.');
+    if(m.r_u6ptv != null) Rk.push('Molar superior a PTV ' + m.r_u6ptv + ' mm (norma para la edad ' + trazoNorma('r_u6ptv', edad)[0] + '): ' + ({ aumentado: 'molar adelantado; hay margen para distalizar', disminuido: 'molar atrás; poco margen para distalizar', normal: 'en norma' }[es('r_u6ptv')] || '') + '.');
+    if(m.r_labio != null) Rk.push('Labio inferior al plano E ' + m.r_labio + ' mm: ' + ({ aumentado: 'labio protrusivo', disminuido: 'labio retrusivo', normal: 'en norma' }[es('r_labio')] || '') + '.');
+    const rH = caja('Ricketts resumido', 'normas ajustadas a ' + (edad > 0 ? edad + ' años' : 'una edad estimada de 12 años') + (m.r_conv == null ? '; los mm necesitan calibrar con la regla' : ''), Rk, ['r_eje', 'r_prof', 'r_pm', 'r_afi', 'r_arco', 'r_conv', 'r_profmax', 'r_u1apog', 'r_l1apog', 'r_l1ang', 'r_u6ptv', 'r_labio', 'r_defl']);
+    // ---- Diagnóstico tentativo
+    const D = [], cl = trazoClase(m), rc = m.r_conv != null ? es('r_conv') : '';
+    if(cl){ const rcl = rc === 'aumentado' ? 'II' : rc === 'disminuido' ? 'III' : rc === 'normal' ? 'I' : '';
+        D.push('Clase ' + cl + ' esquelética (ANB ' + m.anb + '°)' + (rcl ? (rcl === cl ? ', confirmada por la convexidad de Ricketts' : '; la convexidad de Ricketts sugiere Clase ' + rcl + ': revisa la base de cráneo (S-N) y la posición de N') : '') + '.'); }
+    const vertJ = m.j_ind != null ? (m.j_ind < 59 ? 'vertical' : m.j_ind > 65 ? 'horizontal' : 'neutro') : '';
+    if(vt || vertJ || m.snmp != null) D.push('Patrón vertical: ' + [vt ? vt.t + ' (Ricketts)' : '', vertJ ? 'crecimiento ' + vertJ + ' (Jarabak)' : '', m.snmp != null ? 'SN-GoMe ' + m.snmp + '°' : ''].filter(Boolean).join(', ') + '.');
+    const iS = trazoIncl(m.u1na, 26, 18), iI = trazoIncl(m.l1nb, 29, 21), nI = { pro: 'proinclinado', retro: 'retroinclinado', normal: 'en norma' };
+    if(iS || iI) D.push('Dental: incisivo superior ' + (nI[iS] || 'sin dato') + ', inferior ' + (nI[iI] || 'sin dato') + (m.ii != null ? ', interincisal ' + m.ii + '°' : '') + (m.r_l1apog != null ? ', inferior a A-Pog ' + m.r_l1apog + ' mm' : '') + '.');
+    if(m.r_labio != null) D.push('Perfil: labio inferior ' + m.r_labio + ' mm al plano E (' + (es('r_labio') || '') + ').');
+    if(m.r_u6ptv != null) D.push('Molares: superior a PTV ' + m.r_u6ptv + ' mm (' + (es('r_u6ptv') || '') + ').');
+    if(dPano){
+        const car = (dPano.cariesDet || []).filter(x => !x.x), au = (dPano.ausDet || []).filter(x => !x.x), im = (dPano.impDet || []).filter(x => !x.x);
+        const L = [];
+        if(car.length) L.push('caries en ' + car.map(x => x.d + (x.prof === 'profunda' ? ' (profunda)' : '')).join(', '));
+        if(au.length) L.push('posibles ausencias: ' + au.map(x => x.txt || x.d).join(', '));
+        if(im.length) L.push('retenidos o impactados: ' + im.map(x => x.d).join(', '));
+        const lab = (typeof MESA_HALL !== 'undefined') ? MESA_HALL.reduce((o, y) => { o[y[0]] = y[1]; return o; }, {}) : {};
+        const otros = (dPano.hall || []).filter(h => !['caries', 'ausencias', 'retenidos'].includes(h)).map(h => (lab[h] || h).toLowerCase() + ((dPano.hallDientes || {})[h] ? ' (' + dPano.hallDientes[h] + ')' : ''));
+        if(otros.length) L.push(otros.join(', '));
+        if(L.length) D.push('Panorámica: ' + L.join('; ') + '.');
+    }
+    const dH = D.length ? `<div style="margin-top:12px; padding:8px; border-radius:8px; border:1.5px solid var(--accent);"><div style="font-size:0.86rem; font-weight:bold; color:var(--accent);">Diagnóstico tentativo</div>${D.map(x => `<div style="font-size:0.8rem; margin:3px 0;">• ${escHtml(x)}</div>`).join('')}<div class="esc-sub" style="margin-top:4px;">Apoyo para tu diagnóstico, no lo sustituye. Los puntos marcados con ~ son estimados: verifícalos.</div></div>` : '';
+    return jH + rH + dH;
+}
+
 function trazoTarjeta(nombre, p){
     const tzd = p.trazado, tp = p.trazadoPuntos, url = (tzd && tzd.url) || (window._trazLocal || {})[nombre] || '';
     if(!url) return '';
@@ -5037,6 +5096,7 @@ function trazoTarjeta(nombre, p){
             ${tp && tp.auto ? `<div style="font-size:0.76rem; color:#b7791f; margin-top:2px;">Trazado automático sin verificar${(tp.dudosos || []).length ? ' (revisa ' + tp.dudosos.join(', ') + ')' : ''}. <a href="#" style="color:var(--accent); font-weight:bold;" onclick="trazoAbrir('${escAttr(String(nombre).replace(/'/g, "\\'"))}'); return false;">Revisar puntos</a></div>` : ''}
             ${et.length ? `<div style="font-size:0.8rem; font-weight:bold; color:var(--accent); margin-top:2px;">${et.map(escHtml).join(' · ')}</div>` : ''}
             ${trazoInterpHtml(tp && tp.m)}
+            ${trazoAnalisisHtml(tp && tp.m, iaEdadDe(p), (typeof mesa !== 'undefined' && mesa && mesa.nombre === nombre) ? mesa.d : null)}
         </div></div>`;
 }
 function trazadoSeccion(p){
@@ -5945,6 +6005,70 @@ const TRAZO_PUNTOS = [
     { id: 'U1A', n: 'Incisivo sup. (ápice)', c: '#c0392b' }, { id: 'L1', n: 'Incisivo inf. (corona)', c: '#4ecdc4' },
     { id: 'L1A', n: 'Incisivo inf. (ápice)', c: '#16a085' }
 ];
+// Puntos extra para Jarabak y Ricketts (a = nombre del canal en el modelo; est = se construye por geometría)
+const TRAZO_EXTRA = [
+    { id: 'Ar', n: 'Articular', c: '#f6ad55', a: 'Ar' }, { id: 'Gn', n: 'Gnation', c: '#68d391', a: 'Gn' }, { id: 'Co', n: 'Condilion', c: '#b794f4', a: 'Co' },
+    { id: 'Po', n: 'Porion', c: '#63b3ed', a: 'Po' }, { id: 'Or', n: 'Orbitario', c: '#4fd1c5', a: 'Or' }, { id: 'R', n: 'Rama (borde anterior)', c: '#cbd5e0', a: 'R' },
+    { id: 'U6', n: 'Molar superior (cúspide mesial)', c: '#fc8181', a: 'UMT' },
+    { id: 'Pn', n: 'Punta de la nariz', c: '#f6e05e', a: 'Pn' }, { id: 'Pogs', n: 'Pogonion blando', c: '#f6e05e', a: 'Pogs' }, { id: 'Li', n: 'Labio inferior', c: '#f6e05e', a: 'Li' },
+    { id: 'Ba', n: 'Basion (se estima)', c: '#a0aec0', est: true }, { id: 'Pt', n: 'Pterigoideo (se estima)', c: '#a0aec0', est: true },
+    { id: 'Xi', n: 'Xi, centro de la rama (se estima)', c: '#a0aec0', est: true }, { id: 'Pm', n: 'Suprapogonion (se estima)', c: '#a0aec0', est: true }
+];
+const TRAZO_TODOS = TRAZO_PUNTOS.concat(TRAZO_EXTRA);
+// Jarabak: [media, tolerancia, etiqueta, unidad]
+const TRAZO_REF_J = {
+    j_silla: [123, 5, 'Ángulo de la silla (N-S-Ar)', '°'], j_art: [143, 6, 'Ángulo articular (S-Ar-Go)', '°'], j_gon: [130, 7, 'Ángulo goníaco (Ar-Go-Me)', '°'],
+    j_gsup: [53.5, 1.5, 'Goníaco superior (Ar-Go-N)', '°'], j_ginf: [72.5, 2.5, 'Goníaco inferior (N-Go-Me)', '°'], j_suma: [396, 6, 'Suma de Björk', '°'],
+    j_sn: [71, 3, 'Base craneal anterior (S-N)', ' mm'], j_sar: [32, 3, 'Base craneal posterior (S-Ar)', ' mm'], j_argo: [44, 5, 'Altura de la rama (Ar-Go)', ' mm'],
+    j_gome: [71, 5, 'Cuerpo mandibular (Go-Me)', ' mm'], j_sgo: [null, null, 'Altura facial posterior (S-Go)', ' mm'], j_nme: [null, null, 'Altura facial anterior (N-Me)', ' mm'],
+    j_ind: [62, 3, 'Índice S-Go/N-Me', ' %'], j_cuerpo: [1, 0.05, 'Cuerpo mandibular / base anterior', '']
+};
+// Ricketts resumido: [media a los 9 años, tolerancia, etiqueta, unidad, cambio por año hasta los 18]
+const TRAZO_REF_R = {
+    r_eje: [90, 3.5, 'Eje facial (Ba-N / Pt-Gn)', '°', 0], r_prof: [87, 3, 'Profundidad facial (FH / N-Pog)', '°', 0.33], r_pm: [26, 4.5, 'Plano mandibular (FH / Go-Me)', '°', -0.3],
+    r_afi: [47, 4, 'Altura facial inferior (ANS-Xi-Pm)', '°', 0], r_arco: [26, 4, 'Arco mandibular (DC-Xi / Xi-Pm)', '°', 0.5],
+    r_conv: [2, 2, 'Convexidad (A a N-Pog)', ' mm', -0.2], r_profmax: [90, 3, 'Profundidad maxilar (FH / N-A)', '°', 0],
+    r_u1apog: [3.5, 2.3, 'Incisivo superior a A-Pog', ' mm', 0], r_l1apog: [1, 2.3, 'Incisivo inferior a A-Pog', ' mm', 0], r_l1ang: [22, 4, 'Inclinación del incisivo inferior a A-Pog', '°', 0],
+    r_u6ptv: [null, 3, 'Molar superior a PTV', ' mm', 0], r_labio: [-2, 2, 'Labio inferior al plano E', ' mm', -0.2], r_defl: [27, 3, 'Deflexión craneal (Ba-N / FH)', '°', 0]
+};
+function trazoNorma(k, edad){
+    if(TRAZO_REF[k]) return TRAZO_REF[k];
+    if(TRAZO_REF_J[k]) return TRAZO_REF_J[k];
+    const R = TRAZO_REF_R[k]; if(!R) return null;
+    const e = edad > 0 ? Math.min(Math.max(edad, 9), 18) : 12;
+    if(k === 'r_u6ptv') return [e + 3, 3, R[2], R[3]];
+    return [Math.round((R[0] + R[4] * (e - 9)) * 10) / 10, R[1], R[2], R[3]];
+}
+function trazoEstadoX(k, v, edad){
+    const r = trazoNorma(k, edad); if(v == null || !r || r[0] == null) return '';
+    return Math.abs(v - r[0]) <= r[1] ? 'normal' : (v > r[0] ? 'aumentado' : 'disminuido');
+}
+// Construye Ba, Pt, Xi y Pm a partir de los puntos detectados (aproximados: verifícalos)
+function trazoEstimar(P){
+    const out = {}, sub = (a, b) => ({ x: a.x - b.x, y: a.y - b.y }), add = (a, b) => ({ x: a.x + b.x, y: a.y + b.y }), mul = (a, k) => ({ x: a.x * k, y: a.y * k });
+    const len = a => Math.hypot(a.x, a.y), un = a => { const L = len(a) || 1; return { x: a.x / L, y: a.y / L }; }, dot = (a, b) => a.x * b.x + a.y * b.y;
+    const f = (P.S && P.N) ? (P.N.x >= P.S.x ? 1 : -1) : 1;
+    const u = (P.Po && P.Or) ? un(sub(P.Or, P.Po)) : { x: f, y: 0 };   // Frankfort hacia adelante
+    let v = { x: -u.y, y: u.x }; if(v.y < 0) v = mul(v, -1);           // perpendicular hacia abajo
+    if(P.B && P.Pog) out.Pm = add(P.B, mul(sub(P.Pog, P.B), 0.6));
+    if(P.Ar && P.Go){
+        const d = sub(P.Go, P.Ar), L = len(d), ud = un(d);
+        let ant = { x: -ud.y, y: ud.x }; if(dot(ant, u) < 0) ant = mul(ant, -1);   // hacia adelante desde el borde posterior
+        let ok = false;
+        if(P.R){ const t = dot(sub(P.R, P.Ar), ud), F = add(P.Ar, mul(ud, t)), dist = dot(sub(P.R, F), ant);
+            if(t > 0.15 * L && t < 0.95 * L && dist > 0.3 * L && dist < 1.1 * L){ out.Xi = add(F, mul(sub(P.R, F), 0.5)); ok = true; } }
+        if(!ok) out.Xi = add(add(P.Ar, mul(d, 0.5)), mul(ant, 0.33 * L));
+    }
+    if(P.PNS && P.Po){
+        const t = dot(sub(P.PNS, P.Po), u), F = add(P.Po, mul(u, t)), dv = dot(sub(P.PNS, F), v);
+        out.Pt = add(F, mul(v, 0.2 * dv));
+    }
+    if(P.S && P.Ar){
+        const d = sub(P.Ar, P.S), L = len(d);
+        out.Ba = add(add(P.Ar, mul(un(d), 0.3 * L)), mul(u, -0.1 * L));
+    }
+    return out;
+}
 // [media, tolerancia, etiqueta, unidad]  (referencia de Steiner; ajústala a edad y grupo del paciente)
 const TRAZO_REF = {
     sna: [82, 2, 'SNA', '°'], snb: [80, 2, 'SNB', '°'], anb: [2, 2, 'ANB', '°'],
@@ -5994,6 +6118,33 @@ function trazoMedir(P, mmpx){
     m.l1nb = incl(P.L1, P.L1A, P.B, true); m.l1nbm = dist(P.L1, P.B);
     if(P.U1 && P.U1A && P.L1 && P.L1A) m.ii = trazoR1(trazoAngVec({ x: P.U1A.x - P.U1.x, y: P.U1A.y - P.U1.y }, { x: P.L1A.x - P.L1.x, y: P.L1A.y - P.L1.y }));
     m.pognb = dist(P.Pog, P.B);
+    // ---- Jarabak ----
+    const V = (a, b) => ({ x: a.x - b.x, y: a.y - b.y }), px = (a, b) => (a && b) ? Math.hypot(a.x - b.x, a.y - b.y) : null, mm = (a, b) => (mmpx && a && b) ? trazoR1(px(a, b) * mmpx) : null;
+    m.j_silla = trazoR1(trazoAngVertice(P.N, P.S, P.Ar)); m.j_art = trazoR1(trazoAngVertice(P.S, P.Ar, P.Go)); m.j_gon = trazoR1(trazoAngVertice(P.Ar, P.Go, P.Me));
+    m.j_gsup = trazoR1(trazoAngVertice(P.Ar, P.Go, P.N)); m.j_ginf = trazoR1(trazoAngVertice(P.N, P.Go, P.Me));
+    if(m.j_silla != null && m.j_art != null && m.j_gon != null) m.j_suma = trazoR1(m.j_silla + m.j_art + m.j_gon);
+    m.j_sn = mm(P.S, P.N); m.j_sar = mm(P.S, P.Ar); m.j_argo = mm(P.Ar, P.Go); m.j_gome = mm(P.Go, P.Me); m.j_sgo = mm(P.S, P.Go); m.j_nme = mm(P.N, P.Me);
+    if(P.S && P.Go && P.N && P.Me) m.j_ind = trazoR1(px(P.S, P.Go) / px(P.N, P.Me) * 100);
+    if(P.Go && P.Me && P.S && P.N) m.j_cuerpo = Math.round(px(P.Go, P.Me) / px(P.S, P.N) * 100) / 100;
+    // ---- Ricketts ----
+    const distL = (pt, a, b) => { if(!mmpx || !pt || !a || !b) return null; const d = V(b, a), L = Math.hypot(d.x, d.y); if(!L) return null; const cr = d.x * (pt.y - a.y) - d.y * (pt.x - a.x); return trazoR1(-f * cr / L * mmpx); };
+    const ang = (a, b) => trazoR1(trazoAngVec(a, b));
+    let DC = null;
+    if(P.Ba && P.N && P.Co){ const d = V(P.N, P.Ba), L2 = d.x * d.x + d.y * d.y; if(L2){ const t = ((P.Co.x - P.Ba.x) * d.x + (P.Co.y - P.Ba.y) * d.y) / L2; DC = { x: P.Ba.x + d.x * t, y: P.Ba.y + d.y * t }; } }
+    if(P.Ba && P.N && P.Pt && P.Gn) m.r_eje = ang(V(P.Ba, P.N), V(P.Gn, P.Pt));
+    if(P.Po && P.Or && P.N && P.Pog) m.r_prof = ang(V(P.Pog, P.N), V(P.Po, P.Or));
+    if(P.Po && P.Or && P.Go && P.Me) m.r_pm = ang(V(P.Me, P.Go), V(P.Or, P.Po));
+    m.r_afi = trazoR1(trazoAngVertice(P.ANS, P.Xi, P.Pm));
+    if(DC && P.Xi && P.Pm){ const a = trazoAngVertice(DC, P.Xi, P.Pm); if(a != null) m.r_arco = trazoR1(180 - a); }
+    m.r_conv = distL(P.A, P.N, P.Pog);
+    if(P.Po && P.Or && P.N && P.A) m.r_profmax = ang(V(P.A, P.N), V(P.Po, P.Or));
+    m.r_u1apog = distL(P.U1, P.A, P.Pog); m.r_l1apog = distL(P.L1, P.A, P.Pog);
+    if(P.A && P.Pog && P.L1 && P.L1A) m.r_l1ang = ang(V(P.A, P.Pog), V(P.L1, P.L1A));
+    if(mmpx && P.U6 && P.Pt && P.Po && P.Or){ const d = V(P.Or, P.Po), L = Math.hypot(d.x, d.y), u = { x: d.x / L, y: d.y / L }, dist6 = { x: P.U6.x - u.x * 5 / mmpx, y: P.U6.y - u.y * 5 / mmpx };   // cara distal ≈ 5 mm detrás de la cúspide
+        m.r_u6ptv = trazoR1(((dist6.x - P.Pt.x) * u.x + (dist6.y - P.Pt.y) * u.y) * mmpx); }
+    m.r_labio = distL(P.Li, P.Pn, P.Pogs);
+    if(P.Ba && P.N && P.Po && P.Or) m.r_defl = ang(V(P.N, P.Ba), V(P.Or, P.Po));
+    Object.keys(m).forEach(k => { if(m[k] == null || (typeof m[k] === 'number' && isNaN(m[k]))) delete m[k]; });
     return m;
 }
 function trazoEstado(k, v){
@@ -6019,7 +6170,8 @@ function trazoInterpretar(m){
 function trazoTexto(m, mmpx){
     const partes = Object.keys(TRAZO_REF).filter(k => m[k] != null).map(k => TRAZO_REF[k][2] + ' ' + m[k] + TRAZO_REF[k][3] + ' (' + trazoEstado(k, m[k]) + ')');
     if(!partes.length) return '';
-    return 'Trazado Steiner (DentiAgenda): ' + partes.join(' · ') + (mmpx ? '' : ' · mm sin calibrar') + '.';
+    const jr = [m.j_ind != null ? 'Jarabak S-Go/N-Me ' + m.j_ind + ' %' : '', m.j_suma != null ? 'suma de Björk ' + m.j_suma + '°' : '', m.r_eje != null ? 'eje facial ' + m.r_eje + '°' : '', m.r_conv != null ? 'convexidad ' + m.r_conv + ' mm' : '', m.r_l1apog != null ? 'L1 a A-Pog ' + m.r_l1apog + ' mm' : '', m.r_labio != null ? 'labio inf. a plano E ' + m.r_labio + ' mm' : ''].filter(Boolean);
+    return 'Trazado Steiner (DentiAgenda): ' + partes.join(' · ') + (mmpx ? '' : ' · mm sin calibrar') + '.' + (jr.length ? ' Jarabak/Ricketts: ' + jr.join(' · ') + '.' : '');
 }
 
 let tz = null;
@@ -6063,7 +6215,7 @@ function trazoPintarShell(est, sel){
             <button class="btn-3d btn-submit" style="flex:1; min-width:150px;" onclick="trazoGuardar()">💾 Guardar en el paciente</button>
         </div>
         <p class="esc-sub" style="margin-top:6px;">Toca la radiografía para colocar cada punto en orden. Para corregir uno: toca su botón y luego el lugar correcto. Los mm requieren calibrar con una distancia conocida (regla de la imagen). Referencia de Steiner: ajusta a edad y grupo del paciente. Apoyo, no diagnóstico.</p>
-        <p class="esc-sub" style="margin-top:4px; font-size:0.7rem;">Puntos automáticos: modelo cephalometry-landmarks (MuhammadNabeelSh, CC BY 4.0) entrenado con el dataset Aariz (Khalid et al., CC BY 4.0). No es un dispositivo médico: verifica cada punto.</p>`;
+        <p class="esc-sub" style="margin-top:4px; font-size:0.7rem;">Jarabak y Ricketts: normas de referencia de libro (Ricketts ajustado a la edad). Ba, Pt, Xi y Pm se estiman por geometría a partir de los puntos detectados; corrígelos tocando su botón. Puntos automáticos: modelo cephalometry-landmarks (MuhammadNabeelSh, CC BY 4.0) entrenado con el dataset Aariz (Khalid et al., CC BY 4.0). No es un dispositivo médico: verifica cada punto.</p>`;
     const cv = document.getElementById('trazoCanvas');
     cv.onclick = trazoClick;
 }
@@ -6109,6 +6261,19 @@ async function cephDetectar(imgEl){
     });
     return res;
 }
+// Convierte la salida del modelo en puntos del trazado (Steiner + extra) y estima Ba, Pt, Xi y Pm
+function trazoDesdeModelo(res){
+    const P = {}, dud = [], conf = {}, est = {};
+    TRAZO_PUNTOS.forEach(p => { const q = res[CEPH.mapa[p.id]]; if(q){ P[p.id] = { x: q.x, y: q.y }; conf[p.id] = q.conf; if(q.conf < 0.35) dud.push(p.id); } });
+    TRAZO_EXTRA.forEach(p => { if(!p.a) return; const q = res[p.a]; if(q){ P[p.id] = { x: q.x, y: q.y }; conf[p.id] = q.conf; } });
+    const E = trazoEstimar(P); Object.keys(E).forEach(k => { P[k] = E[k]; est[k] = true; });
+    return { P: P, dud: dud, conf: conf, est: est };
+}
+function trazoReestimar(){
+    if(!tz) return; tz.est = tz.est || {};
+    const E = trazoEstimar(tz.pts); Object.keys(E).forEach(k => { if(!tz.pts[k] || tz.est[k]){ tz.pts[k] = E[k]; tz.est[k] = true; } });
+}
+
 async function trazoAuto(){
     if(!tz || !tz.img){ daToast('Primero abre una radiografía lateral.', 'err'); return; }
     if(tz._auto) return;
@@ -6120,7 +6285,7 @@ async function trazoAuto(){
         const yo = tz, res = await cephDetectar(tz.img);
         if(tz !== yo) return;
         tz.pts = {}; tz.hist = []; tz.calib = null; const dud = []; tz.autoConf = {};
-        TRAZO_PUNTOS.forEach(p => { const q = res[CEPH.mapa[p.id]]; if(!q) return; tz.pts[p.id] = { x: q.x, y: q.y }; tz.hist.push(p.id); tz.autoConf[p.id] = q.conf; if(q.conf < 0.35) dud.push(p.id); });
+        const T = trazoDesdeModelo(res); tz.pts = T.P; tz.est = T.est; tz.hist = Object.keys(T.P); tz.autoConf = T.conf; T.dud.forEach(x => dud.push(x));
         trazoSiguiente(); trazoChips(); trazoDibujar(); trazoResultados();
         const sg = ((Date.now() - t0) / 1000).toFixed(1);
         if(info) info.textContent = 'Puntos colocados en ' + sg + ' s. ' + (dud.length ? 'Revisa sobre todo: ' + dud.join(', ') + ' (el detector dudó). ' : '') + 'Para corregir uno: toca su botón y luego el lugar correcto. Después guarda.';
@@ -6148,24 +6313,28 @@ async function trazoCargar(fuente, pre){
         await new Promise((ok, ko) => { img.onload = ok; img.onerror = () => ko(new Error('Imagen no válida.')); img.src = url; });
         tz.img = img; tz.w = img.naturalWidth; tz.h = img.naturalHeight; tz.fuente = typeof fuente === 'string' ? fuente : '';
         tz.pts = {}; tz.hist = []; tz.idx = 0; tz.mmpx = null; tz.calib = null; tz.zoom = 1;
-        if(pre && pre.w === tz.w && pre.h === tz.h){ tz.pts = JSON.parse(JSON.stringify(pre.pts || {})); tz.mmpx = pre.mmpx || null; tz.hist = Object.keys(tz.pts); }
+        tz.est = {};
+        if(pre && pre.w === tz.w && pre.h === tz.h){ tz.pts = JSON.parse(JSON.stringify(pre.pts || {})); tz.mmpx = pre.mmpx || null; tz.hist = Object.keys(tz.pts); tz.est = Object.assign({}, pre.est || {}); trazoReestimar(); }
         trazoSiguiente();
         const cv = document.getElementById('trazoCanvas'); cv.width = tz.w; cv.height = tz.h; cv.style.width = '100%';
         trazoChips(); trazoDibujar(); trazoResultados();
     }catch(e){ if(info) info.textContent = '⚠️ ' + (e.message || e); }
 }
 function trazoSiguiente(){
-    const i = TRAZO_PUNTOS.findIndex(p => !tz.pts[p.id]);
-    tz.idx = i < 0 ? TRAZO_PUNTOS.length : i;
+    const i = TRAZO_TODOS.findIndex(p => !tz.pts[p.id]);
+    tz.idx = i < 0 ? TRAZO_TODOS.length : i;
     const info = document.getElementById('trazoInfo'); if(!info) return;
     if(tz.calib) info.textContent = '📏 Calibración: toca ' + (tz.calib.length === 0 ? 'el primer extremo' : 'el segundo extremo') + ' de la distancia conocida.';
-    else info.textContent = tz.idx < TRAZO_PUNTOS.length ? 'Siguiente: ' + TRAZO_PUNTOS[tz.idx].id + ' – ' + TRAZO_PUNTOS[tz.idx].n : '✅ Todos los puntos colocados. Revisa y guarda.';
+    else info.textContent = tz.idx < TRAZO_TODOS.length ? 'Siguiente: ' + TRAZO_TODOS[tz.idx].id + ' – ' + TRAZO_TODOS[tz.idx].n + (tz.idx >= TRAZO_PUNTOS.length ? ' (para Jarabak y Ricketts; puedes guardar sin él)' : '') : 'Todos los puntos colocados. Revisa y guarda.';
 }
 function trazoChips(){
     const c = document.getElementById('trazoChips'); if(!c) return;
-    c.innerHTML = TRAZO_PUNTOS.map((p, i) => `<button class="mesa-chip${tz.pts[p.id] ? ' on' : ''}${i === tz.idx ? ' sel' : ''}" title="${escAttr(p.n)}" style="${i === tz.idx ? 'outline:2px solid var(--accent);' : ''}" onclick="trazoElegir(${i})">${p.id}</button>`).join('');
+    const chip = (p, i) => `<button class="mesa-chip${tz.pts[p.id] ? ' on' : ''}${i === tz.idx ? ' sel' : ''}" title="${escAttr(p.n)}" style="${i === tz.idx ? 'outline:2px solid var(--accent);' : ''}${tz.est && tz.est[p.id] ? ' font-style:italic;' : ''}" onclick="trazoElegir(${i})">${p.id}${tz.est && tz.est[p.id] ? '~' : ''}</button>`;
+    c.innerHTML = '<div class="esc-sub" style="width:100%; margin:2px 0;">Steiner</div>' + TRAZO_PUNTOS.map((p, i) => chip(p, i)).join('')
+        + '<div class="esc-sub" style="width:100%; margin:6px 0 2px;">Jarabak y Ricketts (~ = estimado, tócalo y colócalo para corregir)</div>' + TRAZO_EXTRA.map((p, k) => chip(p, TRAZO_PUNTOS.length + k)).join('');
 }
-function trazoElegir(i){ tz.calib = null; tz.idx = i; trazoSiguiente(); tz.idx = i; const info = document.getElementById('trazoInfo'); info.textContent = (tz.pts[TRAZO_PUNTOS[i].id] ? 'Corrigiendo: ' : 'Siguiente: ') + TRAZO_PUNTOS[i].id + ' – ' + TRAZO_PUNTOS[i].n; trazoChips(); }
+
+function trazoElegir(i){ tz.calib = null; tz.idx = i; trazoSiguiente(); tz.idx = i; const info = document.getElementById('trazoInfo'); info.textContent = (tz.pts[TRAZO_TODOS[i].id] ? 'Corrigiendo: ' : 'Siguiente: ') + TRAZO_TODOS[i].id + ' – ' + TRAZO_TODOS[i].n + '. Toca el lugar correcto en la radiografía.'; trazoChips(); }
 function trazoZoom(d){
     const cv = document.getElementById('trazoCanvas'), wrap = document.getElementById('trazoWrap');
     tz.zoom = d === 0 ? 1 : Math.max(1, Math.min(4, tz.zoom + d));
@@ -6188,10 +6357,12 @@ function trazoClick(e){
         }else trazoSiguiente();
         trazoDibujar(); return;
     }
-    if(tz.idx >= TRAZO_PUNTOS.length) return;
-    const id = TRAZO_PUNTOS[tz.idx].id;
+    if(tz.idx >= TRAZO_TODOS.length) return;
+    const id = TRAZO_TODOS[tz.idx].id;
     if(!tz.pts[id]) tz.hist.push(id);
     tz.pts[id] = { x: x, y: y };
+    if(tz.est) delete tz.est[id];
+    trazoReestimar();
     trazoSiguiente(); trazoChips(); trazoDibujar(); trazoResultados();
 }
 function trazoDeshacer(){ if(!tz) return; const id = tz.hist.pop(); if(id) delete tz.pts[id]; tz.calib = null; trazoSiguiente(); trazoChips(); trazoDibujar(); trazoResultados(); }
@@ -6207,15 +6378,23 @@ function trazoPintarSobre(ctx, w, h, k, conTexto, m){
     trazoLinea(ctx, P.ANS, P.PNS, 'rgba(180,180,180,0.8)', lw);
     trazoLinea(ctx, P.U1A, P.U1, 'rgba(255,100,100,0.95)', lw * 1.3);
     trazoLinea(ctx, P.L1A, P.L1, 'rgba(80,220,200,0.95)', lw * 1.3);
+    // Jarabak (polígono) y Ricketts (Frankfort, plano facial, A-Pog, plano E, eje facial)
+    const fino = lw * 0.7;
+    trazoLinea(ctx, P.S, P.Ar, 'rgba(246,173,85,0.8)', fino); trazoLinea(ctx, P.Ar, P.Go, 'rgba(246,173,85,0.8)', fino);
+    trazoLinea(ctx, P.Po, P.Or, 'rgba(99,179,237,0.85)', fino); trazoLinea(ctx, P.N, P.Pog, 'rgba(160,174,192,0.8)', fino);
+    trazoLinea(ctx, P.A, P.Pog, 'rgba(252,129,129,0.7)', fino); trazoLinea(ctx, P.Pn, P.Pogs, 'rgba(246,224,94,0.85)', fino);
+    trazoLinea(ctx, P.Ba, P.N, 'rgba(160,174,192,0.6)', fino); trazoLinea(ctx, P.Pt, P.Gn, 'rgba(160,174,192,0.6)', fino);
+    trazoLinea(ctx, P.Xi, P.Pm, 'rgba(160,174,192,0.6)', fino); trazoLinea(ctx, P.Xi, P.ANS, 'rgba(160,174,192,0.45)', fino);
     if(tz.calib) tz.calib.forEach(q => { ctx.beginPath(); ctx.arc(q.x, q.y, 4 * k, 0, 6.3); ctx.fillStyle = '#ffd400'; ctx.fill(); });
     ctx.font = 'bold ' + Math.round(11 * k) + 'px sans-serif';
-    TRAZO_PUNTOS.forEach(pt => {
-        const q = P[pt.id]; if(!q) return;
-        ctx.beginPath(); ctx.arc(q.x, q.y, 3.4 * k, 0, 6.3); ctx.fillStyle = pt.c; ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = k; ctx.stroke();
-        ctx.fillStyle = '#fff'; ctx.fillText(pt.id, q.x + 5 * k, q.y - 5 * k);
+    TRAZO_TODOS.forEach((pt, ix) => {
+        const q = P[pt.id]; if(!q) return; const ext = ix >= TRAZO_PUNTOS.length, e = tz.est && tz.est[pt.id];
+        ctx.beginPath(); ctx.arc(q.x, q.y, (ext ? 2.6 : 3.4) * k, 0, 6.3); ctx.fillStyle = pt.c; ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = k; ctx.stroke();
+        ctx.fillStyle = ext ? 'rgba(255,255,255,0.85)' : '#fff'; ctx.fillText(pt.id + (e ? '~' : ''), q.x + 5 * k, q.y - 5 * k);
     });
     if(conTexto && m){
-        const filas = Object.keys(TRAZO_REF).filter(x => m[x] != null).map(x => TRAZO_REF[x][2] + ' ' + m[x] + TRAZO_REF[x][3]);
+        const filas = Object.keys(TRAZO_REF).filter(x => m[x] != null).map(x => TRAZO_REF[x][2] + ' ' + m[x] + TRAZO_REF[x][3])
+            .concat(m.j_ind != null ? ['Jarabak ' + m.j_ind + ' %'] : []).concat(m.j_suma != null ? ['Björk ' + m.j_suma + '°'] : []).concat(m.r_eje != null ? ['Eje facial ' + m.r_eje + '°'] : []).concat(m.r_conv != null ? ['Convexidad ' + m.r_conv + ' mm'] : []);
         const fs = Math.round(h / 55);
         ctx.font = 'bold ' + fs + 'px sans-serif';
         ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(8, 8, fs * 11, fs * 1.4 * filas.length + fs * 0.8);
@@ -6239,7 +6418,8 @@ function trazoResultados(){
     const interp = trazoInterpretar(m);
     el.innerHTML = filas ? `<table style="width:100%; border-collapse:collapse; font-size:0.82rem;"><tr style="color:var(--primary);"><th style="text-align:left; padding:3px 6px;">Medida</th><th style="text-align:left;">Valor</th><th style="text-align:left;">Norma</th><th style="text-align:left;">Estado</th></tr>${filas}</table>
         ${tz.mmpx ? '' : '<div class="esc-sub">Para ver los mm (1-NA, 1-NB, Pog-NB) usa 📏 Calibrar.</div>'}
-        <div style="margin-top:8px; font-size:0.85rem;">${interp.map(t => '• ' + escHtml(t)).join('<br>')}</div>` : '<div class="esc-sub">Coloca al menos S, N, A y B para ver medidas.</div>';
+        <div style="margin-top:8px; font-size:0.85rem;">${interp.map(t => '• ' + escHtml(t)).join('<br>')}</div>
+        ${trazoAnalisisHtml(m, iaEdadDe(pacientes[tz.nombre] || {}), (mesa && mesa.nombre === tz.nombre) ? mesa.d : null)}` : '<div class="esc-sub">Coloca al menos S, N, A y B para ver medidas.</div>';
 }
 async function trazoGuardar(){
     if(!tz || !tz.img) return;
@@ -6254,7 +6434,7 @@ async function trazoGuardar(){
         if(!confirm('Los ángulos de los incisivos salieron fuera de lo posible (U1-NA ' + m.u1na + '°, L1-NB ' + m.l1nb + '°). Revisa los 4 puntos de los incisivos: corona y ápice del superior, corona y ápice del inferior. ¿Guardar de todos modos?')) return;
     }
     p.trazadoValores = trazoTexto(m, tz.mmpx);
-    p.trazadoPuntos = { url: tz.fuente || '', w: tz.w, h: tz.h, pts: JSON.parse(JSON.stringify(P)), mmpx: tz.mmpx || null, m: m, v2: true, fecha: Date.now() };
+    p.trazadoPuntos = { url: tz.fuente || '', w: tz.w, h: tz.h, pts: JSON.parse(JSON.stringify(P)), est: Object.assign({}, tz.est || {}), mmpx: tz.mmpx || null, m: m, v2: true, fecha: Date.now() };
     let subida = true;
     try{
         const cv = document.createElement('canvas'); cv.width = tz.w; cv.height = tz.h;
@@ -6525,11 +6705,11 @@ async function trazoAutoGuardar(nombre, est){
     const blob = await r.blob(), img = new Image(), u = URL.createObjectURL(blob);
     await new Promise((ok, ko) => { img.onload = ok; img.onerror = () => ko(new Error('La lateral no es una imagen válida.')); img.src = u; });
     const res = await cephDetectar(img), P = {}, dud = [];
-    TRAZO_PUNTOS.forEach(pt => { const q = res[CEPH.mapa[pt.id]]; if(q){ P[pt.id] = { x: q.x, y: q.y }; if(q.conf < 0.35) dud.push(pt.id); } });
+    const T = trazoDesdeModelo(res); Object.assign(P, T.P); T.dud.forEach(x => dud.push(x));
     const m = trazoMedir(P, null), w = img.naturalWidth, h = img.naturalHeight;
     p.trazadoValores = trazoTexto(m, null);
-    p.trazadoPuntos = { url: est.url, w: w, h: h, pts: P, mmpx: null, m: m, v2: true, fecha: Date.now(), auto: true, dudosos: dud };
-    const prev = tz; tz = { pts: P, calib: null };
+    p.trazadoPuntos = { url: est.url, w: w, h: h, pts: P, mmpx: null, m: m, v2: true, fecha: Date.now(), auto: true, dudosos: dud, est: T.est };
+    const prev = tz; tz = { pts: P, calib: null, est: T.est };
     try{
         const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
         const ctx = cv.getContext('2d'); ctx.drawImage(img, 0, 0);
