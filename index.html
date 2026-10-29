@@ -2781,7 +2781,7 @@
             return d <= 0 ? 'hoy' : (d === 1 ? 'ayer' : 'hace ' + d + ' d');
         }
         function usaSmile(nombre){ const u = usoSmile[nombre]; return !!(u && u.ts); }
-        const DA_VERSION = 'v92';
+        const DA_VERSION = 'v93';
         window.addEventListener('load', () => document.querySelectorAll('.da-ver-txt').forEach(e => e.textContent = 'DentiAgenda ' + DA_VERSION));
         // Texto del estado de SmileLike para un paciente (usa lo guardado; abajo se refresca solo ese paciente)
         function textoEstadoSmile(nombre){
@@ -5006,7 +5006,8 @@ function trazoInterpHtml(m){
     if(!m) return '';
     const col = { normal: '#2f855a', aumentado: '#c05621', disminuido: '#2b6cb0' };
     const val = k => { const v = m[k], R = TRAZO_REF[k]; if(v == null || !R) return ''; const e = trazoEstado(k, v);
-        return `<div style="display:flex; justify-content:space-between; gap:6px; font-size:0.78rem; padding:1px 0;"><span>${R[2]}${R[3] === ' mm' ? ' (mm)' : ''}</span><span><b>${v}${R[3]}</b> <span style="color:${col[e] || 'inherit'};">${e}</span></span></div>`; };
+        const it = trazoInterpK(k, v);
+        return `<div style="display:flex; justify-content:space-between; gap:6px; font-size:0.78rem; padding:1px 0;"><span>${R[2]}${R[3] === ' mm' ? ' (mm)' : ''}</span><span style="text-align:right;"><b>${v}${R[3]}</b> <span style="color:${col[e] || 'inherit'};">${e}</span>${it ? '<br><i style="color:var(--text-muted);">' + escHtml(it) + '</i>' : ''}</span></div>`; };
     const inc = (v, hi, lo) => ({ pro: 'proinclinado', retro: 'retroinclinado', normal: 'bien inclinado' }[trazoIncl(v, hi, lo)] || '');
     const esq = [], den = [], cl = trazoClase(m);
     if(cl){
@@ -5039,10 +5040,10 @@ function trazoVert(m, edad){
 function trazoAnalisisHtml(m, edad, dPano){
     if(!m) return '';
     const col = { normal: '#2f855a', aumentado: '#c05621', disminuido: '#2b6cb0' };
-    const fila = k => { const v = m[k], R = trazoNorma(k, edad); if(v == null || !R) return ''; const e = trazoEstadoX(k, v, edad);
-        return `<div style="display:flex; justify-content:space-between; gap:6px; font-size:0.78rem; padding:1px 0;"><span>${escHtml(R[2])}</span><span><b>${v}${R[3]}</b>${R[0] != null ? ` <span class="esc-sub">(${R[0]}${R[1] != null ? ' ± ' + R[1] : ''})</span> <span style="color:${col[e] || 'inherit'};">${e}</span>` : ''}</span></div>`; };
+    const fila = k => { const v = m[k], R = trazoNorma(k, edad); if(v == null || !R) return ''; const e = trazoEstadoX(k, v, edad), it = trazoInterpK(k, v, edad);
+        return `<tr><td style="padding:3px 6px;">${escHtml(R[2])}</td><td style="padding:3px 6px; white-space:nowrap;"><b>${v}${R[3]}</b></td><td style="padding:3px 6px; color:var(--text-muted); white-space:nowrap;">${R[0] != null ? R[0] + (R[1] != null ? ' ± ' + R[1] : '') : ''}</td><td style="padding:3px 6px; color:${col[e] || 'inherit'};">${e}</td><td style="padding:3px 6px;">${escHtml(it)}</td></tr>`; };
     const caja = (t, sub, L, ks) => { const f = ks.map(fila).join(''); if(!f && !L.length) return '';
-        return `<div style="margin-top:10px;"><div style="font-size:0.84rem; font-weight:bold; color:var(--primary);">${t}${sub ? ' <span class="esc-sub" style="font-weight:normal;">' + sub + '</span>' : ''}</div>${L.map(x => `<div style="font-size:0.8rem; margin:2px 0;">${escHtml(x)}</div>`).join('')}${f ? `<div style="margin-top:4px; padding:4px 6px; border-radius:6px; background:rgba(0,0,0,.04);">${f}</div>` : ''}</div>`; };
+        return `<div style="margin-top:12px;"><div style="font-size:0.86rem; font-weight:bold; color:var(--primary);">${t}${sub ? ' <span class="esc-sub" style="font-weight:normal;">' + sub + '</span>' : ''}</div>${f ? `<div style="overflow-x:auto;"><table style="width:100%; border-collapse:collapse; font-size:0.8rem; margin-top:4px;"><tr style="color:var(--primary);"><th style="text-align:left; padding:3px 6px;">Medida</th><th style="text-align:left; padding:3px 6px;">Valor</th><th style="text-align:left; padding:3px 6px;">Norma</th><th style="text-align:left; padding:3px 6px;">Estado</th><th style="text-align:left; padding:3px 6px;">Interpretación</th></tr>${f}</table></div>` : ''}${L.map(x => `<div style="font-size:0.8rem; margin:2px 0;">• ${escHtml(x)}</div>`).join('')}</div>`; };
     // ---- Jarabak
     const J = [];
     if(m.j_ind != null) J.push('Índice de Jarabak ' + m.j_ind + ' %: ' + (m.j_ind < 59 ? 'crecimiento VERTICAL (rotación horaria, hiperdivergente).' : m.j_ind > 65 ? 'crecimiento HORIZONTAL (rotación antihoraria, hipodivergente).' : 'crecimiento neutro.'));
@@ -6031,6 +6032,34 @@ const TRAZO_REF_R = {
     r_u1apog: [3.5, 2.3, 'Incisivo superior a A-Pog', ' mm', 0], r_l1apog: [1, 2.3, 'Incisivo inferior a A-Pog', ' mm', 0], r_l1ang: [22, 4, 'Inclinación del incisivo inferior a A-Pog', '°', 0],
     r_u6ptv: [null, 3, 'Molar superior a PTV', ' mm', 0], r_labio: [-2, 2, 'Labio inferior al plano E', ' mm', -0.2], r_defl: [27, 3, 'Deflexión craneal (Ba-N / FH)', '°', 0]
 };
+// Interpretación clínica corta de cada medida: [si está aumentada, si está disminuida, si está en norma]
+const TRAZO_INTERP = {
+    sna: ['maxilar protruido', 'maxilar retruido', 'maxilar en norma'], snb: ['mandíbula protruida', 'mandíbula retruida', 'mandíbula en norma'],
+    snmp: ['crecimiento vertical (hiperdivergente)', 'crecimiento horizontal (hipodivergente)', 'normodivergente'], snpp: ['plano palatino rotado en sentido horario', 'plano palatino rotado en sentido antihorario', 'plano palatino en norma'],
+    u1na: ['incisivo superior proinclinado', 'incisivo superior retroinclinado', 'inclinación en norma'], u1nam: ['incisivo superior protruido', 'incisivo superior retruido', 'posición en norma'],
+    l1nb: ['incisivo inferior proinclinado', 'incisivo inferior retroinclinado', 'inclinación en norma'], l1nbm: ['incisivo inferior protruido', 'incisivo inferior retruido', 'posición en norma'],
+    ii: ['incisivos verticalizados', 'biprotrusión dental', 'relación interincisal en norma'], pognb: ['mentón prominente', 'mentón poco prominente', 'mentón en norma'],
+    j_silla: ['favorece retrusión mandibular', 'favorece protrusión mandibular', 'en norma'], j_art: ['favorece retrusión mandibular', 'favorece protrusión mandibular', 'en norma'],
+    j_gon: ['favorece crecimiento vertical', 'favorece crecimiento horizontal', 'en norma'], j_gsup: ['favorece crecimiento horizontal', 'menor tendencia horizontal', 'en norma'],
+    j_ginf: ['favorece crecimiento vertical', 'favorece crecimiento horizontal', 'en norma'], j_suma: ['rotación horaria (crecimiento vertical)', 'rotación antihoraria (crecimiento horizontal)', 'rotación neutra'],
+    j_sn: ['base craneal anterior larga', 'base craneal anterior corta', 'en norma'], j_sar: ['base craneal posterior larga', 'base craneal posterior corta', 'en norma'],
+    j_argo: ['rama larga', 'rama corta', 'en norma'], j_gome: ['cuerpo mandibular largo', 'cuerpo mandibular corto', 'en norma'], j_cuerpo: ['cuerpo mandibular largo', 'cuerpo mandibular corto', 'proporción 1:1'],
+    r_eje: ['crecimiento horizontal (braquifacial)', 'crecimiento vertical (dolicofacial)', 'crecimiento equilibrado'], r_prof: ['mandíbula adelantada', 'mandíbula retrasada', 'mandíbula en norma'],
+    r_pm: ['patrón vertical (dolicofacial)', 'patrón horizontal (braquifacial)', 'en norma'], r_afi: ['tercio inferior aumentado (tendencia a mordida abierta)', 'tercio inferior disminuido (tendencia a mordida profunda)', 'en norma'],
+    r_arco: ['mandíbula de crecimiento horizontal', 'mandíbula de crecimiento vertical', 'en norma'], r_conv: ['perfil convexo (Clase II)', 'perfil cóncavo (Clase III)', 'Clase I'],
+    r_profmax: ['maxilar adelantado', 'maxilar retrasado', 'maxilar en norma'], r_u1apog: ['incisivo superior protruido', 'incisivo superior retruido', 'en norma'],
+    r_l1apog: ['incisivo inferior protruido', 'incisivo inferior retruido', 'en norma'], r_l1ang: ['incisivo inferior proinclinado', 'incisivo inferior retroinclinado', 'en norma'],
+    r_u6ptv: ['molar adelantado (hay margen para distalizar)', 'molar atrás (poco margen para distalizar)', 'en norma'], r_labio: ['labio protrusivo', 'labio retrusivo', 'en norma'],
+    r_defl: ['base de cráneo inclinada (favorece Clase III)', 'base de cráneo plana (favorece Clase II)', 'en norma']
+};
+function trazoInterpK(k, v, edad){
+    if(v == null) return '';
+    if(k === 'anb') return v > 4 ? 'Clase II esquelética' : (v < 0 ? 'Clase III esquelética' : 'Clase I esquelética');
+    if(k === 'j_ind') return v < 59 ? 'crecimiento vertical' : (v > 65 ? 'crecimiento horizontal' : 'crecimiento neutro');
+    const I = TRAZO_INTERP[k]; if(!I) return '';
+    const e = TRAZO_REF[k] ? trazoEstado(k, v) : trazoEstadoX(k, v, edad);
+    return e === 'aumentado' ? I[0] : (e === 'disminuido' ? I[1] : (e === 'normal' ? I[2] : ''));
+}
 function trazoNorma(k, edad){
     if(TRAZO_REF[k]) return TRAZO_REF[k];
     if(TRAZO_REF_J[k]) return TRAZO_REF_J[k];
@@ -6413,10 +6442,10 @@ function trazoResultados(){
     const m = trazoMedir(tz.pts, tz.mmpx);
     const filas = Object.keys(TRAZO_REF).filter(k => m[k] != null).map(k => {
         const e = trazoEstado(k, m[k]), col = e === 'normal' ? '#2f855a' : '#c05621';
-        return `<tr><td style="padding:3px 6px;">${TRAZO_REF[k][2]}${TRAZO_REF[k][3] === ' mm' ? ' (mm)' : ''}</td><td style="padding:3px 6px;"><b>${m[k]}${TRAZO_REF[k][3]}</b></td><td style="padding:3px 6px; color:var(--text-muted);">${TRAZO_REF[k][0]} ± ${TRAZO_REF[k][1]}</td><td style="padding:3px 6px; color:${col};">${e}</td></tr>`;
+        return `<tr><td style="padding:3px 6px;">${TRAZO_REF[k][2]}${TRAZO_REF[k][3] === ' mm' ? ' (mm)' : ''}</td><td style="padding:3px 6px;"><b>${m[k]}${TRAZO_REF[k][3]}</b></td><td style="padding:3px 6px; color:var(--text-muted);">${TRAZO_REF[k][0]} ± ${TRAZO_REF[k][1]}</td><td style="padding:3px 6px; color:${col};">${e}</td><td style="padding:3px 6px;">${escHtml(trazoInterpK(k, m[k]))}</td></tr>`;
     }).join('');
     const interp = trazoInterpretar(m);
-    el.innerHTML = filas ? `<table style="width:100%; border-collapse:collapse; font-size:0.82rem;"><tr style="color:var(--primary);"><th style="text-align:left; padding:3px 6px;">Medida</th><th style="text-align:left;">Valor</th><th style="text-align:left;">Norma</th><th style="text-align:left;">Estado</th></tr>${filas}</table>
+    el.innerHTML = filas ? `<table style="width:100%; border-collapse:collapse; font-size:0.82rem;"><tr style="color:var(--primary);"><th style="text-align:left; padding:3px 6px;">Medida</th><th style="text-align:left;">Valor</th><th style="text-align:left;">Norma</th><th style="text-align:left;">Estado</th><th style="text-align:left;">Interpretación</th></tr>${filas}</table>
         ${tz.mmpx ? '' : '<div class="esc-sub">Para ver los mm (1-NA, 1-NB, Pog-NB) usa 📏 Calibrar.</div>'}
         <div style="margin-top:8px; font-size:0.85rem;">${interp.map(t => '• ' + escHtml(t)).join('<br>')}</div>
         ${trazoAnalisisHtml(m, iaEdadDe(pacientes[tz.nombre] || {}), (mesa && mesa.nombre === tz.nombre) ? mesa.d : null)}` : '<div class="esc-sub">Coloca al menos S, N, A y B para ver medidas.</div>';
