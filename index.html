@@ -267,6 +267,8 @@
     .fdi-n{font-size:8px; line-height:1; font-weight:bold; color:#fff; background:rgba(15,23,42,.6); padding:2px 3px; border-radius:3px; cursor:pointer; z-index:2}
   #cariesVer .fdi-n{font-size:11px; padding:2px 3px; background:rgba(15,23,42,.75)}
   .fdi-n:hover{background:var(--accent)}
+  .trz-t .it-m{display:none}
+  @media (max-width: 640px){ .trz-t th:nth-child(5), .trz-t td:nth-child(5){display:none} .trz-t .it-m{display:block; color:var(--text-muted); font-style:italic; font-size:0.74rem; line-height:1.2} .trz-t td, .trz-t th{padding:3px 4px !important} }
 </style>
 </head>
 <body>
@@ -2781,7 +2783,7 @@
             return d <= 0 ? 'hoy' : (d === 1 ? 'ayer' : 'hace ' + d + ' d');
         }
         function usaSmile(nombre){ const u = usoSmile[nombre]; return !!(u && u.ts); }
-        const DA_VERSION = 'v93';
+        const DA_VERSION = 'v94';
         window.addEventListener('load', () => document.querySelectorAll('.da-ver-txt').forEach(e => e.textContent = 'DentiAgenda ' + DA_VERSION));
         // Texto del estado de SmileLike para un paciente (usa lo guardado; abajo se refresca solo ese paciente)
         function textoEstadoSmile(nombre){
@@ -5037,31 +5039,9 @@ function trazoVert(m, edad){
     return { v: v, t: t, n: z.length };
 }
 // Jarabak, Ricketts y diagnóstico tentativo (con los hallazgos de la panorámica si están a la mano)
-function trazoAnalisisHtml(m, edad, dPano){
-    if(!m) return '';
-    const col = { normal: '#2f855a', aumentado: '#c05621', disminuido: '#2b6cb0' };
-    const fila = k => { const v = m[k], R = trazoNorma(k, edad); if(v == null || !R) return ''; const e = trazoEstadoX(k, v, edad), it = trazoInterpK(k, v, edad);
-        return `<tr><td style="padding:3px 6px;">${escHtml(R[2])}</td><td style="padding:3px 6px; white-space:nowrap;"><b>${v}${R[3]}</b></td><td style="padding:3px 6px; color:var(--text-muted); white-space:nowrap;">${R[0] != null ? R[0] + (R[1] != null ? ' ± ' + R[1] : '') : ''}</td><td style="padding:3px 6px; color:${col[e] || 'inherit'};">${e}</td><td style="padding:3px 6px;">${escHtml(it)}</td></tr>`; };
-    const caja = (t, sub, L, ks) => { const f = ks.map(fila).join(''); if(!f && !L.length) return '';
-        return `<div style="margin-top:12px;"><div style="font-size:0.86rem; font-weight:bold; color:var(--primary);">${t}${sub ? ' <span class="esc-sub" style="font-weight:normal;">' + sub + '</span>' : ''}</div>${f ? `<div style="overflow-x:auto;"><table style="width:100%; border-collapse:collapse; font-size:0.8rem; margin-top:4px;"><tr style="color:var(--primary);"><th style="text-align:left; padding:3px 6px;">Medida</th><th style="text-align:left; padding:3px 6px;">Valor</th><th style="text-align:left; padding:3px 6px;">Norma</th><th style="text-align:left; padding:3px 6px;">Estado</th><th style="text-align:left; padding:3px 6px;">Interpretación</th></tr>${f}</table></div>` : ''}${L.map(x => `<div style="font-size:0.8rem; margin:2px 0;">• ${escHtml(x)}</div>`).join('')}</div>`; };
-    // ---- Jarabak
-    const J = [];
-    if(m.j_ind != null) J.push('Índice de Jarabak ' + m.j_ind + ' %: ' + (m.j_ind < 59 ? 'crecimiento VERTICAL (rotación horaria, hiperdivergente).' : m.j_ind > 65 ? 'crecimiento HORIZONTAL (rotación antihoraria, hipodivergente).' : 'crecimiento neutro.'));
-    if(m.j_suma != null) J.push('Suma de Björk ' + m.j_suma + '°: ' + (m.j_suma > 402 ? 'patrón de rotación horaria (vertical).' : m.j_suma < 390 ? 'patrón de rotación antihoraria (horizontal).' : 'en norma.'));
-    if(m.j_gsup != null && m.j_ginf != null) J.push('Goníaco superior ' + m.j_gsup + '° / inferior ' + m.j_ginf + '°' + (m.j_ginf > 75 ? ': el inferior abierto favorece crecimiento vertical.' : m.j_gsup > 55 ? ': el superior abierto favorece crecimiento horizontal.' : '.'));
-    if(m.j_cuerpo != null) J.push('Cuerpo mandibular / base anterior ' + m.j_cuerpo + (m.j_cuerpo < 0.95 ? ': cuerpo mandibular corto.' : m.j_cuerpo > 1.05 ? ': cuerpo mandibular largo.' : ': proporción 1:1, en norma.'));
-    const jH = caja('Jarabak', m.j_sn == null ? '(los mm necesitan calibrar con la regla)' : '', J, ['j_silla', 'j_art', 'j_gon', 'j_gsup', 'j_ginf', 'j_suma', 'j_ind', 'j_cuerpo', 'j_sn', 'j_sar', 'j_argo', 'j_gome', 'j_sgo', 'j_nme']);
-    // ---- Ricketts
-    const Rk = [], vt = trazoVert(m, edad), es = k => trazoEstadoX(k, m[k], edad);
-    if(vt) Rk.push('Biotipo (VERT ' + (vt.v > 0 ? '+' : '') + vt.v + ', ' + vt.n + ' factores): ' + vt.t + '.');
-    if(m.r_conv != null) Rk.push('Convexidad ' + m.r_conv + ' mm: ' + ({ aumentado: 'perfil convexo, tendencia a Clase II esquelética', disminuido: 'perfil cóncavo, tendencia a Clase III esquelética', normal: 'relación maxilomandibular en norma' }[es('r_conv')] || '') + '.');
-    if(m.r_prof != null) Rk.push('Profundidad facial ' + m.r_prof + '°: mandíbula ' + ({ aumentado: 'adelantada', disminuido: 'retrasada', normal: 'en norma' }[es('r_prof')] || '') + ' respecto a Frankfort.');
-    if(m.r_profmax != null) Rk.push('Profundidad maxilar ' + m.r_profmax + '°: maxilar ' + ({ aumentado: 'adelantado', disminuido: 'retrasado', normal: 'en norma' }[es('r_profmax')] || '') + '.');
-    if(m.r_l1apog != null) Rk.push('Incisivo inferior a A-Pog ' + m.r_l1apog + ' mm: ' + ({ aumentado: 'adelantado (protrusión dental inferior)', disminuido: 'retrasado', normal: 'en norma' }[es('r_l1apog')] || '') + '.');
-    if(m.r_u6ptv != null) Rk.push('Molar superior a PTV ' + m.r_u6ptv + ' mm (norma para la edad ' + trazoNorma('r_u6ptv', edad)[0] + '): ' + ({ aumentado: 'molar adelantado; hay margen para distalizar', disminuido: 'molar atrás; poco margen para distalizar', normal: 'en norma' }[es('r_u6ptv')] || '') + '.');
-    if(m.r_labio != null) Rk.push('Labio inferior al plano E ' + m.r_labio + ' mm: ' + ({ aumentado: 'labio protrusivo', disminuido: 'labio retrusivo', normal: 'en norma' }[es('r_labio')] || '') + '.');
-    const rH = caja('Ricketts resumido', 'normas ajustadas a ' + (edad > 0 ? edad + ' años' : 'una edad estimada de 12 años') + (m.r_conv == null ? '; los mm necesitan calibrar con la regla' : ''), Rk, ['r_eje', 'r_prof', 'r_pm', 'r_afi', 'r_arco', 'r_conv', 'r_profmax', 'r_u1apog', 'r_l1apog', 'r_l1ang', 'r_u6ptv', 'r_labio', 'r_defl']);
-    // ---- Diagnóstico tentativo
+function trazoDiagLineas(m, edad, dPano){
+    if(!m) return [];
+    const es = k => trazoEstadoX(k, m[k], edad), vt = trazoVert(m, edad);
     const D = [], cl = trazoClase(m), rc = m.r_conv != null ? es('r_conv') : '';
     if(cl){ const rcl = rc === 'aumentado' ? 'II' : rc === 'disminuido' ? 'III' : rc === 'normal' ? 'I' : '';
         D.push('Clase ' + cl + ' esquelética (ANB ' + m.anb + '°)' + (rcl ? (rcl === cl ? ', confirmada por la convexidad de Ricketts' : '; la convexidad de Ricketts sugiere Clase ' + rcl + ': revisa la base de cráneo (S-N) y la posición de N') : '') + '.'); }
@@ -5082,8 +5062,46 @@ function trazoAnalisisHtml(m, edad, dPano){
         if(otros.length) L.push(otros.join(', '));
         if(L.length) D.push('Panorámica: ' + L.join('; ') + '.');
     }
+    return D;
+}
+function trazoAnalisisHtml(m, edad, dPano, steinerHtml){
+    if(!m) return '';
+    const col = { normal: '#2f855a', aumentado: '#c05621', disminuido: '#2b6cb0' };
+    const fila = k => { const v = m[k], R = trazoNorma(k, edad); if(v == null || !R) return ''; const e = trazoEstadoX(k, v, edad), it = trazoInterpK(k, v, edad);
+        return `<tr><td style="padding:3px 6px;">${escHtml(R[2])}</td><td style="padding:3px 6px; white-space:nowrap;"><b>${v}${R[3]}</b></td><td style="padding:3px 6px; color:var(--text-muted); white-space:nowrap;">${R[0] != null ? R[0] + (R[1] != null ? ' ± ' + R[1] : '') : ''}</td><td style="padding:3px 6px; color:${col[e] || 'inherit'};">${e}<div class="it-m">${escHtml(it)}</div></td><td style="padding:3px 6px;">${escHtml(it)}</td></tr>`; };
+    const caja = (t, sub, L, ks) => { const f = ks.map(fila).join(''); if(!f && !L.length) return '';
+        return `<div style="margin-top:12px;"><div style="font-size:0.86rem; font-weight:bold; color:var(--primary);">${t}${sub ? ' <span class="esc-sub" style="font-weight:normal;">' + sub + '</span>' : ''}</div>${f ? `<div style="overflow-x:auto;"><table class="trz-t" style="width:100%; border-collapse:collapse; font-size:0.8rem; margin-top:4px;"><tr style="color:var(--primary);"><th style="text-align:left; padding:3px 6px;">Medida</th><th style="text-align:left; padding:3px 6px;">Valor</th><th style="text-align:left; padding:3px 6px;">Norma</th><th style="text-align:left; padding:3px 6px;">Estado</th><th style="text-align:left; padding:3px 6px;">Interpretación</th></tr>${f}</table></div>` : ''}${L.map(x => `<div style="font-size:0.8rem; margin:2px 0;">• ${escHtml(x)}</div>`).join('')}</div>`; };
+    // ---- Jarabak
+    const J = [];
+    if(m.j_ind != null) J.push('Índice de Jarabak ' + m.j_ind + ' %: ' + (m.j_ind < 59 ? 'crecimiento VERTICAL (rotación horaria, hiperdivergente).' : m.j_ind > 65 ? 'crecimiento HORIZONTAL (rotación antihoraria, hipodivergente).' : 'crecimiento neutro.'));
+    if(m.j_suma != null) J.push('Suma de Björk ' + m.j_suma + '°: ' + (m.j_suma > 402 ? 'patrón de rotación horaria (vertical).' : m.j_suma < 390 ? 'patrón de rotación antihoraria (horizontal).' : 'en norma.'));
+    if(m.j_gsup != null && m.j_ginf != null) J.push('Goníaco superior ' + m.j_gsup + '° / inferior ' + m.j_ginf + '°' + (m.j_ginf > 75 ? ': el inferior abierto favorece crecimiento vertical.' : m.j_gsup > 55 ? ': el superior abierto favorece crecimiento horizontal.' : '.'));
+    if(m.j_cuerpo != null) J.push('Cuerpo mandibular / base anterior ' + m.j_cuerpo + (m.j_cuerpo < 0.95 ? ': cuerpo mandibular corto.' : m.j_cuerpo > 1.05 ? ': cuerpo mandibular largo.' : ': proporción 1:1, en norma.'));
+    const jH = caja('Jarabak', m.j_sn == null ? '(los mm necesitan calibrar con la regla)' : '', J, ['j_silla', 'j_art', 'j_gon', 'j_gsup', 'j_ginf', 'j_suma', 'j_ind', 'j_cuerpo', 'j_sn', 'j_sar', 'j_argo', 'j_gome', 'j_sgo', 'j_nme']);
+    // ---- Ricketts
+    const Rk = [], vt = trazoVert(m, edad), es = k => trazoEstadoX(k, m[k], edad);
+    if(vt) Rk.push('Biotipo (VERT ' + (vt.v > 0 ? '+' : '') + vt.v + ', ' + vt.n + ' factores): ' + vt.t + '.');
+    if(m.r_conv != null) Rk.push('Convexidad ' + m.r_conv + ' mm: ' + ({ aumentado: 'perfil convexo, tendencia a Clase II esquelética', disminuido: 'perfil cóncavo, tendencia a Clase III esquelética', normal: 'relación maxilomandibular en norma' }[es('r_conv')] || '') + '.');
+    if(m.r_prof != null) Rk.push('Profundidad facial ' + m.r_prof + '°: mandíbula ' + ({ aumentado: 'adelantada', disminuido: 'retrasada', normal: 'en norma' }[es('r_prof')] || '') + ' respecto a Frankfort.');
+    if(m.r_profmax != null) Rk.push('Profundidad maxilar ' + m.r_profmax + '°: maxilar ' + ({ aumentado: 'adelantado', disminuido: 'retrasado', normal: 'en norma' }[es('r_profmax')] || '') + '.');
+    if(m.r_l1apog != null) Rk.push('Incisivo inferior a A-Pog ' + m.r_l1apog + ' mm: ' + ({ aumentado: 'adelantado (protrusión dental inferior)', disminuido: 'retrasado', normal: 'en norma' }[es('r_l1apog')] || '') + '.');
+    if(m.r_u6ptv != null) Rk.push('Molar superior a PTV ' + m.r_u6ptv + ' mm (norma para la edad ' + trazoNorma('r_u6ptv', edad)[0] + '): ' + ({ aumentado: 'molar adelantado; hay margen para distalizar', disminuido: 'molar atrás; poco margen para distalizar', normal: 'en norma' }[es('r_u6ptv')] || '') + '.');
+    if(m.r_labio != null) Rk.push('Labio inferior al plano E ' + m.r_labio + ' mm: ' + ({ aumentado: 'labio protrusivo', disminuido: 'labio retrusivo', normal: 'en norma' }[es('r_labio')] || '') + '.');
+    const rH = caja('Ricketts resumido', 'normas ajustadas a ' + (edad > 0 ? edad + ' años' : 'una edad estimada de 12 años') + (m.r_conv == null ? '; los mm necesitan calibrar con la regla' : ''), Rk, ['r_eje', 'r_prof', 'r_pm', 'r_afi', 'r_arco', 'r_conv', 'r_profmax', 'r_u1apog', 'r_l1apog', 'r_l1ang', 'r_u6ptv', 'r_labio', 'r_defl']);
+    const D = trazoDiagLineas(m, edad, dPano);
     const dH = D.length ? `<div style="margin-top:12px; padding:8px; border-radius:8px; border:1.5px solid var(--accent);"><div style="font-size:0.86rem; font-weight:bold; color:var(--accent);">Diagnóstico tentativo</div>${D.map(x => `<div style="font-size:0.8rem; margin:3px 0;">• ${escHtml(x)}</div>`).join('')}<div class="esc-sub" style="margin-top:4px;">Apoyo para tu diagnóstico, no lo sustituye. Los puntos marcados con ~ son estimados: verifícalos.</div></div>` : '';
-    return jH + rH + dH;
+    // pestañas: un análisis a la vista; el diagnóstico tentativo siempre abajo
+    const tabs = [['st', 'Steiner', steinerHtml || ''], ['ri', 'Ricketts', rH], ['ja', 'Jarabak', jH]].filter(t => t[2]);
+    if(!tabs.length) return dH;
+    const sel = tabs.some(t => t[0] === window._trazoTab) ? window._trazoTab : tabs[0][0];
+    return `<div class="trz-tabs" style="display:flex; gap:6px; flex-wrap:wrap; margin:8px 0 4px;">${tabs.map(t => `<button class="esc-mini${t[0] === sel ? ' on' : ''}" data-t="${t[0]}" onclick="trazoTab(this)">${t[1]}</button>`).join('')}</div>`
+        + tabs.map(t => `<div class="trz-pane" data-t="${t[0]}" style="display:${t[0] === sel ? 'block' : 'none'};">${t[2]}</div>`).join('') + dH;
+}
+function trazoTab(btn){
+    const t = btn.dataset.t; window._trazoTab = t;
+    const box = btn.closest('.trz-tabs').parentElement;
+    box.querySelectorAll(':scope > .trz-tabs > button').forEach(b => b.classList.toggle('on', b.dataset.t === t));
+    box.querySelectorAll(':scope > .trz-pane').forEach(p => { p.style.display = p.dataset.t === t ? 'block' : 'none'; });
 }
 
 function trazoTarjeta(nombre, p){
@@ -5096,8 +5114,7 @@ function trazoTarjeta(nombre, p){
             <div style="font-size:0.82rem; font-weight:bold; color:var(--text-main);">${escHtml(nombre)} · Steiner${fecha ? ' · ' + new Date(fecha).toLocaleDateString('es-MX') : ''}</div>
             ${tp && tp.auto ? `<div style="font-size:0.76rem; color:#b7791f; margin-top:2px;">Trazado automático sin verificar${(tp.dudosos || []).length ? ' (revisa ' + tp.dudosos.join(', ') + ')' : ''}. <a href="#" style="color:var(--accent); font-weight:bold;" onclick="trazoAbrir('${escAttr(String(nombre).replace(/'/g, "\\'"))}'); return false;">Revisar puntos</a></div>` : ''}
             ${et.length ? `<div style="font-size:0.8rem; font-weight:bold; color:var(--accent); margin-top:2px;">${et.map(escHtml).join(' · ')}</div>` : ''}
-            ${trazoInterpHtml(tp && tp.m)}
-            ${trazoAnalisisHtml(tp && tp.m, iaEdadDe(p), (typeof mesa !== 'undefined' && mesa && mesa.nombre === nombre) ? mesa.d : null)}
+            ${trazoAnalisisHtml(tp && tp.m, iaEdadDe(p), (typeof mesa !== 'undefined' && mesa && mesa.nombre === nombre) ? mesa.d : null, trazoInterpHtml(tp && tp.m))}
         </div></div>`;
 }
 function trazadoSeccion(p){
@@ -5309,6 +5326,7 @@ function renderMesaDecisiones(){
         ${pane(2, `${hTraz}${hBot}`)}
 
         ${pane(3, `
+            ${botNotasHtml(p)}
             ${Object.keys(F).length ? `<div style="margin-bottom:10px;"><button class="btn-3d" style="width:100%; padding:0.8rem; color:var(--accent);" onclick="unifTodo('prioridad')">Resolver todo: manda el trazado, la IA aporta hallazgos</button>
                 <div class="esc-sub" style="margin-top:4px;">Después ajusta lo que quieras. Aquí abajo queda tu decisión final.</div></div>` : ''}
             ${fila('rel', 'Relación entre el maxilar superior y la mandíbula', `<div class="mesa-chips">${MESA_REL.map(x => mesaChip('rel', x[0], x[1])).join('')}</div>`)}
@@ -5324,8 +5342,9 @@ function renderMesaDecisiones(){
                 <a href="#" class="esc-sub" style="color:var(--accent);" onclick="mesa.todos=!mesa.todos; mesaCambio(); return false;">${mesa.todos ? 'Mostrar solo premolares' : 'Otro diente…'}</a>` : ''}`)}
             ${fila('aparatos', 'Aparatología indicada (puedes elegir varias)', `<div class="mesa-chips">${MESA_APARATOS.map(x => mesaChip('aparatos', x, x, true)).join('')}</div>
                 <input type="text" class="inset-3d" style="margin-top:6px; width:100%;" placeholder="Otro tipo (opcional)" value="${escAttr(d.aparatoOtro)}" oninput="mesa.d.aparatoOtro=this.value; mesaAutoTextos();">`)}
-            <div class="mesa-sec"><label>Consideraciones especiales</label>
-                <textarea class="inset-3d" rows="2" style="width:100%;" placeholder="Ej. precaución por raíces cortas, cuidar higiene…" oninput="mesa.d.nota=this.value; mesaAutoTextos();">${escHtml(d.nota)}</textarea></div>`)}
+            <div class="mesa-sec"><label>Consideraciones especiales</label>${pacientes[mesa.nombre] && (pacientes[mesa.nombre].diagChat || {}).conclusion ? '<div class="esc-sub" style="margin-bottom:4px;">La conclusión de la IA está guardada abajo; puedes copiar lo que te sirva aquí.</div>' : ''}
+                <textarea class="inset-3d" rows="2" style="width:100%;" placeholder="Ej. precaución por raíces cortas, cuidar higiene…" oninput="mesa.d.nota=this.value; mesaAutoTextos();">${escHtml(d.nota)}</textarea></div>
+            ${iaChatHtml(p)}`)}
 
         ${pane(4, `
             <div class="mesa-sec"><label>Mensaje para el paciente <span style="font-weight:normal; color:var(--text-muted);">(se arma solo; puedes editarlo)</span></label>
@@ -6442,13 +6461,12 @@ function trazoResultados(){
     const m = trazoMedir(tz.pts, tz.mmpx);
     const filas = Object.keys(TRAZO_REF).filter(k => m[k] != null).map(k => {
         const e = trazoEstado(k, m[k]), col = e === 'normal' ? '#2f855a' : '#c05621';
-        return `<tr><td style="padding:3px 6px;">${TRAZO_REF[k][2]}${TRAZO_REF[k][3] === ' mm' ? ' (mm)' : ''}</td><td style="padding:3px 6px;"><b>${m[k]}${TRAZO_REF[k][3]}</b></td><td style="padding:3px 6px; color:var(--text-muted);">${TRAZO_REF[k][0]} ± ${TRAZO_REF[k][1]}</td><td style="padding:3px 6px; color:${col};">${e}</td><td style="padding:3px 6px;">${escHtml(trazoInterpK(k, m[k]))}</td></tr>`;
+        return `<tr><td style="padding:3px 6px;">${TRAZO_REF[k][2]}${TRAZO_REF[k][3] === ' mm' ? ' (mm)' : ''}</td><td style="padding:3px 6px;"><b>${m[k]}${TRAZO_REF[k][3]}</b></td><td style="padding:3px 6px; color:var(--text-muted);">${TRAZO_REF[k][0]} ± ${TRAZO_REF[k][1]}</td><td style="padding:3px 6px; color:${col};">${e}<div class="it-m">${escHtml(trazoInterpK(k, m[k]))}</div></td><td style="padding:3px 6px;">${escHtml(trazoInterpK(k, m[k]))}</td></tr>`;
     }).join('');
     const interp = trazoInterpretar(m);
-    el.innerHTML = filas ? `<table style="width:100%; border-collapse:collapse; font-size:0.82rem;"><tr style="color:var(--primary);"><th style="text-align:left; padding:3px 6px;">Medida</th><th style="text-align:left;">Valor</th><th style="text-align:left;">Norma</th><th style="text-align:left;">Estado</th><th style="text-align:left;">Interpretación</th></tr>${filas}</table>
-        ${tz.mmpx ? '' : '<div class="esc-sub">Para ver los mm (1-NA, 1-NB, Pog-NB) usa 📏 Calibrar.</div>'}
-        <div style="margin-top:8px; font-size:0.85rem;">${interp.map(t => '• ' + escHtml(t)).join('<br>')}</div>
-        ${trazoAnalisisHtml(m, iaEdadDe(pacientes[tz.nombre] || {}), (mesa && mesa.nombre === tz.nombre) ? mesa.d : null)}` : '<div class="esc-sub">Coloca al menos S, N, A y B para ver medidas.</div>';
+    el.innerHTML = filas ? trazoAnalisisHtml(m, iaEdadDe(pacientes[tz.nombre] || {}), (mesa && mesa.nombre === tz.nombre) ? mesa.d : null, `<div style="overflow-x:auto;"><table class="trz-t" style="width:100%; border-collapse:collapse; font-size:0.82rem;"><tr style="color:var(--primary);"><th style="text-align:left; padding:3px 6px;">Medida</th><th style="text-align:left;">Valor</th><th style="text-align:left;">Norma</th><th style="text-align:left;">Estado</th><th style="text-align:left;">Interpretación</th></tr>${filas}</table></div>
+        ${tz.mmpx ? '' : '<div class="esc-sub">Para ver los mm usa Calibrar con la regla de la radiografía.</div>'}
+        <div style="margin-top:8px; font-size:0.85rem;">${interp.map(t => '• ' + escHtml(t)).join('<br>')}</div>`) : '<div class="esc-sub">Coloca al menos S, N, A y B para ver medidas.</div>';
 }
 async function trazoGuardar(){
     if(!tz || !tz.img) return;
@@ -6808,6 +6826,148 @@ function rapidoInner(){
         ${F && !run ? '<button class="esc-mini" style="margin-top:8px; width:100%;" onclick="mesaPaso(3)">Ir a revisar</button>' : ''}
     </div>`;
 }
+
+// ============ NOTAS DEL BOT PARA EL DOCTOR: factores que modifican el plan, limitantes y sugerencias (cada una con su porqué) ============
+function botNotas(p, d){
+    const tp = p.trazadoPuntos || {}, m = tp.m || {}, edad = iaEdadDe(p), b = (mesa && mesa.bot) || {};
+    const mod = [], lim = [], sug = [], add = (L, t, por) => L.push({ t: t, por: por });
+    const vt = (typeof trazoVert === 'function') ? trazoVert(m, edad) : null, cl = trazoClase(m);
+    const conv = m.r_conv != null ? trazoEstadoX('r_conv', m.r_conv, edad) : '';
+    const vertical = (m.j_ind != null && m.j_ind < 59) || (vt && vt.v <= -0.5) || (m.snmp != null && m.snmp > 37);
+    const horizontal = (m.j_ind != null && m.j_ind > 65) || (vt && vt.v >= 0.5) || (m.snmp != null && m.snmp < 27);
+    const crece = edad >= 8 && edad <= 14, datoV = [m.j_ind != null ? 'Jarabak ' + m.j_ind + ' %' : '', vt ? 'VERT ' + vt.v : '', m.snmp != null ? 'SN-GoMe ' + m.snmp + '°' : ''].filter(Boolean).join(', ');
+    // --- factores que modifican el plan
+    if(cl === 'II' && crece && horizontal) add(mod, 'Clase II en crecimiento con patrón horizontal: buen candidato a ortopedia de avance mandibular.', 'Edad ' + edad + ' años; ' + datoV + '. La rotación antihoraria acompaña el avance mandibular; el patrón vertical responde peor.');
+    if(cl === 'II' && crece && vertical) add(mod, 'Clase II en crecimiento con patrón vertical: el avance mandibular rinde menos; prioriza el control vertical.', 'Edad ' + edad + ' años; ' + datoV + '. En rotación horaria el mentón tiende a ir hacia abajo y atrás.');
+    if(cl === 'III' && crece) add(mod, 'Clase III en crecimiento: valora protracción maxilar temprana si el maxilar está retruido.', 'ANB ' + m.anb + '°' + (m.sna != null ? ', SNA ' + m.sna + '°' : '') + '. La respuesta maxilar es mejor antes del pico puberal.');
+    if((m.anb > 7 || m.anb < -2) && edad >= 16) add(mod, 'Discrepancia esquelética marcada sin crecimiento: compara camuflaje contra cirugía ortognática.', 'ANB ' + m.anb + '° a los ' + edad + ' años. El camuflaje tiene límites en discrepancias grandes.');
+    if(vertical) add(mod, 'Patrón vertical: evita mecánicas que extruyen molares (elásticos intermaxilares prolongados, tracción cervical, curva reversa).', datoV + '. La extrusión posterior abre la mordida y rota la mandíbula hacia atrás.');
+    if(horizontal) add(mod, 'Patrón horizontal: probable mordida profunda; tolera bien la extrusión posterior y la intrusión anterior.', datoV + '. La rotación antihoraria profundiza la mordida.');
+    const l1pro = (m.l1nb != null && m.l1nb > 29) || (m.r_l1apog != null && m.r_l1apog > 3.3);
+    if(l1pro && (['moderado', 'severo'].includes(d.apinInf))) add(mod, 'Incisivos inferiores ya adelantados con apiñamiento inferior: poco margen para alinear sin extracción o desgaste interproximal.', [m.l1nb != null ? 'L1-NB ' + m.l1nb + '°' : '', m.r_l1apog != null ? 'L1 a A-Pog ' + m.r_l1apog + ' mm' : '', 'apiñamiento inferior ' + d.apinInf].filter(Boolean).join(', ') + '. Proinclinarlos más compromete la encía y la estabilidad.');
+    else if(l1pro) add(mod, 'Incisivos inferiores adelantados: cuida no proinclinarlos más al alinear.', [m.l1nb != null ? 'L1-NB ' + m.l1nb + '°' : '', m.r_l1apog != null ? 'L1 a A-Pog ' + m.r_l1apog + ' mm' : ''].filter(Boolean).join(', ') + '.');
+    if(m.ii != null && m.ii < 120 && trazoIncl(m.u1na, 26, 18) === 'pro') add(mod, 'Biprotrusión dental' + (m.r_labio != null && m.r_labio > 0 ? ' con labios protrusivos' : '') + ': indicación clásica para valorar extracción de premolares.', 'Interincisal ' + m.ii + '°, U1-NA ' + m.u1na + '°' + (m.r_labio != null ? ', labio inferior a plano E ' + m.r_labio + ' mm' : '') + '.');
+    if(m.ii != null && m.ii > 140 && cl === 'II') add(mod, 'Patrón compatible con Clase II división 2: descompensa los incisivos antes de corregir la clase.', 'Interincisal ' + m.ii + '°' + (m.u1na != null ? ', U1-NA ' + m.u1na + '°' : '') + '. Los incisivos verticalizados traban el avance mandibular.');
+    if(m.r_labio != null && m.r_labio < -4) add(mod, 'Perfil labial retrusivo: extraer puede aplanar más el perfil.', 'Labio inferior a plano E ' + m.r_labio + ' mm.');
+    if(m.r_u6ptv != null){ const n = trazoNorma('r_u6ptv', edad)[0];
+        if(m.r_u6ptv > n + 3) add(mod, 'Molar superior adelantado: hay espacio para distalizar.', 'U6 a PTV ' + m.r_u6ptv + ' mm (norma ' + n + ' mm para la edad).');
+        if(m.r_u6ptv < n - 3) add(mod, 'Molar superior ya atrás: distalizar no es buena opción.', 'U6 a PTV ' + m.r_u6ptv + ' mm (norma ' + n + ' mm para la edad).'); }
+    const au = (d.ausDet || []).filter(x => !x.x), im = (d.impDet || []).filter(x => !x.x), car = (d.cariesDet || []).filter(x => !x.x);
+    if(au.length) add(mod, 'Ausencias (' + au.map(x => x.txt || x.d).join(', ') + '): define si cierras o mantienes el espacio antes de decidir extracciones.', 'Una ausencia cambia el balance de espacio y puede sustituir una extracción.');
+    const can = im.filter(x => [13, 23, 33, 43].includes(x.d)), ter = im.filter(x => x.d % 10 === 8), otros = im.filter(x => !can.includes(x) && !ter.includes(x));
+    if(can.length) add(mod, 'Canino retenido (' + can.map(x => x.d).join(', ') + '): tomografía y valorar tracción quirúrgica; vigila reabsorción de los laterales.', 'Los caninos retenidos reabsorben raíces vecinas con frecuencia y su pronóstico depende de su posición en 3D.');
+    if(ter.length) add(mod, 'Terceros molares impactados (' + ter.map(x => x.d).join(', ') + '): valora extraerlos, sobre todo si vas a distalizar.', 'Limitan el espacio posterior y la distalización.');
+    if(otros.length) add(mod, 'Dientes retenidos o impactados (' + otros.map(x => x.d).join(', ') + '): define su manejo antes de iniciar.', 'Cambian el plan de espacio y la mecánica.');
+    const prof = car.filter(x => x.prof === 'profunda');
+    if(prof.length) add(mod, 'Caries profundas (' + prof.map(x => x.d).join(', ') + '): trátalas antes de colocar aparatología.', 'Riesgo de dolor, absceso y descementado durante el tratamiento.');
+    if((d.hall || []).includes('raices')) add(mod, 'Raíces cortas' + ((d.hallDientes || {}).raices ? ' (' + d.hallDientes.raices + ')' : '') + ': fuerzas ligeras y radiografía de control a los 6 meses.', 'Mayor riesgo de reabsorción radicular.');
+    if((d.hall || []).includes('bruxismo')) add(mod, 'Desgaste o posible bruxismo: considera férula y protege la aparatología.', 'El bruxismo despega brackets y sobrecarga las raíces.');
+    if((d.hall || []).includes('atm') || d.atmSint === 'si') add(mod, 'Síntomas de ATM: valóralos y documéntalos antes de iniciar; evita mecánicas que fuercen la mandíbula.', 'El tratamiento no debe agravar ni ocultar una disfunción previa.');
+    // --- limitantes
+    const est = Object.keys(tp.est || {}).filter(k => (tp.est || {})[k]);
+    if(est.length) add(lim, 'Puntos estimados (' + est.join(', ') + '): el eje facial, el arco mandibular, la altura facial inferior y la deflexión craneal pueden variar unos grados.', 'Se construyen por geometría, no se detectan.');
+    if(tp.m && !tp.mmpx) add(lim, 'Trazado sin calibrar: no hay medidas en milímetros.', 'Calibra con la regla de la radiografía.');
+    if(tp.auto) add(lim, 'Trazado automático sin verificar' + ((tp.dudosos || []).length ? ' (dudosos: ' + tp.dudosos.join(', ') + ')' : '') + '.', 'Revisa los puntos antes de decidir.');
+    if(cl && conv){ const rcl = conv === 'aumentado' ? 'II' : conv === 'disminuido' ? 'III' : 'I'; if(rcl !== cl) add(lim, 'Steiner (Clase ' + cl + ') y Ricketts (Clase ' + rcl + ') no coinciden: posible base de cráneo atípica.', 'ANB ' + m.anb + '°, convexidad ' + m.r_conv + ' mm' + (m.r_defl != null ? ', deflexión craneal ' + m.r_defl + '°' : '') + '. Apóyate en la convexidad y el perfil.'); }
+    if(!edad) add(lim, 'Sin fecha de nacimiento: las normas de Ricketts usan una edad estimada.', 'Captura la fecha en el expediente.');
+    if(!tp.m) add(lim, 'Sin trazado: no hay base cefalométrica para la decisión.', 'Haz el trazado de la lateral.');
+    if((d.dientesNum || []).length) add(lim, 'La panorámica no muestra bien dientes horizontales ni la relación raíz-conducto en 3D.', 'Imagen bidimensional con superposiciones.');
+    // --- sugerencias
+    add(sug, 'Verifica en la clínica: overjet, overbite, líneas medias, relación molar y canina, y ATM.', 'Varios datos clave no salen de las radiografías.');
+    if(edad >= 8 && edad <= 16) add(sug, 'Valora la maduración vertebral cervical (CVM) en la lateral para ubicar el pico de crecimiento.', 'Define el momento óptimo para ortopedia.');
+    if(can.length || otros.length) add(sug, 'Pide tomografía (CBCT) de la zona del diente retenido.', 'Posición, raíz y riesgo para dientes vecinos.');
+    if(b.limite) add(sug, 'Caso limítrofe de extracción: decide con el análisis de espacio en modelos y el perfil.', 'La cefalometría sola no basta en casos limítrofes.');
+    return { mod: mod, lim: lim, sug: sug };
+}
+function botNotasHtml(p){
+    const N = botNotas(p, mesa.d), bloque = (t, col, L) => L.length ? `<div style="margin-top:6px;"><div style="font-size:0.82rem; font-weight:bold; color:${col};">${t}</div>${L.map(x => `<div style="font-size:0.8rem; margin:3px 0;">• ${escHtml(x.t)}<div class="esc-sub" style="margin-left:10px;">Por qué: ${escHtml(x.por)}</div></div>`).join('')}</div>` : '';
+    if(!N.mod.length && !N.lim.length && !N.sug.length) return '';
+    return `<details class="ft-plegable" open style="margin-bottom:10px;"><summary>Notas del bot para el Dr. (${N.mod.length + N.lim.length + N.sug.length})</summary>
+        ${bloque('Factores que modifican el plan', 'var(--primary)', N.mod)}${bloque('Limitantes del diagnóstico', '#b7791f', N.lim)}${bloque('Sugerencias', '#2f855a', N.sug)}
+        <div class="esc-sub" style="margin-top:6px;">Herramienta de apoyo basada en principios clínicos generales; tu criterio manda. Si una regla no coincide con tu forma de trabajar, dímelo y la ajusto.</div></details>`;
+}
+function botNotasTexto(p){ const N = botNotas(p, mesa.d), f = L => L.map(x => '- ' + x.t + ' (' + x.por + ')').join('\n'); return [N.mod.length ? 'Factores que modifican el plan:\n' + f(N.mod) : '', N.lim.length ? 'Limitantes:\n' + f(N.lim) : '', N.sug.length ? 'Sugerencias:\n' + f(N.sug) : ''].filter(Boolean).join('\n'); }
+
+// ============ DISCUTIR EL CASO CON LA IA (texto; se guarda en el expediente con la conclusión resaltada) ============
+function iaChatResumen(p){
+    const d = mesa.d, tp = p.trazadoPuntos || {}, m = tp.m || {}, edad = iaEdadDe(p), L = [];
+    L.push('Paciente de ' + (edad || 'edad desconocida') + (edad ? ' años' : '') + '.');
+    if(tp.m){ L.push(trazoTexto(m, tp.mmpx)); const D = trazoDiagLineas(m, edad, d); if(D.length) L.push('Diagnóstico tentativo automático:\n' + D.map(x => '- ' + x).join('\n')); }
+    const b = mesa.bot || {}; if(b.rel || b.extr || (b.aparatos || []).length) L.push('Propuesta del bot de reglas: ' + [b.rel ? 'Clase ' + b.rel : '', b.extr ? 'extracción ' + b.extr + (b.dientes && b.dientes.length ? ' (' + b.dientes.join(', ') + ')' : '') : (b.limite ? 'caso limítrofe' : ''), (b.aparatos || []).join(', ')].filter(Boolean).join('; ') + '.');
+    const notas = botNotasTexto(p); if(notas) L.push('Notas del bot:\n' + notas);
+    const REL = { I: 'Clase I', II: 'Clase II', III: 'Clase III' };
+    L.push('Decisión actual del doctor: ' + [d.rel ? REL[d.rel] || d.rel : 'clase sin definir', d.incSup ? 'inc. sup. ' + d.incSup : '', d.incInf ? 'inc. inf. ' + d.incInf : '', d.extr ? 'extracción ' + d.extr + ((d.dientes || []).length ? ' (' + d.dientes.join(', ') + ')' : '') : '', (d.aparatos || []).length ? d.aparatos.join(', ') : '', d.apinSup ? 'apiñamiento sup. ' + d.apinSup : '', d.apinInf ? 'apiñamiento inf. ' + d.apinInf : '', d.nota ? 'nota: ' + d.nota : ''].filter(Boolean).join('; ') + '.');
+    return L.join('\n\n');
+}
+const IA_CHAT_SISTEMA = 'Eres un ortodoncista consultor que discute un caso con el Dr. Miguel Alvarado, especialista en Ortopedia y Ortodoncia Maxilar. Objetivo educativo: llegar a un diagnóstico y plan bien justificados y detectar lo que se pueda escapar. Reglas: basa cada afirmación en los datos del caso que se te dan y cítalos (por ejemplo "ANB 5.7°"); distingue claramente evidencia de opinión; si falta un dato, dilo y pregunta; cuestiona con respeto si algo no cuadra; no inventes referencias bibliográficas (si mencionas un estudio, aclara que hay que verificarlo); no des por hecho lo que no está en los datos. Responde en español, breve (máximo 180 palabras), sin emojis, con viñetas cuando ayude.';
+function iaChatEstado(p){ p.diagChat = p.diagChat || { msgs: [], conclusion: null }; return p.diagChat; }
+function iaChatHtml(p){
+    const ch = iaChatEstado(p), prov = ['gemini', 'claude'].find(k => iaLlaveLocal(k)), env = !!mesa._chatEnv;
+    const msgs = ch.msgs.map(x => `<div style="margin:6px 0; ${x.r === 'dr' ? 'text-align:right;' : ''}"><div style="display:inline-block; max-width:92%; text-align:left; padding:7px 9px; border-radius:10px; font-size:0.82rem; white-space:pre-wrap; background:${x.r === 'dr' ? 'var(--accent)' : 'rgba(0,0,0,.05)'}; color:${x.r === 'dr' ? '#fff' : 'var(--text-main)'};">${escHtml(x.t)}</div></div>`).join('');
+    const conc = ch.conclusion ? `<div style="margin:8px 0; padding:8px 10px; border-radius:10px; border:2px solid #d69e2e; background:#fffbea;"><div style="font-size:0.82rem; font-weight:bold; color:#975a16;">Conclusión (${new Date(ch.conclusion.ts).toLocaleDateString('es-MX')})</div><div style="font-size:0.82rem; white-space:pre-wrap; color:#333;">${escHtml(ch.conclusion.t)}</div></div>` : '';
+    return `<details class="ft-plegable"${ch.msgs.length ? ' open' : ''} style="margin-top:10px;"><summary>Discutir el caso con la IA${ch.msgs.length ? ' (' + ch.msgs.length + ' mensajes)' : ''}</summary>
+        ${prov ? '' : '<div class="esc-sub" style="color:#c53030;">Necesitas una llave de Gemini o Claude guardada en este dispositivo (Laboratorio IA).</div>'}
+        ${conc}<div id="iaChatMsgs" style="max-height:340px; overflow:auto;">${msgs || '<div class="esc-sub">Pregúntale lo que quieras sobre el caso: por qué sí o no extraer, riesgos de una aparatología, qué se te puede estar escapando. La IA recibe el resumen del caso (sin nombre).</div>'}</div>
+        <textarea id="iaChatTxt" class="inset-3d" rows="2" style="width:100%; margin-top:6px; font-size:0.84rem;" placeholder="Escribe tu pregunta…"></textarea>
+        <label class="esc-sub" style="display:flex; gap:6px; align-items:center; margin-top:4px;"><input type="checkbox" id="iaChatImg"> Incluir radiografías (gasta más cupo de la IA)</label>
+        <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:6px;">
+            <button class="btn-3d${env ? ' ia-trabajando' : ''}" style="flex:1; padding:0.6rem;" ${env || !prov ? 'disabled' : ''} onclick="iaChatEnviar()">${env ? 'Pensando…' : 'Enviar'}</button>
+            <button class="esc-mini" ${env || !prov || !ch.msgs.length ? 'disabled' : ''} onclick="iaChatEnviar(true)">Pedir conclusión</button>
+            ${ch.msgs.length ? '<button class="esc-mini" onclick="iaChatBorrar()">Borrar conversación</button>' : ''}
+        </div></details>`;
+}
+async function iaChatLlamar(prov, historial, imagenes){
+    const key = iaLlaveLocal(prov);
+    let cfg = {}; try{ const sn = await db.collection('agenda').doc('ia_config').get(); cfg = sn.exists ? sn.data() : {}; }catch(e){}
+    const modelos = Object.assign({ claude: 'claude-opus-5-5', gemini: 'gemini-3.8-flash' }, cfg.modelos || {}), respaldo = Object.assign({ gemini: 'gemini-3.1-pro-preview' }, cfg.respaldo || {});
+    const plan = [modelos[prov]]; if(respaldo[prov] && respaldo[prov] !== modelos[prov]) plan.push(respaldo[prov]);
+    let ultimo = null;
+    for(const modelo of plan){
+        let resp, texto;
+        try{
+            if(prov === 'gemini'){
+                const contents = historial.map((h, i) => ({ role: h.r === 'dr' ? 'user' : 'model', parts: (i === historial.length - 1 && imagenes.length ? imagenes.map(im => ({ inline_data: { mime_type: im.mime, data: im.b64 } })) : []).concat([{ text: h.t }]) }));
+                resp = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(modelo) + ':generateContent', { method: 'POST', headers: { 'x-goog-api-key': key, 'content-type': 'application/json' },
+                    body: JSON.stringify({ systemInstruction: { parts: [{ text: IA_CHAT_SISTEMA }] }, contents: contents, generationConfig: { maxOutputTokens: 1500 } }) });
+            }else{
+                const messages = historial.map((h, i) => ({ role: h.r === 'dr' ? 'user' : 'assistant', content: (i === historial.length - 1 && imagenes.length ? imagenes.map(im => ({ type: 'image', source: { type: 'base64', media_type: im.mime, data: im.b64 } })) : []).concat([{ type: 'text', text: h.t }]) }));
+                resp = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true', 'content-type': 'application/json' },
+                    body: JSON.stringify({ model: modelo, max_tokens: 1500, system: IA_CHAT_SISTEMA, messages: messages }) });
+            }
+            texto = await resp.text();
+        }catch(e){ ultimo = new Error('Sin conexión con ' + IA_NOMBRE[prov] + '.'); continue; }
+        if(!resp.ok){ ultimo = new Error(iaErrorHttp(prov, resp.status, texto, modelo, 1)); if([429, 500, 502, 503, 504].includes(resp.status)) continue; break; }
+        const j = JSON.parse(texto);
+        const out = prov === 'gemini' ? ((((j.candidates || [])[0] || {}).content || {}).parts || []).map(x => x.text || '').join('') : (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
+        return String(out || '').trim() || '(sin respuesta)';
+    }
+    throw ultimo || new Error('No se pudo consultar la IA.');
+}
+async function iaChatEnviar(conclusion){
+    const mm = mesa; if(!mm || mm._chatEnv) return;
+    const p = pacientes[mm.nombre]; if(!p) return;
+    const prov = ['gemini', 'claude'].find(k => iaLlaveLocal(k)); if(!prov){ alert('Guarda tu llave de Gemini o Claude en Laboratorio IA.'); return; }
+    const ta = document.getElementById('iaChatTxt'), txt = conclusion ? 'Con todo lo que hemos hablado, escribe la CONCLUSIÓN del caso en máximo 8 renglones: diagnóstico esquelético, dental y de tejidos blandos; hallazgos de la panorámica que cambian el plan; plan de tratamiento recomendado y sus alternativas; y qué queda por verificar. Sin introducción.' : String((ta && ta.value) || '').trim();
+    if(!txt){ daToast('Escribe tu pregunta', 'err'); return; }
+    if(!iaConsentimiento()) return;
+    const ch = iaChatEstado(p), incluir = !!(document.getElementById('iaChatImg') || {}).checked;
+    const hist = ch.msgs.slice(); if(!hist.length || hist[0].ctx !== true) hist.unshift({ r: 'dr', t: 'DATOS DEL CASO (generados por DentiAgenda):\n\n' + iaChatResumen(p), ctx: true }, { r: 'ia', t: 'Entendido. Tengo los datos del caso. ¿Qué quieres revisar?', ctx: true });
+    else hist[0] = { r: 'dr', t: 'DATOS DEL CASO (actualizados):\n\n' + iaChatResumen(p), ctx: true };
+    hist.push({ r: 'dr', t: txt });
+    if(!conclusion) ch.msgs.push({ r: 'dr', t: txt, ts: Date.now() });
+    mm._chatEnv = true; if(ta) ta.value = ''; renderMesaDecisiones();
+    try{
+        let imgs = [];
+        if(incluir){ const ests = (p.estudios || []).filter(e => /panor|later|cefal|tele/i.test(e.nombre || '')).slice(-2); for(const e of ests){ try{ imgs.push(await iaDescargarLocal(String(e.url || ''))); }catch(e2){} } }
+        const r = await iaChatLlamar(prov, hist.filter(h => h.t), imgs);
+        if(conclusion){ ch.conclusion = { t: r, ts: Date.now(), prov: prov }; ch.msgs.push({ r: 'ia', t: 'CONCLUSIÓN:\n' + r, ts: Date.now() }); }
+        else ch.msgs.push({ r: 'ia', t: r, ts: Date.now() });
+        mesaValoresGuardar();
+    }catch(e){ console.error('chat IA', e); daToast(e.message || 'No se pudo consultar la IA', 'err'); if(!conclusion) ch.msgs.pop(); if(ta && !conclusion) ta.value = txt; }
+    mm._chatEnv = false;
+    if(mesa === mm){ renderMesaDecisiones(); const box = document.getElementById('iaChatMsgs'); if(box) box.scrollTop = box.scrollHeight; }
+}
+function iaChatBorrar(){ const p = pacientes[mesa.nombre]; if(!p || !confirm('¿Borrar la conversación con la IA de este paciente? (la conclusión también)')) return; p.diagChat = { msgs: [], conclusion: null }; mesaValoresGuardar(); renderMesaDecisiones(); }
 
 function botAplicar(){
     const b = mesa.bot; if(!b) return;
