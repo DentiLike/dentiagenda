@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#124578">
+<title>Agenda compartida · Dentilike</title>
+<link rel="icon" href="badge.png">
+<style>
+  :root{ --azul:#124578; --azul-osc:#0d3560; --teal:#46c3b6; --fondo:#eef3f8; --papel:#fff; --borde:#dbe4ee; --gris:#64748b; --rojo:#c53030; --ok:#2f855a; }
+  *{ box-sizing:border-box; }
+  body{ margin:0; font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; background:var(--fondo); color:#1e293b; }
+  header{ background:var(--azul); color:#fff; padding:12px 16px; display:flex; align-items:center; justify-content:space-between; gap:10px; position:sticky; top:0; z-index:10; }
+  header b{ font-size:1rem; }
+  header small{ opacity:.85; font-size:.78rem; display:block; }
+  .wrap{ max-width:720px; margin:0 auto; padding:14px 16px 90px; }
+  .card{ background:var(--papel); border:1px solid var(--borde); border-radius:16px; padding:14px; margin-bottom:12px; box-shadow:0 4px 14px rgba(15,23,42,.06); }
+  .btn{ border:none; border-radius:12px; padding:11px 14px; font-weight:700; font-size:.92rem; cursor:pointer; background:var(--azul); color:#fff; }
+  .btn.sec{ background:#e7eef6; color:var(--azul); }
+  .btn.peligro{ background:#fde8e8; color:var(--rojo); }
+  .btn:disabled{ opacity:.55; }
+  .nav{ display:flex; align-items:center; gap:8px; }
+  .nav input{ flex:1; min-width:0; padding:9px; border:1px solid var(--borde); border-radius:10px; font-size:.95rem; }
+  .slot{ display:flex; gap:8px; align-items:stretch; border-top:1px solid #eef2f7; min-height:38px; }
+  .slot .h{ width:62px; flex:0 0 62px; font-size:.78rem; color:var(--gris); padding-top:8px; }
+  .slot .c{ flex:1; padding:4px 0; display:flex; flex-direction:column; gap:4px; }
+  .libre{ border:1px dashed #cbd5e1; border-radius:10px; color:#94a3b8; font-size:.8rem; padding:8px; cursor:pointer; text-align:left; background:none; }
+  .libre:hover{ border-color:var(--teal); color:var(--azul); }
+  .cita{ border-radius:10px; padding:8px 10px; color:#fff; cursor:pointer; font-size:.84rem; }
+  .cita small{ display:block; opacity:.9; font-size:.75rem; }
+  .ley{ display:flex; gap:10px; flex-wrap:wrap; font-size:.78rem; color:var(--gris); margin-top:6px; }
+  .ley span::before{ content:''; display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:4px; background:var(--c); vertical-align:-1px; }
+  .modal{ position:fixed; inset:0; background:rgba(15,23,42,.55); display:none; align-items:flex-end; justify-content:center; z-index:50; }
+  .modal .box{ background:#fff; width:100%; max-width:520px; border-radius:18px 18px 0 0; padding:18px 16px 24px; max-height:92vh; overflow:auto; }
+  @media(min-width:700px){ .modal{ align-items:center; } .modal .box{ border-radius:18px; } }
+  label{ display:block; font-size:.8rem; font-weight:700; color:var(--azul); margin:10px 0 4px; }
+  .box input, .box select, .box textarea{ width:100%; padding:10px; border:1px solid var(--borde); border-radius:10px; font-size:.95rem; font-family:inherit; }
+  .fila{ display:flex; gap:8px; }
+  .fila > *{ flex:1; }
+  .aviso{ background:#fff7e6; border:1px solid #f6c879; color:#8a5a00; border-radius:10px; padding:9px 10px; font-size:.84rem; margin-top:10px; }
+  .error{ background:#fde8e8; border:1px solid #f5b5b5; color:var(--rojo); border-radius:10px; padding:9px 10px; font-size:.84rem; margin-top:10px; }
+  .toast{ position:fixed; left:50%; bottom:22px; transform:translateX(-50%); background:#1e293b; color:#fff; padding:10px 16px; border-radius:12px; font-size:.88rem; z-index:99; display:none; max-width:90vw; }
+  .centro{ text-align:center; padding:40px 16px; }
+</style>
+</head>
+<body>
+<header>
+  <div><b>Agenda compartida</b><small id="quien">Dentilike</small></div>
+  <button class="btn sec" id="btnSalir" style="display:none;" onclick="salir()">Salir</button>
+</header>
+<div class="wrap" id="app">
+  <div class="centro" id="pantallaInicio">
+    <p style="color:var(--gris);">Cargando…</p>
+  </div>
+</div>
+
+<div class="modal" id="modalCita" onclick="if(event.target===this) cerrarModal()">
+  <div class="box" id="modalBox"></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script>
+// ===== Agenda compartida del consultorio: solo citas (sin expedientes). Mismo sillón: un horario ocupado lo está para todos. =====
+firebase.initializeApp({
+  apiKey: "AIzaSyC4Kws78y5K3-1IuBibxCOo-a11ccuNYUE", authDomain: "misonrisa-citas.firebaseapp.com", projectId: "misonrisa-citas",
+  storageBucket: "misonrisa-citas.firebasestorage.app", messagingSenderId: "601464011103", appId: "1:601464011103:web:e03150d9b86eb40a451eea"
+});
+const db = firebase.firestore(), auth = firebase.auth();
+auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+let yo = null, equipo = null, citas = [], horarios = { mInicio: '09:00', mFin: '14:00', vInicio: '16:00', vFin: '20:00' }, dia = hoyISO(), quitarEscucha = null;
+
+function hoyISO(d){ d = d || new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function hm(h){ const [a, b] = String(h).split(':').map(Number); return a * 60 + b; }
+function mh(m){ return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); }
+function amPm(h){ let [a, b] = String(h).split(':').map(Number); const s = a >= 12 ? 'PM' : 'AM'; a = a % 12 || 12; return a + ':' + String(b).padStart(2, '0') + ' ' + s; }
+function fechaLarga(iso){ const d = new Date(iso + 'T12:00:00'); return d.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' }); }
+function toast(t){ const e = document.getElementById('toast'); e.textContent = t; e.style.display = 'block'; clearTimeout(toast._t); toast._t = setTimeout(() => e.style.display = 'none', 3200); }
+function colorDe(c){ if(equipo && c.doctorUid === equipo.owner) return '#124578'; const m = (equipo && equipo.miembros || {})[c.doctorUid]; return (m && m.color) || c.color || '#6b46c1'; }
+function nombreDe(c){ if(equipo && c.doctorUid === equipo.owner) return 'Dr. Miguel'; const m = (equipo && equipo.miembros || {})[c.doctorUid]; return (m && m.nombre) || c.doctorNombre || 'Otro doctor'; }
+
+function pantalla(html){ document.getElementById('app').innerHTML = html; }
+function salir(){ auth.signOut(); }
+async function entrar(){
+  try{ await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()); }
+  catch(e){ try{ await auth.signInWithRedirect(new firebase.auth.GoogleAuthProvider()); }catch(e2){ toast('No se pudo iniciar sesión. Intenta de nuevo.'); } }
+}
+
+auth.onAuthStateChanged(async user => {
+  if(quitarEscucha){ quitarEscucha(); quitarEscucha = null; }
+  if(!user || user.isAnonymous){
+    yo = null; document.getElementById('btnSalir').style.display = 'none'; document.getElementById('quien').textContent = 'Dentilike';
+    pantalla(`<div class="card centro"><h2 style="color:var(--azul); margin-top:0;">Agenda del consultorio</h2>
+      <p style="color:var(--gris);">Entra con tu cuenta de Google. La primera vez, el Dr. Miguel tiene que aceptar tu acceso.</p>
+      <button class="btn" onclick="entrar()">Entrar con Google</button></div>`);
+    return;
+  }
+  yo = user; document.getElementById('btnSalir').style.display = '';
+  document.getElementById('quien').textContent = user.displayName || user.email;
+  try{
+    const sn = await db.collection('equipo').doc('config').get();
+    equipo = sn.exists ? sn.data() : null;
+  }catch(e){ equipo = null; }
+  if(equipo && equipo.owner === user.uid){ location.href = 'index.html'; return; }   // el Dr. Miguel usa su DentiAgenda completa
+  if(!equipo || !(equipo.miembros || {})[user.uid]){ registro(user); return; }
+  try{ const h = await db.collection('config_publica').doc('horarios').get(); if(h.exists) horarios = Object.assign(horarios, h.data()); }catch(e){}
+  escuchar(); render();
+});
+
+// Primera vez: registro con su nombre; queda como solicitud hasta que el Dr. Miguel la acepte
+async function registro(user, editar){
+  let sol = null; try{ const d = await db.collection('equipo_solicitudes').doc(user.uid).get(); sol = d.exists ? d.data() : null; }catch(e){}
+  if(sol && sol.registrado && !editar){
+    pantalla(`<div class="card centro"><h2 style="color:var(--azul); margin-top:0;">Solicitud enviada</h2>
+      <p style="color:var(--gris);">Registrado como <b>${esc(sol.nombre)}</b>${sol.especialidad ? ' (' + esc(sol.especialidad) + ')' : ''}.<br>El Dr. Miguel debe aceptar tu acceso. Cuando lo haga, vuelve a abrir esta página.</p>
+      <div class="fila" style="max-width:360px; margin:0 auto;"><button class="btn sec" onclick="registro(yo, true)">Corregir datos</button><button class="btn" onclick="location.reload()">Volver a revisar</button></div></div>`);
+    return;
+  }
+  pantalla(`<div class="card"><h2 style="color:var(--azul); margin-top:0;">Registro</h2>
+    <p style="color:var(--gris); font-size:.9rem;">Es la primera vez que entras a la agenda del consultorio. Escribe tus datos; el Dr. Miguel recibirá tu solicitud.</p>
+    <div class="box" style="padding:0;">
+      <label>Nombre como aparecerá en la agenda</label><input id="rNom" value="${esc((sol && sol.nombre) || '')}" placeholder="Ej. Dra. Ana López">
+      <label>Especialidad (opcional)</label><input id="rEsp" value="${esc((sol && sol.especialidad) || '')}" placeholder="Ej. Endodoncia">
+      <label>Teléfono (opcional)</label><input id="rTel" value="${esc((sol && sol.telefono) || '')}" inputmode="tel" placeholder="10 dígitos">
+      <div style="font-size:.8rem; color:var(--gris); margin-top:8px;">Cuenta de Google: ${esc(user.email || '')}</div>
+      <div id="rErr"></div>
+      <button class="btn" id="rBtn" style="width:100%; margin-top:14px;" onclick="enviarRegistro()">Enviar solicitud</button>
+    </div></div>`);
+}
+async function enviarRegistro(){
+  const nom = document.getElementById('rNom').value.trim();
+  if(nom.length < 3){ document.getElementById('rErr').innerHTML = '<div class="error">Escribe tu nombre como quieres que aparezca.</div>'; return; }
+  const b = document.getElementById('rBtn'); b.disabled = true; b.textContent = 'Enviando…';
+  try{
+    await db.collection('equipo_solicitudes').doc(yo.uid).set({ nombre: nom, especialidad: document.getElementById('rEsp').value.trim(), telefono: document.getElementById('rTel').value.replace(/\D/g, ''), email: yo.email || '', registrado: true, ts: Date.now() });
+    registro(yo);
+  }catch(e){ b.disabled = false; b.textContent = 'Enviar solicitud'; document.getElementById('rErr').innerHTML = '<div class="error">No se pudo enviar (' + esc(e.code || e.message) + '). Intenta de nuevo.</div>'; }
+}
+
+function escuchar(){
+  const desde = hoyISO(new Date(Date.now() - 30 * 86400000));
+  quitarEscucha = db.collection('agenda_compartida').where('fecha', '>=', desde).onSnapshot(sn => {
+    citas = []; sn.forEach(d => { const x = d.data(); if(!x.cancelada) citas.push(Object.assign({ _id: d.id }, x)); });
+    render();
+  }, err => { console.error(err); pantalla('<div class="error">No tienes permiso para ver la agenda o no hay conexión. Pídele al Dr. Miguel que revise tu acceso.</div>'); });
+}
+
+function horasDelDia(){
+  const L = [], add = (a, b) => { for(let m = hm(a); m < hm(b); m += 30) L.push(mh(m)); };
+  if(horarios.mInicio && horarios.mFin) add(horarios.mInicio, horarios.mFin);
+  if(horarios.vInicio && horarios.vFin) add(horarios.vInicio, horarios.vFin);
+  return L;
+}
+function citasDia(f){ return citas.filter(c => c.fecha === f).sort((a, b) => a.horaInicio.localeCompare(b.horaInicio)); }
+function choques(f, ini, fin, sinId){ return citas.filter(c => c.fecha === f && c._id !== sinId && hm(ini) < hm(c.horaFin) && hm(fin) > hm(c.horaInicio)); }
+
+function render(){
+  if(!yo || !equipo) return;
+  const L = citasDia(dia), H = horasDelDia(), usados = new Set();
+  const filas = H.map(h => {
+    const aqui = L.filter(c => c.horaInicio === h || (!usados.has(c._id) && hm(c.horaInicio) < hm(h) + 30 && hm(c.horaInicio) >= hm(h)));
+    aqui.forEach(c => usados.add(c._id));
+    const ocupado = L.some(c => hm(c.horaInicio) <= hm(h) && hm(c.horaFin) > hm(h));
+    const bloques = aqui.map(c => `<div class="cita" style="background:${colorDe(c)};" onclick="verCita('${c._id}')"><b>${esc(c.paciente)}</b> · ${esc(c.motivo || '')}<small>${amPm(c.horaInicio)} – ${amPm(c.horaFin)} · ${esc(nombreDe(c))}</small></div>`).join('');
+    return `<div class="slot"><div class="h">${amPm(h)}</div><div class="c">${bloques}${!ocupado ? `<button class="libre" onclick="nuevaCita('${h}')">Libre · agendar</button>` : ''}</div></div>`;
+  }).join('');
+  const fuera = L.filter(c => !usados.has(c._id));
+  const docs = [{ n: 'Dr. Miguel', c: '#124578' }].concat(Object.keys(equipo.miembros || {}).map(k => ({ n: equipo.miembros[k].nombre || 'Doctor', c: equipo.miembros[k].color || '#6b46c1' })));
+  pantalla(`<div class="card">
+      <div class="nav"><button class="btn sec" onclick="mover(-1)">‹</button><input type="date" value="${dia}" onchange="dia=this.value; render()"><button class="btn sec" onclick="mover(1)">›</button><button class="btn sec" onclick="dia=hoyISO(); render()">Hoy</button></div>
+      <div style="margin-top:8px; font-weight:700; color:var(--azul);">${(t => t.charAt(0).toUpperCase() + t.slice(1))(fechaLarga(dia))}</div>
+      <div class="ley">${docs.map(d => `<span style="--c:${d.c}">${esc(d.n)}</span>`).join('')}</div>
+    </div>
+    <div class="card" style="padding:6px 12px;">${filas}${fuera.map(c => `<div class="cita" style="background:${colorDe(c)}; margin:6px 0;" onclick="verCita('${c._id}')"><b>${esc(c.paciente)}</b><small>${amPm(c.horaInicio)} – ${amPm(c.horaFin)} · fuera del horario · ${esc(nombreDe(c))}</small></div>`).join('')}</div>
+    <button class="btn" style="width:100%;" onclick="nuevaCita('')">+ Agendar cita</button>
+    <p style="color:var(--gris); font-size:.78rem; text-align:center; margin-top:14px;">Consultorio compartido: un horario ocupado lo está para todos los doctores.</p>`);
+}
+function mover(n){ const d = new Date(dia + 'T12:00:00'); d.setDate(d.getDate() + n); dia = hoyISO(d); render(); }
+
+function formCita(c, horaIni){
+  const dur = c ? hm(c.horaFin) - hm(c.horaInicio) : 30, H = horasDelDia();
+  const opH = H.map(h => `<option value="${h}"${(c ? c.horaInicio : horaIni) === h ? ' selected' : ''}>${amPm(h)}</option>`).join('');
+  const ajeno = c && c.doctorUid !== yo.uid;
+  return `<h3 style="margin:0 0 6px; color:var(--azul);">${c ? (ajeno ? 'Mover cita' : 'Editar cita') : 'Nueva cita'}</h3>
+    ${ajeno ? `<div class="aviso">${c.doctorUid === equipo.owner ? 'Esta cita es de un paciente del Dr. Miguel.' : 'Esta cita es de ' + esc(nombreDe(c)) + '.'} Solo puedes cambiar el día y la hora; se le avisará del cambio.</div>` : ''}
+    <label>Paciente</label><input id="fPac" value="${esc(c ? c.paciente : '')}" ${ajeno ? 'disabled' : ''} placeholder="Nombre completo">
+    <label>Teléfono</label><input id="fTel" value="${esc(c ? c.telefono || '' : '')}" ${ajeno ? 'disabled' : ''} inputmode="tel" placeholder="10 dígitos">
+    <label>Motivo</label><input id="fMot" value="${esc(c ? c.motivo || '' : '')}" ${ajeno ? 'disabled' : ''} placeholder="Ej. limpieza, valoración">
+    <div class="fila"><div><label>Día</label><input type="date" id="fFecha" value="${c ? c.fecha : dia}"></div>
+      <div><label>Hora</label><select id="fHora"><option value="">Elige</option>${opH}</select></div></div>
+    <label>Duración</label><select id="fDur" ${ajeno ? 'disabled' : ''}>${[30, 45, 60, 90, 120].map(m => `<option value="${m}"${m === dur ? ' selected' : ''}>${m} min</option>`).join('')}</select>
+    ${ajeno ? '' : `<label>Notas (opcional)</label><textarea id="fNot" rows="2">${esc(c ? c.notas || '' : '')}</textarea>`}
+    <div id="fErr"></div>
+    <div class="fila" style="margin-top:14px;"><button class="btn sec" onclick="cerrarModal()">Cancelar</button><button class="btn" id="fGuardar" onclick="guardarCita(${c ? `'${c._id}'` : 'null'})">${ajeno ? 'Mover' : 'Guardar'}</button></div>
+    ${c && !ajeno ? `<button class="btn peligro" style="width:100%; margin-top:10px;" onclick="cancelarCita('${c._id}')">Cancelar esta cita</button>` : ''}`;
+}
+function abrirModal(html){ document.getElementById('modalBox').innerHTML = html; document.getElementById('modalCita').style.display = 'flex'; }
+function cerrarModal(){ document.getElementById('modalCita').style.display = 'none'; }
+function nuevaCita(h){ abrirModal(formCita(null, h)); }
+function verCita(id){
+  const c = citas.find(x => x._id === id); if(!c) return;
+  abrirModal(`<h3 style="margin:0 0 4px; color:var(--azul);">${esc(c.paciente)}</h3>
+    <div style="color:var(--gris); font-size:.88rem;">${fechaLarga(c.fecha)} · ${amPm(c.horaInicio)} – ${amPm(c.horaFin)}</div>
+    <div style="margin-top:8px; font-size:.9rem;"><b>Doctor:</b> ${esc(nombreDe(c))}<br><b>Motivo:</b> ${esc(c.motivo || '—')}${c.telefono ? '<br><b>Teléfono:</b> ' + esc(c.telefono) : ''}${c.notas ? '<br><b>Notas:</b> ' + esc(c.notas) : ''}</div>
+    <div class="fila" style="margin-top:14px;"><button class="btn sec" onclick="cerrarModal()">Cerrar</button><button class="btn" onclick="abrirModal(formCita(citas.find(x => x._id === '${c._id}')))">${c.doctorUid === yo.uid ? 'Editar o mover' : 'Mover'}</button></div>`);
+}
+async function guardarCita(id){
+  const c = id ? citas.find(x => x._id === id) : null, ajeno = c && c.doctorUid !== yo.uid;
+  const v = k => (document.getElementById(k) || {}).value || '';
+  const fecha = v('fFecha'), ini = v('fHora'), dur = Number(v('fDur') || 30), fin = mh(hm(ini || '00:00') + dur);
+  const pac = ajeno ? c.paciente : v('fPac').trim(), err = t => { document.getElementById('fErr').innerHTML = '<div class="error">' + t + '</div>'; };
+  if(!pac) return err('Escribe el nombre del paciente.');
+  if(!fecha || !ini) return err('Elige día y hora.');
+  if(new Date(fecha + 'T12:00:00').getDay() === 0) return err('El consultorio no abre en domingo.');
+  const ch = choques(fecha, ini, fin, id);
+  if(ch.length) return err('Ese horario ya está ocupado: ' + ch.map(x => esc(x.paciente) + ' (' + amPm(x.horaInicio) + ', ' + esc(nombreDe(x)) + ')').join('; ') + '. Elige otro.');
+  if(ajeno && !confirm((c.doctorUid === equipo.owner ? 'Esta cita es de un paciente del Dr. Miguel' : 'Esta cita es de ' + nombreDe(c)) + '.\n\n¿Seguro que quieres moverla al ' + fechaLarga(fecha) + ' a las ' + amPm(ini) + '?')) return;
+  const b = document.getElementById('fGuardar'); b.disabled = true; b.textContent = 'Guardando…';
+  try{
+    if(ajeno){
+      await db.collection('agenda_compartida').doc(id).update({ fecha: fecha, horaInicio: ini, horaFin: mh(hm(ini) + (hm(c.horaFin) - hm(c.horaInicio))), editadoPor: yo.uid, editadoNombre: (equipo.miembros[yo.uid] || {}).nombre || yo.displayName || yo.email, editadoTs: Date.now() });
+      toast('Cita movida. Se le avisará a ' + nombreDe(c) + '.');
+    }else{
+      const datos = { fecha: fecha, horaInicio: ini, horaFin: fin, paciente: pac, telefono: v('fTel').replace(/\D/g, ''), motivo: v('fMot').trim(), notas: v('fNot').trim(),
+        doctorUid: yo.uid, doctorNombre: (equipo.miembros[yo.uid] || {}).nombre || yo.displayName || '', actualizado: Date.now() };
+      if(id) await db.collection('agenda_compartida').doc(id).update(datos);
+      else await db.collection('agenda_compartida').add(Object.assign(datos, { creado: Date.now() }));
+      toast(id ? 'Cita actualizada' : 'Cita agendada');
+    }
+    cerrarModal(); dia = fecha; render();
+  }catch(e){ console.error(e); b.disabled = false; b.textContent = ajeno ? 'Mover' : 'Guardar'; err('No se pudo guardar (' + esc(e.code || e.message) + '). Revisa tu conexión o tu acceso.'); }
+}
+async function cancelarCita(id){
+  const c = citas.find(x => x._id === id); if(!c || c.doctorUid !== yo.uid) return;
+  if(!confirm('¿Cancelar la cita de ' + c.paciente + ' del ' + fechaLarga(c.fecha) + '?')) return;
+  try{ await db.collection('agenda_compartida').doc(id).delete(); cerrarModal(); toast('Cita cancelada'); }catch(e){ toast('No se pudo cancelar: ' + (e.code || e.message)); }
+}
+</script>
+</body>
+</html>

@@ -783,6 +783,7 @@
             <details class="aj-sec"><summary>📅 Agenda</summary><div class="aj-body">
             <div style="margin:16px 0 4px;">
                 <button class="btn-3d btn-submit" style="color:#d97706;" onclick="closeModal('configModalOverlay'); abrirBloqueos();">🚫 Bloquear horarios (vacaciones, comida...)</button>
+                <button class="btn-3d btn-submit" style="color:var(--primary);" onclick="closeModal('configModalOverlay'); abrirEquipo();">Agenda compartida (otros doctores)</button>
                 <button class="btn-3d btn-submit" style="margin-top:8px;" onclick="sincronizarConfirmaciones(false)">🔄 Revisar confirmaciones ahora</button>
                 <button class="btn-3d" style="margin-top:8px; width:100%;" onclick="this.textContent='⏳ Revisando…'; sincronizarUsoSmile(true).then(()=>{this.textContent='🔄 Actualizar uso de SmileLike'; alert('Listo. Míralo en Pacientes (directorio).');})">🔄 Actualizar uso de SmileLike</button>
                 <button class="btn-3d btn-submit" style="margin-top:8px; color:var(--primary);" onclick="abrirDashboard()">📊 Ver Dashboard</button>
@@ -860,6 +861,17 @@
             <button class="btn-3d btn-submit" style="color:var(--primary);" onclick="agregarBloqueoHoras()">Bloquear ese rango de horas</button>
             <h4 style="color:var(--primary); margin:20px 0 10px 0;">Bloqueos activos</h4>
             <div id="listaBloqueos"></div>
+        </div>
+    </div>
+
+    <!-- Modal Agenda compartida (otros doctores del consultorio) -->
+    <div class="modal-overlay" id="equipoModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 style="margin: 0; color: var(--primary);">Agenda compartida</h2>
+                <button class="close-btn" onclick="closeModal('equipoModal')">X</button>
+            </div>
+            <div id="equipoBody"></div>
         </div>
     </div>
 
@@ -1180,6 +1192,27 @@
             if(!fbOK){ setSync('err','Sin conexión'); return; }
             auth.onAuthStateChanged((user)=>{
                 if(user && !user.isAnonymous){
+                    // ¿Es otro doctor del consultorio? Entonces va a su página de solo agenda (no ve expedientes)
+                    if(!window._equipoRevisado){
+                        window._equipoRevisado = true;
+                        db.collection('equipo').doc('config').get().then(sn => {
+                            const e = sn.exists ? sn.data() : null; window._equipoCfg = e;
+                            if(e && e.owner && e.owner !== user.uid){ location.replace('equipo.html'); return; }
+                            iniciarSesionCompleta(user);
+                        }).catch(() => iniciarSesionCompleta(user));
+                        return;
+                    }
+                    iniciarSesionCompleta(user);
+                } else {
+                    // No hay sesión: mostrar login
+                    authListo = false;
+                    document.getElementById('lockScreen').style.display = 'flex';
+                    setSync('','Bloqueado');
+                }
+            });
+        }
+        function iniciarSesionCompleta(user){
+                {
                     // Doctor autenticado con Google
                     authListo = true;
                     localStorage.setItem('da_sesion_previa','1'); // recordar que ya entró antes
@@ -1196,13 +1229,8 @@
                     scActualizarBotonPushDoctor();
                     setTimeout(() => renovarTokenDoctor(false), 4000);
                     setTimeout(backfillFechasCitas, 15000); setTimeout(backfillPacientePublico, 20000);
-                } else {
-                    // No hay sesión: mostrar login
-                    authListo = false;
-                    document.getElementById('lockScreen').style.display = 'flex';
-                    setSync('','Bloqueado');
+                    setTimeout(() => equipoIniciar(user), 2500);
                 }
-            });
         }
 
         function cerrarSesion(){
@@ -1365,6 +1393,7 @@
                 if(cambio){ try{ loadCalendar(); }catch(e){} }
                 setSync('on','Sincronizado');
                 publicarDisponibilidad(); // actualizar huecos libres tras cambios de citas
+                equipoEspejo();
                 window._nubePendiente = false;
             }catch(e){ console.error('guardar agenda error', e); setSync('err','Error al sincronizar'); window._nubePendiente = true; }
         }
@@ -1385,6 +1414,116 @@
             localStorage.setItem('denti_citas_v16', JSON.stringify(citas)); loadCalendar(); guardarAgendaEnNube();
             daToast('Cita restaurada', 'ok'); try{ renderEscritorio(); }catch(e){}
         }
+        // ===== AGENDA COMPARTIDA: otros doctores del mismo consultorio (mismo sillón) =====
+        // equipo/config = { owner, miembros: { uid: { nombre, color, email } } } · agenda_compartida/{id} = una cita
+        // Las citas del Dr. Miguel se publican como espejo (m_<id>) con lo mínimo; sus expedientes nunca salen de agenda/principal.
+        let citasEquipo = [], equipoCfg = null, equipoUid = null, _equipoEsc = null, _equipoSol = null, equipoSolic = [];
+        const EQ_COLORES = ['#6b46c1', '#c05621', '#2c7a7b', '#b83280', '#2f855a'];
+        function equipoActivo(){ return !!(equipoCfg && equipoCfg.owner === equipoUid && Object.keys(equipoCfg.miembros || {}).length); }
+        function equipoNombre(uid){ const m = ((equipoCfg || {}).miembros || {})[uid]; return (m && m.nombre) || 'Otro doctor'; }
+        function equipoColor(uid){ const m = ((equipoCfg || {}).miembros || {})[uid]; return (m && m.color) || '#6b46c1'; }
+        async function equipoIniciar(user){
+            equipoUid = user.uid;
+            try{ const sn = await db.collection('equipo').doc('config').get(); equipoCfg = sn.exists ? sn.data() : null; }catch(e){ equipoCfg = null; return; }
+            if(!equipoCfg || equipoCfg.owner !== equipoUid) return;
+            equipoEscuchar(); equipoEscucharSolicitudes(); equipoEspejo();
+        }
+        function equipoEscucharSolicitudes(){
+            if(_equipoSol) return;
+            _equipoSol = db.collection('equipo_solicitudes').onSnapshot(sn => {
+                const antes = equipoSolic.length; equipoSolic = [];
+                sn.forEach(d => { if(!((equipoCfg || {}).miembros || {})[d.id]) equipoSolic.push(Object.assign({ uid: d.id }, d.data())); });
+                if(equipoSolic.length > antes) daToast('Un doctor pidió acceso a la agenda compartida (Configuración > Agenda compartida).', 'ok');
+                if(document.getElementById('equipoModal').style.display === 'flex') equipoRender();
+            }, e => console.warn('solicitudes equipo', e));
+        }
+        function equipoEscuchar(){
+            if(_equipoEsc) return;
+            const desde = fechaAISO(new Date(Date.now() - 30 * 86400000));
+            _equipoEsc = db.collection('agenda_compartida').where('fecha', '>=', desde).onSnapshot(sn => {
+                const otros = [], hechos = JSON.parse(localStorage.getItem('da_eq_movidas') || '{}'); let cambio = false;
+                sn.forEach(doc => {
+                    const x = doc.data();
+                    if(x.doctorUid !== equipoUid){ if(!x.cancelada) otros.push(Object.assign({ _id: doc.id }, x)); return; }
+                    // un colega movió una cita mía
+                    if(x.editadoPor && x.editadoPor !== equipoUid && x.editadoTs && !hechos[doc.id + '_' + x.editadoTs]){
+                        hechos[doc.id + '_' + x.editadoTs] = 1;
+                        const c = citas.find(k => String(k.id) === String(x.origenId));
+                        if(c && (c.fecha !== x.fecha || c.horaInicio !== x.horaInicio)){
+                            const antes = formatearFechaLegible(c.fecha) + ' ' + formatearHoraAmPm(c.horaInicio);
+                            c.fecha = x.fecha; c.horaInicio = x.horaInicio; c.horaFin = x.horaFin; c.estado = 'status-yellow';
+                            c.notas = ((c.notas || '') + ' · Movida por ' + (x.editadoNombre || 'otro doctor') + ' desde la agenda compartida (antes: ' + antes + ')').trim();
+                            cambio = true;
+                            const txt = (x.editadoNombre || 'Otro doctor') + ' movió la cita de ' + c.paciente + ' al ' + formatearFechaLegible(x.fecha) + ' ' + formatearHoraAmPm(x.horaInicio) + '. Confírmala con el paciente.';
+                            try{ daToast(txt, 'ok'); }catch(e){}
+                            try{ if(window.Notification && Notification.permission === 'granted') new Notification('DentiAgenda: cita movida', { body: txt }); }catch(e){}
+                        }
+                    }
+                });
+                localStorage.setItem('da_eq_movidas', JSON.stringify(hechos));
+                citasEquipo = otros;
+                if(cambio){ localStorage.setItem('denti_citas_v16', JSON.stringify(citas)); guardarAgendaEnNube(); }
+                try{ loadCalendar(); if(selectedDate && document.getElementById('dayModalOverlay') && document.getElementById('dayModalOverlay').style.display === 'flex') openDay(selectedDate); }catch(e){}
+                try{ publicarDisponibilidad(); }catch(e){}
+            }, e => console.warn('agenda compartida', e));
+        }
+        // Publica mis citas (lo mínimo) para que los colegas vean el sillón ocupado
+        let _espejoT = null;
+        function equipoEspejo(){ clearTimeout(_espejoT); _espejoT = setTimeout(equipoEspejoReal, 1500); }
+        async function equipoEspejoReal(){
+            if(!equipoActivo() || !fbOK || !authListo) return;
+            const desde = fechaAISO(new Date(Date.now() - 7 * 86400000)), prev = JSON.parse(localStorage.getItem('da_espejo') || '{}'), nuevo = {}, ops = [];
+            citas.filter(c => c.fecha >= desde).forEach(c => {
+                const id = 'm_' + c.id, d = { fecha: c.fecha, horaInicio: c.horaInicio, horaFin: c.horaFin, paciente: c.paciente || '', telefono: c.telefono || '', motivo: c.motivo || '', estado: c.estado || '', origenId: c.id, doctorUid: equipoUid, doctorNombre: 'Dr. Miguel' };
+                const h = JSON.stringify(d); nuevo[id] = h; if(prev[id] !== h) ops.push(['set', id, d]);
+            });
+            Object.keys(prev).forEach(id => { if(!nuevo[id]) ops.push(['del', id]); });
+            try{
+                for(let i = 0; i < ops.length; i += 400){
+                    const b = db.batch();
+                    ops.slice(i, i + 400).forEach(o => { const ref = db.collection('agenda_compartida').doc(o[1]); if(o[0] === 'set') b.set(ref, Object.assign({ actualizado: Date.now() }, o[2])); else b.delete(ref); });
+                    await b.commit();
+                }
+                localStorage.setItem('da_espejo', JSON.stringify(nuevo));
+            }catch(e){ console.warn('espejo agenda compartida', e); }
+        }
+        // Citas de otros doctores como si fueran del sillón (para choques y disponibilidad)
+        function citasEquipoDia(fecha){ return citasEquipo.filter(c => c.fecha === fecha).map(c => ({ id: c._id, fecha: c.fecha, horaInicio: c.horaInicio, horaFin: c.horaFin, paciente: equipoNombre(c.doctorUid) + ': ' + c.paciente, motivo: c.motivo || '', equipo: true, doctorUid: c.doctorUid })); }
+        // --- administración
+        async function abrirEquipo(){
+            document.getElementById('equipoModal').style.display = 'flex';
+            if(!equipoCfg && equipoUid){
+                try{ await db.collection('equipo').doc('config').set({ owner: equipoUid, miembros: {} }); equipoCfg = { owner: equipoUid, miembros: {} }; equipoEscucharSolicitudes(); }
+                catch(e){ document.getElementById('equipoBody').innerHTML = '<p style="color:#c53030; font-size:0.88rem;">No pude crear la agenda compartida: faltan las reglas de seguridad en Firebase (' + escHtml(e.code || e.message) + '). Pégalas como te indiqué y vuelve a intentar.</p>'; return; }
+            }
+            equipoRender();
+        }
+        function equipoRender(){
+            const el = document.getElementById('equipoBody'); if(!el) return;
+            const M = (equipoCfg || {}).miembros || {}, url = new URL('equipo.html', location.href).href;
+            el.innerHTML = `<p style="font-size:0.84rem; color:var(--text-muted);">Los doctores con acceso solo ven y agendan citas del consultorio (mismo sillón). No ven expedientes, diagnósticos ni estudios. Pueden mover tus citas con advertencia y te llega aviso.</p>
+                <div class="form-group"><label>Enlace para tus colegas</label><div style="display:flex; gap:6px;"><input class="inset-3d" style="flex:1;" readonly value="${escAttr(url)}"><button class="esc-mini" onclick="navigator.clipboard.writeText('${escAttr(url)}').then(()=>daToast('Enlace copiado','ok'))">Copiar</button></div>
+                <div style="font-size:0.78rem; color:var(--text-muted); margin-top:4px;">Lo abren, entran con su Gmail y aquí te aparece su solicitud.</div></div>
+                <h4 style="color:var(--primary); margin:14px 0 6px;">Solicitudes</h4>
+                ${equipoSolic.length ? equipoSolic.map(x => `<div class="inset-3d" style="padding:8px; border-radius:10px; margin-bottom:6px;"><b>${escHtml(x.nombre || x.email || 'Sin nombre')}</b>${x.especialidad ? ' · ' + escHtml(x.especialidad) : ''}<div style="font-size:0.8rem; color:var(--text-muted);">${escHtml(x.email || '')}${x.telefono ? ' · ' + escHtml(x.telefono) : ''}</div>
+                    <div style="display:flex; gap:6px; margin-top:6px;"><button class="esc-mini" onclick="equipoAceptar('${escAttr(x.uid)}')">Aceptar</button><button class="esc-mini" onclick="equipoRechazar('${escAttr(x.uid)}')">Rechazar</button></div></div>`).join('') : '<p style="font-size:0.84rem; color:var(--text-muted);">Ninguna por ahora.</p>'}
+                <h4 style="color:var(--primary); margin:14px 0 6px;">Doctores con acceso</h4>
+                ${Object.keys(M).length ? Object.keys(M).map(uid => `<div class="inset-3d" style="padding:8px; border-radius:10px; margin-bottom:6px; display:flex; gap:8px; align-items:center;"><span style="width:14px; height:14px; border-radius:4px; background:${M[uid].color};"></span>
+                    <div style="flex:1;"><b>${escHtml(M[uid].nombre)}</b><div style="font-size:0.8rem; color:var(--text-muted);">${escHtml(M[uid].email || '')}</div></div>
+                    <button class="esc-mini" onclick="equipoRenombrar('${escAttr(uid)}')">Nombre</button><button class="esc-mini" style="color:#c53030;" onclick="equipoQuitar('${escAttr(uid)}')">Quitar</button></div>`).join('') : '<p style="font-size:0.84rem; color:var(--text-muted);">Todavía nadie.</p>'}`;
+        }
+        async function equipoAceptar(uid){
+            const s = equipoSolic.find(x => x.uid === uid); if(!s) return;
+            const nombre = prompt('¿Cómo se va a llamar en la agenda? (ej. Dra. Ana López)', s.nombre || ''); if(nombre === null) return;
+            const M = Object.assign({}, equipoCfg.miembros || {}); M[uid] = { nombre: nombre.trim() || s.email || 'Doctor', email: s.email || '', especialidad: s.especialidad || '', telefono: s.telefono || '', color: EQ_COLORES[Object.keys(M).length % EQ_COLORES.length] };
+            try{ await db.collection('equipo').doc('config').update({ miembros: M }); equipoCfg.miembros = M; try{ await db.collection('equipo_solicitudes').doc(uid).delete(); }catch(e){}
+                equipoSolic = equipoSolic.filter(x => x.uid !== uid); equipoEscuchar(); equipoEspejo(); equipoRender(); daToast(nombre + ' ya tiene acceso a la agenda compartida', 'ok'); }
+            catch(e){ alert('No se pudo aceptar: ' + (e.code || e.message)); }
+        }
+        async function equipoRechazar(uid){ try{ await db.collection('equipo_solicitudes').doc(uid).delete(); }catch(e){} equipoSolic = equipoSolic.filter(x => x.uid !== uid); equipoRender(); }
+        async function equipoRenombrar(uid){ const M = Object.assign({}, equipoCfg.miembros); const n = prompt('Nombre en la agenda', M[uid].nombre); if(!n) return; M[uid] = Object.assign({}, M[uid], { nombre: n.trim() }); await db.collection('equipo').doc('config').update({ miembros: M }); equipoCfg.miembros = M; equipoRender(); loadCalendar(); }
+        async function equipoQuitar(uid){ const M = Object.assign({}, equipoCfg.miembros); if(!confirm('¿Quitar el acceso de ' + M[uid].nombre + '? Sus citas ya agendadas se conservan.')) return; delete M[uid]; await db.collection('equipo').doc('config').update({ miembros: M }); equipoCfg.miembros = M; equipoRender(); }
+
         function escucharAgendaEnTiempoReal(){
             if(!fbOK || !authListo) return;
             db.collection('agenda').doc('principal').onSnapshot((doc)=>{
@@ -1813,7 +1952,7 @@
                     // todas las horas de la clínica (mañana + tarde)
                     let libres = [...horasEntreDA(config.mInicio, config.mFin), ...horasEntreDA(config.vInicio, config.vFin)];
                     // quitar horas ocupadas por citas de ese día
-                    const citasDia = citas.filter(c => c.fecha === iso);
+                    const citasDia = citas.filter(c => c.fecha === iso).concat(citasEquipoDia(iso));
                     libres = libres.filter(h=>{
                         // ocupada si cae dentro de alguna cita
                         const choca = citasDia.some(c => h >= c.horaInicio && h < c.horaFin);
@@ -2362,7 +2501,7 @@
             alert('Listo. Ahora en Google Calendar: Configuración (⚙️) → Importar y exportar → Importar, y selecciona este archivo. Todas las citas de hoy entran juntas.');
         }
         function exportarMesCalendar() {
-            const dt = new Date(); if(nav !== 0) dt.setMonth(new Date().getMonth() + nav);
+            const dt = new Date(); dt.setDate(1); if(nav !== 0) dt.setMonth(new Date().getMonth() + nav);
             const prefijo = `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}`;
             const citasDelMes = citas.filter(c => c.fecha.startsWith(prefijo));
             if(citasDelMes.length === 0) return alert('No hay citas este mes para exportar.');
@@ -2392,7 +2531,7 @@
             window.print();
         }
         function exportarMesPDF() {
-            const dt = new Date(); if(nav !== 0) dt.setMonth(new Date().getMonth() + nav);
+            const dt = new Date(); dt.setDate(1); if(nav !== 0) dt.setMonth(new Date().getMonth() + nav);
             const prefijo = `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}`;
             const nombreMes = dt.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' });
             const citasDelMes = citas.filter(c => c.fecha.startsWith(prefijo));
@@ -2402,7 +2541,7 @@
 
         // ===== Dashboard =====
         function abrirDashboard() {
-            const dt = new Date(); if(nav !== 0) dt.setMonth(new Date().getMonth() + nav);
+            const dt = new Date(); dt.setDate(1); if(nav !== 0) dt.setMonth(new Date().getMonth() + nav);
             const prefijo = `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}`;
             const nombreMes = dt.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' });
             const citasMes = citas.filter(c => c.fecha.startsWith(prefijo));
@@ -2432,7 +2571,7 @@
         function changeMonth(dir) { nav += dir; loadCalendar(); }
         function loadCalendar() {
             try{ actualizarBadgePotenciales(); }catch(e){}
-            const dt = new Date(); if (nav !== 0) dt.setMonth(new Date().getMonth() + nav);
+            const dt = new Date(); dt.setDate(1); if (nav !== 0) dt.setMonth(new Date().getMonth() + nav);
             const month = dt.getMonth(), year = dt.getFullYear();
             const firstDay = new Date(year, month, 1), daysInMonth = new Date(year, month + 1, 0).getDate();
             const padding = firstDay.getDay();
@@ -2459,6 +2598,8 @@
                         if(dateStr < hoyStr) sq.classList.add('dia-pasado');
                         else sq.classList.add('dia-futuro');
                     }
+                    const nEq = citasEquipo.filter(c => c.fecha === dateStr).length;
+                    if(nEq){ let bd = sq.querySelector('.badges-container'); if(!bd){ bd = document.createElement('div'); bd.classList.add('badges-container'); sq.appendChild(bd); } const be = document.createElement('span'); be.className = 'badge-v'; be.style.background = '#6b46c1'; be.style.color = '#fff'; be.innerText = 'E' + nEq; be.title = nEq + ' cita(s) de otros doctores'; bd.appendChild(be); }
                     if(dateStr === hoyStr) sq.classList.add('dia-hoy');
                     sq.classList.add('btn-3d'); sq.addEventListener('click', () => openDay(dateStr));
                 } else { sq.classList.add('empty'); }
@@ -2568,8 +2709,15 @@
                     </div>`
                 }).join('');
             }
+            // ===== Citas de otros doctores del consultorio (mismo sillón) =====
+            const eqDia = citasEquipoDia(dateStr).sort((a, b) => a.horaInicio.localeCompare(b.horaInicio));
+            if(eqDia.length){
+                list.innerHTML += `<div style="margin-top:12px; font-size:0.8rem; color:var(--text-muted); font-weight:bold;">Otros doctores del consultorio</div>` + eqDia.map(c => `<div class="appointment-item" style="border-left:5px solid ${equipoColor(c.doctorUid)}; opacity:0.92; cursor:default;">
+                    <div class="appointment-header"><strong>${formatearHoraAmPm(c.horaInicio)} - ${formatearHoraAmPm(c.horaFin)}</strong> <span style="font-size:0.78rem; color:${equipoColor(c.doctorUid)}; font-weight:bold;">${escHtml(equipoNombre(c.doctorUid))}</span></div>
+                    <div style="margin-left:6px;">${escHtml(c.paciente.replace(/^[^:]*: /, ''))}${c.motivo ? ' · ' + escHtml(c.motivo) : ''}</div></div>`).join('');
+            }
             // ===== Espacios libres (cuadros grises, click para agendar) =====
-            const libres = calcularEspaciosLibres(dateStr, citasDelDia);
+            const libres = calcularEspaciosLibres(dateStr, citasDelDia.concat(eqDia));
             if(libres.length){
                 let htmlLibres = `<div style="margin-top:14px; font-size:0.8rem; color:var(--text-muted); font-weight:bold;">🕐 Espacios libres (toca para agendar)</div>
                     <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:8px;">`;
@@ -2783,7 +2931,7 @@
             return d <= 0 ? 'hoy' : (d === 1 ? 'ayer' : 'hace ' + d + ' d');
         }
         function usaSmile(nombre){ const u = usoSmile[nombre]; return !!(u && u.ts); }
-        const DA_VERSION = 'v94';
+        const DA_VERSION = 'v97';
         window.addEventListener('load', () => document.querySelectorAll('.da-ver-txt').forEach(e => e.textContent = 'DentiAgenda ' + DA_VERSION));
         // Texto del estado de SmileLike para un paciente (usa lo guardado; abajo se refresca solo ese paciente)
         function textoEstadoSmile(nombre){
@@ -4347,7 +4495,7 @@
             try{ actualizarResumenHora(); }catch(e){}
         }
         function citasSobrepuestas(fecha, hIni, hFin, excluirId) {
-            return citas.filter(c => c.fecha === fecha && c.id !== excluirId && hIni < c.horaFin && hFin > c.horaInicio);
+            return citas.filter(c => c.fecha === fecha && c.id !== excluirId && hIni < c.horaFin && hFin > c.horaInicio).concat(citasEquipoDia(fecha).filter(c => hIni < c.horaFin && hFin > c.horaInicio));
         }
         function guardarCita() {
             const pac = document.getElementById('paciente').value, tel = document.getElementById('telefono').value, hIni = document.getElementById('horaInicio').value, hFin = document.getElementById('horaFin').value, mot = document.getElementById('motivo').value, notasAdicionales = document.getElementById('notas').value;
