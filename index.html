@@ -2948,7 +2948,7 @@
             return d <= 0 ? 'hoy' : (d === 1 ? 'ayer' : 'hace ' + d + ' d');
         }
         function usaSmile(nombre){ const u = usoSmile[nombre]; return !!(u && u.ts); }
-        const DA_VERSION = 'v101';
+        const DA_VERSION = 'v103';
         window.addEventListener('load', () => document.querySelectorAll('.da-ver-txt').forEach(e => e.textContent = 'DentiAgenda ' + DA_VERSION));
         // Texto del estado de SmileLike para un paciente (usa lo guardado; abajo se refresca solo ese paciente)
         function textoEstadoSmile(nombre){
@@ -5718,7 +5718,7 @@ async function iaLlamarServidor(prov, p, extra){
         if(!(window.firebase && firebase.functions)) throw new Error('No se pudo cargar el módulo de IA. ¿Hay internet?');
         iaFn = firebase.functions().httpsCallable('analizarEstudios', { timeout: 170000 });
     }
-    const r = await iaFn({ proveedor: prov, estudios: (p.estudios || []).map(e => ({ url: e.url, nombre: e.nombre || '' })), edad: iaEdadDe(p) });
+    const r = await iaFn({ proveedor: prov, estudios: (p.estudios || []).filter(e => !e.bot).map(e => ({ url: e.url, nombre: e.nombre || '' })), edad: iaEdadDe(p) });
     return r.data;
 }
 
@@ -5832,7 +5832,7 @@ async function iaLlamarLocal(prov, p, extra){
     const modelos = Object.assign({ claude: 'claude-opus-5-5', gemini: 'gemini-3.8-flash', grok: 'grok-4' }, cfg.modelos || {});
     const respaldos = Object.assign({ gemini: 'gemini-3.1-pro-preview' }, cfg.respaldo || {});
     await iaTopeLocal(Number(cfg.limiteDiario) > 0 ? Number(cfg.limiteDiario) : 40);
-    const estudios = (p.estudios || []).slice(p.trazado ? -3 : -4).map(e => ({ url: e.url, nombre: e.nombre }));
+    const estudios = (p.estudios || []).filter(e => !e.bot).slice(p.trazado ? -3 : -4).map(e => ({ url: e.url, nombre: e.nombre }));
     if(p.trazado) estudios.push({ url: p.trazado.url, nombre: 'TRAZADO CEFALOMÉTRICO del doctor (con sus valores)' });
     const imagenes = []; const nombres = [];
     for(const e of estudios){ imagenes.push(await iaDescargarLocal(String(e.url || ''))); nombres.push(String(e.nombre || '').slice(0, 60)); }
@@ -7294,7 +7294,7 @@ function cariesPanoEl(pano){
     return _panoCache.p;
 }
 function cariesElegirPano(p){
-    const ests = (p.estudios || []);
+    const ests = (p.estudios || []).filter(e => !e.bot);
     return ests.filter(e => /panor/i.test(e.nombre || '')).slice(-1)[0] || ests.filter(e => !/lateral|cefal/i.test(e.nombre || '')).slice(-1)[0];
 }
 async function detRevisar(p){
@@ -7340,7 +7340,7 @@ function detFusionar(g, dt, eg, ed){
     const diagF = dt && dt.fdi ? (dt.fdi.error ? 'Numerador de dientes no disponible: ' + dt.fdi.error : 'Numerador de dientes: ' + dt.fdi.n + ' dientes detectados (' + dt.fdi.ms + ' ms). Numerados: ' + dt.fdi.dientes.map(t => t.d).sort((a, b) => a - b).join(' ') + '. Ausencias deducidas: ' + (dt.fdi.aus.map(x => x.txt).join(', ') || 'ninguna') + '.') : '';
     const diagD = (diagF ? diagF + '\n\n' : '') + (dt ? 'Detector local (YOLOv8, ' + dt.ms + ' ms). Todo lo que vio, también lo que no se usa:\n' + (dt.todas.length ? dt.todas.map(x => '  ' + x.clase + ' ' + Math.round(x.conf * 100) + ' %').join('\n') : '  sin detecciones') : (ed ? 'Detector local no disponible: ' + (ed.message || ed) : ''));
     const obs = [g ? g.obs : '', eg ? 'La lectura de la IA no se pudo completar (' + iaMensajeError(eg) + '); solo hay resultado del detector.' : '', ed ? 'El detector local no se pudo ejecutar (' + (ed.message || ed) + '); solo hay resultado de la IA.' : ''].filter(Boolean).join(' ');
-    return { lista: lista, desg: g ? g.desg : [], obs: obs.trim(), calidad: g ? g.calidad : '', img: url, prov: g ? g.prov : 'detector', modelo: g ? g.modelo : 'detector', diag: [g ? g.diag : '', diagD].filter(Boolean).join('\n\n').slice(0, 4500), revisados: g ? g.revisados : 0, imp: imp, dientes: fdiOk ? dt.fdi.dientes : [], mixta: fdiOk ? dt.fdi.mixta || null : null, wh: fdiOk ? dt.fdi.wh || null : null,
+    return { lista: lista, desg: g ? g.desg : [], obs: obs.trim(), calidad: g ? g.calidad : '', img: url, prov: g ? g.prov : 'detector', modelo: g ? g.modelo : 'detector', diag: [g ? g.diag : '', diagD].filter(Boolean).join('\n\n').slice(0, 4500), revisados: g ? g.revisados : 0, imp: imp, rest: g ? g.rest || [] : [], dientes: fdiOk ? dt.fdi.dientes : [], mixta: fdiOk ? dt.fdi.mixta || null : null, wh: fdiOk ? dt.fdi.wh || null : null,
         peri: dt ? dt.todas.filter(x => x.clase === 'Periapical Lesion' && x.conf >= DET_UMBRAL.dudosa).map(x => { const a = detAsignar(x.box, todos); return { d: a.d, conf: x.conf, est: a.est, x: x.conf < DET_UMBRAL.fuerte }; }).filter((x, i, A) => x.d && A.findIndex(y => y.d === x.d) === i) : [],
         aus: (() => { const a = fdiOk ? dt.fdi.aus.map(x => ({ d: x.d, txt: x.txt, amb: !!x.amb, x: false, src: 'detector' })) : [];
             if(g) (g.aus || []).filter(n => n % 10 !== 8 && !a.some(y => y.d === n || String(y.txt).indexOf(String(n)) >= 0)).forEach(n => a.push({ d: n, txt: String(n), x: false, src: 'ia' }));
@@ -7525,11 +7525,13 @@ Si una caries es EVIDENTE (cavidad visible o discontinuidad clara del contorno) 
 NO son caries: la unión esmalte-cemento normal, la cámara pulpar y los conductos, el ligamento periodontal, la superposición de dientes vecinos, ni el aire de la vía aérea.
 Profundidad: "superficial" = solo esmalte; "media" = dentina externa o media; "profunda" = dentina interna o cercana a la pulpa.
 
+TRATAMIENTOS PREVIOS (en cada diente presente): "endodoncia" = material blanco y delgado que rellena el conducto dentro de la raíz; "poste" = varilla radiopaca dentro del conducto en el tercio cervical; "corona" = capa radiopaca uniforme que envuelve toda la corona; "resina" = obturación poco o medianamente radiopaca en la corona; "amalgama" = obturación muy blanca, casi como metal; "implante" = tornillo metálico en el hueso en lugar de raíz. Si no hay, lista vacía.
+
 DESGASTE: "plano" = pérdida de altura con el borde incisal u oclusal recto, como cortado de un tajo (atrición, posible bruxismo); "circular" = pérdida redondeada o en copa o cuña (erosión, abrasión, abfracción). Si no hay desgaste, "ninguno".
 
 Responde ÚNICAMENTE con un objeto JSON válido (sin texto antes ni después, sin markdown):
 {
-  "dientes": [ { "diente": 16, "estado": "sano" | "caries" | "restaurado" | "restaurado_con_caries" | "ausente" | "no_valorable", "profundidad": "superficial" | "media" | "profunda" | "", "superficie": "oclusal" | "mesial" | "distal" | "cervical" | "no_claro" | "", "confianza": "alta" | "media" | "baja", "desgaste": "ninguno" | "plano" | "circular", "severidad": "leve" | "moderado" | "severo" | "", "evidencia": "qué ves en ese diente, una frase"${conBox ? ', "box_2d": [ymin, xmin, ymax, xmax]' : ''} } ],
+  "dientes": [ { "diente": 16, "estado": "sano" | "caries" | "restaurado" | "restaurado_con_caries" | "ausente" | "no_valorable", "profundidad": "superficial" | "media" | "profunda" | "", "superficie": "oclusal" | "mesial" | "distal" | "cervical" | "no_claro" | "", "confianza": "alta" | "media" | "baja", "tratamientos": [ "endodoncia" | "poste" | "corona" | "resina" | "amalgama" | "implante" ], "desgaste": "ninguno" | "plano" | "circular", "severidad": "leve" | "moderado" | "severo" | "", "evidencia": "qué ves en ese diente, una frase"${conBox ? ', "box_2d": [ymin, xmin, ymax, xmax]' : ''} } ],
   "calidad": "buena" | "regular" | "mala",
   "observaciones": "máximo 2 frases: qué no pudiste valorar y por qué"
 }
@@ -7546,7 +7548,7 @@ function cariesLimpiarZona(texto, q){
         return [Math.round((T.y0 + bx[0] / 1000 * T.h) * 1000), Math.round((T.x0 + bx[1] / 1000 * T.w) * 1000), Math.round((T.y0 + bx[2] / 1000 * T.h) * 1000), Math.round((T.x0 + bx[3] / 1000 * T.w) * 1000)]; };
     const cf = v => ['alta', 'media', 'baja'].includes(v) ? v : 'media';
     const str = (v, n) => typeof v === 'string' ? v.trim().slice(0, n) : '';
-    const car = [], des = [], est = [], todos = [], aus = [], vistos = {}; let descartados = 0;
+    const car = [], des = [], est = [], todos = [], aus = [], rest = [], vistos = {}; let descartados = 0;
     (Array.isArray(o.dientes) ? o.dientes : []).forEach(x => {
         const d = Number(x && x.diente);
         if(!CAR_VALIDO(d) || vistos[d]) return;
@@ -7555,13 +7557,15 @@ function cariesLimpiarZona(texto, q){
         const estado = String(x.estado || ''), conf = cf(x.confianza), ev = str(x.evidencia, 180), box = glob(x.box_2d);
         if(box) todos.push({ d: d, box: box });
         if(estado === 'ausente') aus.push(d);
+        const tr = (Array.isArray(x.tratamientos) ? x.tratamientos : []).filter(v => ['endodoncia', 'poste', 'corona', 'resina', 'amalgama', 'implante'].includes(v));
+        if(tr.length && estado !== 'ausente') rest.push({ d: d, t: tr.filter((v, i, A) => A.indexOf(v) === i), conf: conf });
         est.push(d + ' ' + (estado || '?') + (estado.indexOf('caries') >= 0 ? ' ' + (x.profundidad || '') + ' (' + conf + ')' : '') + (x.desgaste && x.desgaste !== 'ninguno' ? ', desgaste ' + x.desgaste : ''));
         if(estado === 'caries' || estado === 'restaurado_con_caries')
             car.push({ d: d, prof: CAR_PROF[x.profundidad] || 'media', sup: ['oclusal', 'mesial', 'distal', 'cervical'].includes(x.superficie) ? x.superficie : '', conf: conf, ev: ev, box: box, nota: '', x: false });
         if(x.desgaste === 'plano' || x.desgaste === 'circular')
             des.push({ d: d, tipo: x.desgaste, sev: ['leve', 'moderado', 'severo'].includes(x.severidad) ? x.severidad : 'leve', conf: conf, ev: ev, x: conf === 'baja' });
     });
-    return { car: car, des: des, est: est, todos: todos, aus: aus, descartados: descartados, calidad: ['buena', 'regular', 'mala'].includes(o.calidad) ? o.calidad : '', obs: str(o.observaciones, 240) };
+    return { car: car, des: des, est: est, todos: todos, aus: aus, rest: rest, descartados: descartados, calidad: ['buena', 'regular', 'mala'].includes(o.calidad) ? o.calidad : '', obs: str(o.observaciones, 240) };
 }
 function cariesRecorte(imgEl, T){
     const W = imgEl.naturalWidth, H = imgEl.naturalHeight;
@@ -7579,7 +7583,7 @@ async function iaCariesLocal(prov, p){
     let cfg = {}; try{ const sn = await db.collection('agenda').doc('ia_config').get(); cfg = sn.exists ? sn.data() : {}; }catch(e){}
     const modelos = Object.assign({ claude: 'claude-opus-5-5', gemini: 'gemini-3.8-flash', grok: 'grok-4' }, cfg.modelos || {});
     const respaldos = Object.assign({ gemini: 'gemini-3.1-pro-preview' }, cfg.respaldo || {});
-    const ests = (p.estudios || []);
+    const ests = (p.estudios || []).filter(e => !e.bot);
     const pano = ests.filter(e => /panor/i.test(e.nombre || '')).slice(-1)[0] || ests.filter(e => !/lateral|cefal/i.test(e.nombre || '')).slice(-1)[0];
     if(!pano) throw new Error('NO_PANO');
     const el = await cariesPanoEl(pano);
@@ -7647,9 +7651,10 @@ async function iaCariesLocal(prov, p){
     const diag = 'Modelo: ' + principal + '\n' + ok.map(o => etq[o.q] + (o.v.descartados ? ' (' + o.v.descartados + ' fuera de zona descartados)' : '') + ': ' + (o.v.est.join('; ') || 'sin dientes listados') + (o.v.calidad ? ' [calidad ' + o.v.calidad + ']' : '')).join('\n') + (fallas.length ? '\nFallaron ' + fallas.length + ' pasadas: ' + fallas.map(f => String(f.reason && f.reason.message || f.reason)).join(' | ') : '');
     const obs = ok.map(o => o.v.obs).filter(Boolean).join(' ').slice(0, 400) + (fallas.length ? ' No se completaron ' + fallas.length + ' de ' + QS.length + ' pasadas; usa "Volver a buscar".' : '');
     const revisados = Math.max.apply(null, ok.map(o => o.v.est.length));
-    const todosM = {}, ausM = {};
+    const todosM = {}, ausM = {}, restM = {};
+    ok.forEach(o => (o.v.rest || []).forEach(r => { const m = restM[r.d] = restM[r.d] || { d: r.d, t: [], conf: r.conf }; r.t.forEach(v => { if(!m.t.includes(v)) m.t.push(v); }); }));
     ok.filter(o => o.q > 0).forEach(o => { o.v.todos.forEach(t => { if(!todosM[t.d]) todosM[t.d] = t; }); o.v.aus.forEach(n => { ausM[n] = 1; }); });
-    return { lista: lista, desg: desg, obs: obs.trim(), calidad: (ok.map(o => o.v.calidad).find(Boolean)) || '', img: String(pano.url || ''), prov: prov, modelo: principal, diag: diag.slice(0, 3500), revisados: revisados, todos: Object.keys(todosM).map(k => todosM[k]), aus: Object.keys(ausM).map(Number).sort((a, b) => a - b) };
+    return { lista: lista, desg: desg, obs: obs.trim(), calidad: (ok.map(o => o.v.calidad).find(Boolean)) || '', img: String(pano.url || ''), prov: prov, modelo: principal, diag: diag.slice(0, 3500), revisados: revisados, todos: Object.keys(todosM).map(k => todosM[k]), aus: Object.keys(ausM).map(Number).sort((a, b) => a - b) , rest: Object.keys(restM).map(k => restM[k]).sort((a, b) => a.d - b.d) };
 }
 
 // Aplica el resultado de la IA a tu decisión final (marca "Caries" y deja la lista para verificar)
@@ -7658,7 +7663,7 @@ function cariesAplicar(res){
     d.cariesDet = res.lista.map(x => Object.assign({}, x, { ia: true })); d.cariesImg = res.img; d.cariesObs = res.obs; d.cariesProv = res.prov; d.cariesOk = false; d.cariesErr = ''; d.cariesDiag = res.diag || ''; d.cariesRev = res.revisados || 0;
     d.desgDet = (res.desg || []).map(x => Object.assign({}, x));
     d.impDet = (res.imp || []).map(x => Object.assign({}, x)); d.ausDet = (res.aus || []).map(x => Object.assign({}, x)); d.dientesNum = (res.dientes || []).slice();
-    d.periDet = (res.peri || []).map(x => Object.assign({}, x)); d.panoWH = res.wh || null; d.mixtaImg = res.mixta || null; d.odontoAuto = null; d.caninoMan = d.caninoMan || {};
+    d.periDet = (res.peri || []).map(x => Object.assign({}, x)); d.restDet = (res.rest || []).map(x => Object.assign({}, x, { t: x.t.slice() })); d.panoWH = res.wh || null; d.mixtaImg = res.mixta || null; d.odontoAuto = null; d.caninoMan = d.caninoMan || {};
     // Dentición mixta (por edad o por la imagen): las ausencias quedan por verificar, no se dan por hechas
     if(dpMixta(d, iaEdadDe(pacientes[mesa.nombre] || {})).si) d.ausDet.forEach(x => { x.x = true; x.mixta = true; });
     if(d.cariesDet.some(x => !x.x) && !d.hall.includes('caries')) d.hall.push('caries');
@@ -7795,7 +7800,7 @@ function cariesVer(op){
     if(op.marcar) d._marcar = { n: op.marcar, pts: [] }; else delete d._marcar;
     const ejes = (op.ejes || op.marcar) && (d.dientesNum || []).some(t => t.ax) || op.marcar;
     const cajasT = (op.marcar ? '' : cariesCajasHtml()) + (ejes ? `<svg viewBox="0 0 1000 1000" preserveAspectRatio="none" style="position:absolute; inset:0; width:100%; height:100%; pointer-events:none;">${dpEjesSvg(d)}<circle id="dpPt0" r="5" fill="#f6e05e" vector-effect="non-scaling-stroke" style="display:none;"/></svg>` : '');
-    const ayuda = op.marcar ? `<div id="dpVerAyuda" style="color:#f6e05e; font-weight:bold;">Toca la punta de la cúspide del ${op.marcar}.</div>Después toca el ápice. Toca fuera de la imagen para cancelar.` : ejes ? 'Ejes de cada diente (de la corona al ápice). Verde: normal · rojo: raíces fuera de paralelo · amarillo: canino retenido. Toca fuera para cerrar.' : '';
+    const ayuda = op.marcar ? `<div id="dpVerAyuda" style="color:#f6e05e; font-weight:bold;">Toca la punta de la cúspide del ${op.marcar}.</div>Después toca el ápice. Toca fuera de la imagen para cancelar.` : ejes ? 'Ejes de cada diente (de la corona al ápice). Verde: normal · rojo: raíces fuera de paralelo · amarillo: canino retenido. Toca fuera para cerrar.<div style="margin-top:8px;"><button class="btn-3d" style="padding:6px 14px;" onclick="event.stopPropagation(); dpGuardarEjes()">Guardar este trazado en el expediente</button></div>' : '';
     let m = document.getElementById('cariesVer'); if(m) m.remove();
     m = document.createElement('div'); m.id = 'cariesVer';
     m.style.cssText = 'position:fixed; inset:0; z-index:7000; background:rgba(0,0,0,.88); overflow:auto; padding:30px 8px 20px;';
@@ -7803,10 +7808,115 @@ function cariesVer(op){
     m.innerHTML = `<div style="color:#fff; font-size:0.8rem; text-align:center; margin-bottom:10px;">${ayuda || 'Toca un número para corregirlo. Toca fuera para cerrar. Rojo: profunda · naranja: media · amarillo: superficial · azul punteado: impactado. Los recuadros son aproximados: verifica en la radiografía.'}</div><div style="position:relative; width:max(100%, 900px); margin:0 auto;${op.marcar ? ' cursor:crosshair;' : ''}" ${op.marcar ? 'onclick="dpVerClick(event, this)"' : ''}><img src="${escAttr(d.cariesImg)}" style="width:100%; display:block;">${cajasT}</div>`;
     document.body.appendChild(m);
 }
+// ============ ANÁLISIS COMPLETO (computadora): modelo de 31 clases (Dental X-Ray Panoramic Dataset, Kaggle) para retenidos y tratamientos previos ============
+const KAG = { partes: ['detector/completo-a.bin', 'detector/completo-b.bin', 'detector/completo-c.bin'], S: 1024, sesion: null, cargando: null,
+    clases: ['Caries', 'Crown', 'Filling', 'Implant', 'Malaligned', 'Mandibular Canal', 'Missing teeth', 'Periapical lesion', 'Retained root', 'Root Canal Treatment', 'Root Piece', 'impacted tooth', 'maxillary sinus', 'Bone Loss', 'Fracture teeth', 'Permanent Teeth', 'Supra Eruption', 'TAD', 'abutment', 'attrition', 'bone defect', 'gingival former', 'metal band', 'orthodontic brackets', 'permanent retainer', 'post - core', 'plating', 'wire', 'Cyst', 'Root resorption', 'Primary teeth'],
+    usar: { 'Filling': ['resina', 0.10], 'Crown': ['corona', 0.20], 'Root Canal Treatment': ['endodoncia', 0.20], 'post - core': ['poste', 0.20], 'Implant': ['implante', 0.30], 'abutment': ['implante', 0.30], 'Retained root': ['resto', 0.30], 'Root Piece': ['resto', 0.30], 'impacted tooth': ['retenido', 0.15] } };
+async function kagSesion(){
+    if(KAG.sesion) return KAG.sesion;
+    if(!KAG.cargando){
+        KAG.cargando = (async () => {
+            await detCargarScript(DET.libs + 'ort.wasm.min.js');
+            ort.env.wasm.wasmPaths = DET.libs; ort.env.wasm.numThreads = 1; ort.env.wasm.proxy = false;
+            const bufs = await Promise.all(KAG.partes.map(async u => { const r = await fetch(u); if(!r.ok) throw new Error('No se encontró el modelo del análisis completo (' + u + ').'); return new Uint8Array(await r.arrayBuffer()); }));
+            const tot = bufs.reduce((a, b) => a + b.length, 0), all = new Uint8Array(tot); let o = 0; bufs.forEach(b => { all.set(b, o); o += b.length; });
+            KAG.sesion = await ort.InferenceSession.create(all, { executionProviders: ['wasm'] });
+            return KAG.sesion;
+        })().catch(e => { KAG.cargando = null; throw e; });
+    }
+    return KAG.cargando;
+}
+async function kagDetectar(imgEl){
+    const ses = await kagSesion(), S = KAG.S, w = imgEl.naturalWidth, h = imgEl.naturalHeight;
+    const k = S / Math.max(w, h), nw = Math.round(w * k), nh = Math.round(h * k), ox = Math.floor((S - nw) / 2), oy = Math.floor((S - nh) / 2);
+    const cv = document.createElement('canvas'); cv.width = S; cv.height = S;
+    const cx = cv.getContext('2d', { willReadFrequently: true }); cx.fillStyle = 'rgb(114,114,114)'; cx.fillRect(0, 0, S, S); cx.imageSmoothingQuality = 'high'; cx.drawImage(imgEl, ox, oy, nw, nh);
+    const px = cx.getImageData(0, 0, S, S).data, n = S * S, data = new Float32Array(3 * n);
+    for(let i = 0; i < n; i++){ data[i] = px[i * 4] / 255; data[n + i] = px[i * 4 + 1] / 255; data[2 * n + i] = px[i * 4 + 2] / 255; }
+    const out = await ses.run({ images: new ort.Tensor('float32', data, [1, 3, S, S]) });
+    const o = out.output0, A = o.data, N = o.dims[2], nc = KAG.clases.length, cand = [];
+    for(let i = 0; i < N; i++){
+        let best = 0, c = 0; for(let j = 0; j < nc; j++){ const s = A[(4 + j) * N + i]; if(s > best){ best = s; c = j; } }
+        const u = KAG.usar[KAG.clases[c]]; if(!u || best < Math.min(u[1], 0.1)) continue;
+        const bx = A[i], by = A[N + i], bw = A[2 * N + i], bh = A[3 * N + i];
+        cand.push({ c: KAG.clases[c], s: best, b: [(bx - bw / 2 - ox) / k, (by - bh / 2 - oy) / k, (bx + bw / 2 - ox) / k, (by + bh / 2 - oy) / k] });
+    }
+    cand.sort((a, b) => b.s - a.s); const keep = [];
+    cand.forEach(q => { if(keep.every(z => z.c !== q.c || detIou(z.b, q.b) < 0.5)) keep.push(q); });
+    return keep;
+}
+// Ubica cada hallazgo en su diente. Las resinas solo cuentan en la parte oclusal y sobre un solo diente:
+// con apiñamiento los dientes se enciman en la zona de contacto y eso parece resina.
+function kagUbicar(d, L, W, H){
+    const T = (d.dientesNum || []).filter(t => t.box), res = [], descart = [];
+    const nb = b => [b[0] / W * 1000, b[1] / H * 1000, b[2] / W * 1000, b[3] / H * 1000];   // x0, y0, x1, y1 en 0-1000
+    const tb = t => [t.box[1], t.box[0], t.box[3], t.box[2]];
+    const solape = (a, b) => { const iw = Math.min(a[2], b[2]) - Math.max(a[0], b[0]), ih = Math.min(a[3], b[3]) - Math.max(a[1], b[1]); return iw > 0 && ih > 0 ? iw * ih / ((a[2] - a[0]) * (a[3] - a[1])) : 0; };
+    L.forEach(q => {
+        const u = KAG.usar[q.c]; if(!u || q.s < u[1]) return;
+        const b = nb(q.b), cxq = (b[0] + b[2]) / 2, cyq = (b[1] + b[3]) / 2;
+        if(u[0] === 'implante'){ const a = detAsignar([b[0] / 1000, b[1] / 1000, b[2] / 1000, b[3] / 1000], T); res.push({ d: a.d, tipo: u[0], conf: q.s, est: a.est, box: [b[1], b[0], b[3], b[2]] }); return; }
+        if(u[0] === 'retenido'){ res.push({ d: kagRetenido(d, b), tipo: 'retenido', conf: q.s, est: true, box: [b[1], b[0], b[3], b[2]] }); return; }
+        let mej = null, mv = 0; T.forEach(t => { const v = solape(b, tb(t)); if(v > mv){ mv = v; mej = t; } });
+        if(!mej || mv < 0.5){ descart.push(q.c + ' fuera de un diente'); return; }
+        if(u[0] === 'resina'){
+            const pw = q.b[2] - q.b[0], ph = q.b[3] - q.b[1], t = tb(mej), tw = t[2] - t[0];
+            if(pw / ph < 0.6){ descart.push('franja delgada (posible encimamiento) en ' + mej.d); return; }
+            if(Math.abs(cxq - (t[0] + t[2]) / 2) > 0.35 * tw){ descart.push('zona de contacto entre dientes junto al ' + mej.d); return; }
+            let oclusal;
+            if(mej.ax){ const c = [mej.ax[0], mej.ax[1]], a = [mej.ax[2], mej.ax[3]], v = [a[0] - c[0], a[1] - c[1]], L2 = v[0] * v[0] + v[1] * v[1] || 1;
+                oclusal = ((cxq - c[0]) * v[0] + (cyq - c[1]) * v[1]) / L2 < 0.3; }
+            else { const sup = Math.floor(mej.d / 10) <= 2, hh = t[3] - t[1]; oclusal = sup ? cyq > t[1] + 0.6 * hh : cyq < t[1] + 0.4 * hh; }
+            if(!oclusal){ descart.push('lejos de la cara oclusal del ' + mej.d); return; }
+        }
+        res.push({ d: mej.d, tipo: u[0], conf: q.s, est: false, box: [b[1], b[0], b[3], b[2]] });
+    });
+    return { res: res, descart: descart };
+}
+// Un retenido no está en la arcada: se numera por zona (canino adelante, 2.º premolar en medio, tercer molar detrás del 7),
+// del lado que tenga ausencias o, si no, del lado donde cae
+function kagRetenido(d, b){
+    const by = dpPorNum(d), cx = (b[0] + b[2]) / 2, cy = (b[1] + b[3]) / 2, cxT = n => by[n] ? (by[n].box[1] + by[n].box[3]) / 2 : null;
+    const prom = A => A.length ? A.reduce((p, q) => p + q, 0) / A.length : null, yc = t => (t.box[0] + t.box[2]) / 2;
+    const yS = prom((d.dientesNum || []).filter(t => t.d < 30).map(yc)), yI = prom((d.dientesNum || []).filter(t => t.d > 30).map(yc));
+    const sup = yS != null && yI != null ? cy < (yS + yI) / 2 : cy < 500;
+    const qs = sup ? [1, 2] : [4, 3], mid = (cxT(sup ? 11 : 41) != null && cxT(sup ? 21 : 31) != null) ? (cxT(sup ? 11 : 41) + cxT(sup ? 21 : 31)) / 2 : 500;
+    const ausQ = q => (d.ausDet || []).some(x => !x.x && Math.floor(x.d / 10) === q && x.d % 10 !== 8);
+    let q = cx < mid ? qs[0] : qs[1]; if(ausQ(qs[0]) !== ausQ(qs[1])) q = ausQ(qs[0]) ? qs[0] : qs[1];
+    const lejos = n => cxT(n) == null ? null : Math.abs(cxT(n) - mid);
+    const dx = Math.abs(cx - mid), d7 = lejos(q * 10 + 7), d4 = lejos(q * 10 + 4) || lejos(q * 10 + 5);
+    return q * 10 + (d7 != null && dx > d7 ? 8 : d4 != null && dx > d4 ? 5 : 3);
+}
+async function kagAnalizar(){
+    const d = mesa.d; if(mesa._kag) return;
+    if(!d.cariesImg || !(d.dientesNum || []).length){ daToast('Primero haz el análisis rápido de la panorámica', 'err'); return; }
+    const movil = /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent);
+    if(!KAG.sesion && !confirm('El análisis completo descarga un modelo de 61 MB (solo la primera vez) y ' + (movil ? 'en el celular puede tardar más de un minuto o no alcanzar la memoria. Es mejor hacerlo en la computadora.' : 'tarda alrededor de un minuto.') + '\n\n¿Continuar?')) return;
+    mesa._kag = true; daOcupado(1); renderMesaDecisiones(); daToast(KAG.sesion ? 'Analizando…' : 'Descargando el modelo y analizando… no cierres la ventana');
+    try{
+        const img = await cariesPanoEl({ url: d.cariesImg }), t0 = Date.now(), L = await kagDetectar(img), ms = Date.now() - t0;
+        const r = kagUbicar(d, L, img.naturalWidth, img.naturalHeight);
+        // tratamientos previos → odontograma (se suman a lo que vio la IA)
+        d.restDet = (d.restDet || []).filter(x => x.src !== 'completo');
+        const T = { resina: 'resina', corona: 'corona', endodoncia: 'endodoncia', poste: 'poste', implante: 'implante', resto: 'resto' };
+        r.res.filter(x => T[x.tipo]).forEach(x => { let e = d.restDet.find(z => z.d === x.d && z.src === 'completo'); if(!e){ e = { d: x.d, t: [], conf: x.conf, src: 'completo' }; d.restDet.push(e); } if(!e.t.includes(T[x.tipo])) e.t.push(T[x.tipo]); e.conf = Math.max(e.conf, x.conf); });
+        d.restDet.sort((a, b) => a.d - b.d);
+        // retenidos que el detector rápido no vio
+        let nuevos = 0; d.impDet = d.impDet || [];
+        const io = (p, q) => detIou([p[1], p[0], p[3], p[2]], [q[1], q[0], q[3], q[2]]);
+        r.res.filter(x => x.tipo === 'retenido').forEach(x => { if(d.impDet.some(z => z.d === x.d || (z.box && io(z.box, x.box) > 0.2))) return; d.impDet.push({ d: x.d, conf: x.conf, est: x.est, x: x.conf < 0.2, box: x.box, ev: 'Análisis completo: diente retenido (' + Math.round(x.conf * 100) + ' %)' + (x.est ? ' · número estimado por posición' : '') }); nuevos++; });
+        d.impDet.sort((a, b) => a.d - b.d); if(d.impDet.some(z => !z.x) && !d.hall.includes('retenidos')) d.hall.push('retenidos');
+        d.kag = { ts: Date.now(), ms: ms, n: r.res.length, descart: r.descart.slice(0, 12) };
+        const tr = d.restDet.filter(x => x.src === 'completo');
+        daToast((tr.length ? 'Tratamientos previos en ' + tr.map(x => x.d).join(', ') : 'Sin tratamientos previos claros') + (nuevos ? ' · ' + nuevos + ' retenido(s) nuevo(s)' : '') + ' (' + Math.round(ms / 1000) + ' s)', 'ok');
+    }catch(e){ console.error(e); daToast('No se pudo hacer el análisis completo: ' + (e.message || e), 'err'); }
+    mesa._kag = false; daOcupado(-1); cariesCambio();
+}
+
 // ============ DIENTES (bot): odontograma, alertas ortodónticas, dentición mixta, caninos retenidos, paralelismo radicular, comparación e imagen para el paciente ============
 const DP_AGEN = [12, 22, 15, 25, 35, 45, 31, 41, 32, 42];   // sitios frecuentes de agenesia
-const DP_EST = { p: ['Presente', '#ffffff', '#2d3748'], c: ['Caries', '#f6ad55', '#1a202c'], cp: ['Caries profunda', '#e53e3e', '#ffffff'], r: ['Restaurado', '#90cdf4', '#1a202c'], e: ['Endodoncia', '#9f7aea', '#ffffff'], i: ['Retenido', '#e9f4ff', '#2b6cb0'], a: ['Ausente', '#a0aec0', '#ffffff'], x: ['Por extraer', '#2d3748', '#ffffff'], t: ['Temporal', '#fefcbf', '#744210'], '?': ['Sin dato', '#edf2f7', '#a0aec0'] };
-const DP_ORDEN = ['p', 'c', 'cp', 'r', 'e', 'i', 'a', 'x', 't'];
+const DP_EST = { p: ['Presente', '#ffffff', '#2d3748'], c: ['Caries', '#f6ad55', '#1a202c'], cp: ['Caries profunda', '#e53e3e', '#ffffff'], r: ['Restaurado', '#90cdf4', '#1a202c'], e: ['Endodoncia', '#9f7aea', '#ffffff'], i: ['Retenido', '#e9f4ff', '#2b6cb0'], a: ['Ausente', '#a0aec0', '#ffffff'], x: ['Por extraer', '#2d3748', '#ffffff'], t: ['Temporal', '#fefcbf', '#744210'], k: ['Corona', '#f6e05e', '#1a202c'], m: ['Implante', '#4a5568', '#ffffff'], rr: ['Resto radicular', '#feb2b2', '#742a2a'], '?': ['Sin dato', '#edf2f7', '#a0aec0'] };
+const DP_ORDEN = ['p', 'c', 'cp', 'r', 'k', 'e', 'm', 'rr', 'i', 'a', 'x', 't'];
 function dpContra(n){ return ({ 1: 2, 2: 1, 3: 4, 4: 3 })[Math.floor(n / 10)] * 10 + n % 10; }
 function dpMes(n){ const q = Math.floor(n / 10); return (q === 1 || q === 4) ? 1 : -1; }   // en la imagen, cuadrantes 1 y 4 a la izquierda: mesial = +x
 function dpPorNum(d){ const by = {}; (d.dientesNum || []).forEach(t => { if(!by[t.d]) by[t.d] = t; }); return by; }
@@ -7922,6 +8032,10 @@ function dpOdontoAuto(d){
     (d.dientesNum || []).forEach(t => { o[t.d] = 'p'; });
     (d.ausDet || []).filter(x => !x.x && !x.amb).forEach(x => { o[x.d] = 'a'; });
     if(hay) [18, 28, 38, 48].forEach(n => { if(o[n] === '?') o[n] = 'a'; });
+    // tratamientos previos que vio la IA (endodoncia pesa más que corona y que resina)
+    const pri = { m: 6, rr: 5, e: 4, k: 3, r: 2 }, est = {};
+    (d.restDet || []).filter(x => !x.x).forEach(x => { const v = x.t.includes('implante') ? 'm' : x.t.includes('resto') ? 'rr' : x.t.includes('endodoncia') || x.t.includes('poste') ? 'e' : x.t.includes('corona') ? 'k' : 'r'; if(!est[x.d] || pri[v] > pri[est[x.d]]) est[x.d] = v; });
+    Object.keys(est).forEach(n => { o[n] = est[n]; });
     (d.cariesDet || []).filter(x => !x.x).forEach(x => { o[x.d] = x.prof === 'profunda' ? 'cp' : 'c'; });
     (d.impDet || []).filter(x => !x.x).forEach(x => { o[x.d] = 'i'; });
     return o;
@@ -7985,11 +8099,15 @@ function dpPanel(){
         <b style="font-size:0.85rem;">Dientes (bot)</b>
         ${mx.si ? `<div style="margin-top:6px; padding:6px 8px; border-radius:8px; background:#fffbea; border:1px solid #d69e2e; font-size:0.8rem;"><b>Posible dentición mixta</b> (${[mx.porEdad ? edad + ' años' : '', mx.porImagen ? 'dientes encimados en la imagen' : ''].filter(Boolean).join('; ')}). El numerador se entrenó con adultos: los números y las ausencias son orientativos y quedaron "por verificar". Marca los temporales en el odontograma.</div>` : ''}
         <div style="margin-top:6px;">${dpOdontoHtml(d)}</div>
+        ${(d.restDet || []).filter(x => x.src !== 'completo').length ? `<div class="esc-sub" style="margin-top:2px;">Tratamientos previos que vio la IA: ${d.restDet.filter(x => x.src !== 'completo').map(x => x.d + ' ' + x.t.join(' y ')).join(' · ')}. Verifícalos en la radiografía.</div>` : ''}
+        ${d.kag ? `<div class="esc-sub" style="margin-top:2px;">Análisis completo (${Math.round(d.kag.ms / 1000)} s): ${(d.restDet || []).filter(x => x.src === 'completo').map(x => x.d + ' ' + x.t.join(' y ')).join(' · ') || 'sin tratamientos previos claros'}. Por verificar.${(d.kag.descart || []).length ? ' <details style="display:inline;"><summary style="display:inline; cursor:pointer;">Descartados (' + d.kag.descart.length + ')</summary>' + escHtml(d.kag.descart.join('; ')) + '</details>' : ''}</div>` : ''}
         <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;">
             <button class="esc-mini" onclick="dpImagenPaciente()">Imagen para el paciente</button>
-            ${geo ? '<button class="esc-mini" onclick="cariesVer({ ejes: true })">Ver ejes de los dientes</button>' : ''}
+            <button class="esc-mini${mesa._kag ? ' ia-trabajando' : ''}" ${mesa._kag ? 'disabled' : ''} onclick="kagAnalizar()" title="Retenidos, resinas oclusales, coronas, endodoncias, postes e implantes. Descarga 61 MB la primera vez.">${mesa._kag ? 'Analizando…' : (d.kag ? 'Repetir análisis completo' : 'Análisis completo (computadora)')}</button>
+            ${geo ? '<button class="esc-mini" onclick="cariesVer({ ejes: true })">Ver ejes de los dientes</button><button class="esc-mini' + (mesa._ejesG ? ' ia-trabajando' : '') + '" onclick="dpGuardarEjes()">' + (mesa._ejesG ? 'Guardando…' : 'Guardar trazado de ejes') + '</button>' : ''}
             ${nPan >= 2 ? `<button class="esc-mini${mesa._comp ? ' ia-trabajando' : ''}" ${mesa._comp ? 'disabled' : ''} onclick="dpComparar()">${mesa._comp ? 'Comparando…' : (cmp ? 'Volver a comparar panorámicas' : 'Comparar primera y última panorámica')}</button>` : ''}
         </div>
+        ${(p.ejesHist || []).length ? `<div class="esc-sub" style="margin-top:6px;">Trazados de ejes guardados: ${p.ejesHist.map((h, i) => `<a href="#" onclick="event.preventDefault(); dpVerImagen('${escAttr(h.img)}', 'Dentilike-ejes.jpg')">${new Date(h.fecha).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })}</a>`).join(' · ')}</div>` : ''}
         ${geo ? `<details class="ft-plegable"${can.length ? ' open' : ''}><summary>Caninos retenidos${can.length ? ' (' + can.length + ')' : ''}</summary>${canH}
             <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:4px;">${[13, 23, 33, 43].map(n => `<button class="esc-mini" onclick="cariesVer({ marcar: ${n} })">${(d.caninoMan || {})[n] ? 'Volver a marcar' : 'Marcar'} ${n}</button>`).join('')}${Object.keys(d.caninoMan || {}).length ? '<button class="esc-mini" onclick="dpCaninoBorrar()">Borrar marcas</button>' : ''}</div></details>
         <details class="ft-plegable"${par.length ? ' open' : ''}><summary>Paralelismo radicular${par.length ? ' (' + par.length + ')' : ''}</summary>${parH}<div class="esc-sub">Orientativo: la panorámica deforma la zona de caninos y premolares.</div></details>` : '<div class="esc-sub" style="margin-top:6px;">Vuelve a buscar para medir ejes, caninos y paralelismo (análisis hecho con la versión anterior).</div>'}
@@ -8013,6 +8131,65 @@ function dpEjesSvg(d){
     const can = new Set(dpCaninos(d).map(c => c.n)), man = d.caninoMan || {};
     const l = (ax, col, w) => `<line x1="${ax[0]}" y1="${ax[1]}" x2="${ax[2]}" y2="${ax[3]}" stroke="${col}" stroke-width="${w}" vector-effect="non-scaling-stroke" stroke-linecap="round"/><circle cx="${ax[0]}" cy="${ax[1]}" r="4" fill="${col}" vector-effect="non-scaling-stroke" transform-origin="${ax[0]} ${ax[1]}"/>`;
     return (d.dientesNum || []).filter(t => t.ax && !man[t.d]).map(t => l(t.ax, can.has(t.d) ? '#f6e05e' : mal.has(t.d) ? '#fc8181' : '#68d391', 2)).join('') + Object.keys(man).map(n => l(man[n], '#f6e05e', 3)).join('');
+}
+// --- Guardar el trazado de ejes: imagen en los estudios del paciente + datos para compararlo en la radiografía de control
+async function dpEjesCanvas(d, nombre){
+    const img = await cariesPanoEl({ url: d.cariesImg }), par = dpParalelo(d), mal = new Set(); par.forEach(x => { mal.add(x.a); mal.add(x.b); });
+    const can = new Set(dpCaninos(d).map(c => c.n)), man = d.caninoMan || {};
+    const W = Math.min(1800, img.naturalWidth), H = Math.round(img.naturalHeight * W / img.naturalWidth), fs = Math.round(W / 55), cab = Math.round(fs * 3.4);
+    const ley = [['#38a169', 'Raíces alineadas'], ['#e53e3e', 'Raíces que se acercan o se separan de su vecina'], ['#d69e2e', 'Canino retenido']].filter((l, i) => i === 0 || (i === 1 ? par.length : can.size || Object.keys(man).length));
+    const pie = Math.round(fs * 1.7) * (ley.length + (par.length ? 2 : 1)) + fs * 2;
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = cab + H + pie; const x = cv.getContext('2d');
+    x.fillStyle = '#fff'; x.fillRect(0, 0, W, cv.height); x.fillStyle = '#124578'; x.fillRect(0, 0, W, cab);
+    x.fillStyle = '#fff'; x.textBaseline = 'middle'; x.font = 'bold ' + Math.round(fs * 1.3) + 'px sans-serif'; x.fillText('Dentilike · Ejes radiculares', fs, cab * 0.36);
+    x.font = Math.round(fs * 0.8) + 'px sans-serif'; x.fillText('Dr. Miguel Ángel Alvarado Avilés · Ortodoncia', fs, cab * 0.72);
+    x.textAlign = 'right'; x.fillText((String(nombre || '').split(' ')[0] || '') + ' · ' + new Date().toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' }), W - fs, cab * 0.72); x.textAlign = 'left';
+    x.drawImage(img, 0, cab, W, H);
+    const linea = (ax, col) => { const c = [ax[0] / 1000 * W, cab + ax[1] / 1000 * H], a = [ax[2] / 1000 * W, cab + ax[3] / 1000 * H];
+        x.save(); x.lineCap = 'round'; x.strokeStyle = 'rgba(0,0,0,.55)'; x.lineWidth = Math.max(5, W / 300); x.beginPath(); x.moveTo(c[0], c[1]); x.lineTo(a[0], a[1]); x.stroke();
+        x.strokeStyle = col; x.lineWidth = Math.max(3, W / 520); x.beginPath(); x.moveTo(c[0], c[1]); x.lineTo(a[0], a[1]); x.stroke();
+        x.fillStyle = col; x.beginPath(); x.arc(c[0], c[1], Math.max(4, W / 300), 0, Math.PI * 2); x.fill(); x.restore(); };
+    (d.dientesNum || []).filter(t => t.ax && !man[t.d]).forEach(t => linea(t.ax, can.has(t.d) ? '#ecc94b' : mal.has(t.d) ? '#f56565' : '#48bb78'));
+    Object.keys(man).forEach(n => linea(man[n], '#ecc94b'));
+    x.font = 'bold ' + Math.round(fs * 0.62) + 'px sans-serif'; x.textAlign = 'center';
+    (d.dientesNum || []).forEach(t => { const sup = Math.floor(t.d / 10) <= 2, ax = man[t.d] || t.ax;   // número en la punta de la raíz, donde no se encima
+        const cx = ax ? ax[2] / 1000 * W : (t.box[1] + t.box[3]) / 2000 * W, cy = ax ? cab + ax[3] / 1000 * H + (sup ? -fs * 0.7 : fs * 0.7) : cab + (sup ? t.box[0] : t.box[2]) / 1000 * H;
+        x.fillStyle = 'rgba(15,23,42,.65)'; const tw = x.measureText(String(t.d)).width + 6; x.fillRect(cx - tw / 2, cy - fs * 0.4, tw, fs * 0.8); x.fillStyle = '#fff'; x.fillText(String(t.d), cx, cy); });
+    x.textAlign = 'left'; let y = cab + H + fs * 1.4; x.font = Math.round(fs * 0.85) + 'px sans-serif';
+    ley.forEach(l => { x.fillStyle = l[0]; x.fillRect(fs, y - fs * 0.12, fs * 1.2, fs * 0.24); x.fillStyle = '#1a202c'; x.fillText(l[1], fs * 2.6, y); y += fs * 1.7; });
+    if(par.length){ x.fillStyle = '#1a202c'; x.fillText('Por revisar: ' + par.map(p => p.par + ' (' + p.ang + '°)').join(', '), fs, y); y += fs * 1.7; }
+    x.fillStyle = '#718096'; x.font = Math.round(fs * 0.62) + 'px sans-serif'; x.fillText('Eje de cada diente, de la corona a la punta de la raíz. La panorámica deforma la imagen: es una referencia, no una medida exacta.', fs, y);
+    return cv;
+}
+function dpVerImagen(url, nombre, blob){
+    let m = document.getElementById('dpImgPac'); if(m) m.remove();
+    m = document.createElement('div'); m.id = 'dpImgPac'; m.onclick = () => m.remove();
+    m.style.cssText = 'position:fixed; inset:0; z-index:7200; background:rgba(0,0,0,.85); overflow:auto; padding:20px 10px;';
+    m.innerHTML = `<div onclick="event.stopPropagation()" style="max-width:900px; margin:0 auto;"><img src="${escAttr(url)}" style="width:100%; display:block; border-radius:8px;"><div style="display:flex; gap:8px; margin-top:10px;"><button class="btn-3d" style="flex:1;" id="dpImgComp">Compartir (WhatsApp)</button><a class="btn-3d" style="flex:1; text-align:center; text-decoration:none;" href="${escAttr(url)}" download="${escAttr(nombre)}" target="_blank">Descargar</a><button class="btn-3d" onclick="document.getElementById('dpImgPac').remove()">Cerrar</button></div></div>`;
+    document.body.appendChild(m);
+    document.getElementById('dpImgComp').onclick = async () => {
+        try{ let b = blob; if(!b){ const r = await fetch(url); b = await r.blob(); } const f = new File([b], nombre, { type: 'image/jpeg' });
+            if(navigator.canShare && navigator.canShare({ files: [f] })) await navigator.share({ files: [f], title: 'Tu radiografía', text: 'Dentilike' }); else { const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = nombre; a.click(); daToast('Tu navegador no permite compartir directo: la descargué para que la mandes', 'ok'); } }catch(e){} };
+}
+async function dpGuardarEjes(){
+    const d = mesa.d, nombre = mesa.nombre, p = pacientes[nombre]; if(!p || !d.cariesImg || mesa._ejesG) return;
+    if(!(d.dientesNum || []).some(t => t.ax)){ daToast('Primero vuelve a analizar la panorámica para medir los ejes', 'err'); return; }
+    mesa._ejesG = true; daOcupado(1);
+    try{
+        const cv = await dpEjesCanvas(d, nombre), dataUrl = cv.toDataURL('image/jpeg', 0.88), fecha = Date.now();
+        if(!storage){ await cargarExtrasFirebase(); if(!storage) throw new Error('Storage no disponible'); }
+        const id = 'e' + fecha, ref = storage.ref().child(`estudios_pacientes/${encodeURIComponent(nombre)}/${id}.jpg`);
+        await ref.putString(dataUrl, 'data_url'); const url = await ref.getDownloadURL();
+        const fTxt = new Date(fecha).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' });
+        p.estudios = p.estudios || []; p.estudios.push({ id: id, nombre: 'Ejes radiculares (bot) ' + fTxt, url: url, fecha: fecha, bot: true });
+        // los datos de los ejes quedan guardados para compararlos con la radiografía de control
+        p.ejesHist = (p.ejesHist || []).concat([{ fecha: fecha, img: url, pano: d.cariesImg, wh: d.panoWH || null, par: dpParalelo(d).map(x => x.par + ' ' + x.ang + '°'), dientes: (d.dientesNum || []).filter(t => t.ax).map(t => ({ d: t.d, ax: t.ax })), man: Object.assign({}, d.caninoMan || {}) }]).slice(-6);
+        localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes)); guardarAgendaEnNube();
+        daToast('Trazado de ejes guardado en los estudios de ' + nombrePreferido(nombre), 'ok');
+        const v = document.getElementById('cariesVer'); if(v) v.remove();
+        dpVerImagen(url, 'Dentilike-ejes-' + String(nombre).replace(/[^\wáéíóúñ]+/gi, '-') + '.jpg');
+    }catch(e){ console.error(e); daToast('No se pudo guardar: ' + (e.message || e), 'err'); }
+    mesa._ejesG = false; daOcupado(-1); renderMesaDecisiones();
 }
 // --- Comparación entre la primera y la última panorámica
 async function dpComparar(){
@@ -8045,7 +8222,7 @@ async function dpImagenPaciente(){
     try{
         const img = await cariesPanoEl({ url: d.cariesImg }), o = dpOdonto(d), by = dpPorNum(d);
         const W = Math.min(1800, img.naturalWidth), k = W / img.naturalWidth, H = Math.round(img.naturalHeight * k);
-        const grupos = [['cp', 'Caries profunda (atenderla antes de la ortodoncia)', '#e53e3e'], ['c', 'Caries', '#f6ad55'], ['i', 'Diente retenido (no ha salido)', '#4299e1'], ['x', 'Diente por extraer', '#2d3748'], ['a', 'Dientes que faltan', '#718096'], ['e', 'Diente con endodoncia', '#9f7aea'], ['t', 'Dientes de leche', '#d69e2e']];
+        const grupos = [['cp', 'Caries profunda (atenderla antes de la ortodoncia)', '#e53e3e'], ['c', 'Caries', '#f6ad55'], ['i', 'Diente retenido (no ha salido)', '#4299e1'], ['x', 'Diente por extraer', '#2d3748'], ['a', 'Dientes que faltan', '#718096'], ['e', 'Diente con endodoncia', '#9f7aea'], ['k', 'Diente con corona', '#d69e2e'], ['m', 'Implante', '#4a5568'], ['rr', 'Resto de raíz', '#e53e3e'], ['t', 'Dientes de leche', '#d69e2e']];
         const filas = grupos.map(g => [g, Object.keys(o).filter(n => o[n] === g[0] && !(g[0] === 'a' && n % 10 === 8)).map(Number).sort((a, b) => a - b)]).filter(x => x[1].length);
         const peri = (d.periDet || []).filter(x => !x.x).map(x => x.d), can = dpCaninos(d);
         const lineas = filas.map(x => ({ c: x[0][2], t: x[0][1] + ': ' + x[1].join(', ') }));
