@@ -1,7 +1,7 @@
 // Service Worker ÚNICO de DentiAgenda: arranque instantáneo (caché) + notificaciones push (FCM).
 // ⚠️ La app debe registrar SOLO este archivo. Dos service workers en el mismo alcance
 //    se reemplazan entre sí y las notificaciones dejan de mostrarse.
-const CACHE_NAME = "dentiagenda-v98";
+const CACHE_NAME = "dentiagenda-v99";
 const ASSETS = ["./", "./index.html", "./manifest.json", "./badge.png"];
 
 
@@ -94,6 +94,8 @@ self.addEventListener("install", (e) => {
 
 self.addEventListener("activate", (e) => {
   e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE_NAME && k.indexOf("dentiagenda-detector") !== 0).map((k) => caches.delete(k)))));
+  // v99: el numerador viejo (sin contornos) ya no se usa; libera ~38 MB del celular
+  e.waitUntil(caches.open("dentiagenda-detector-v1").then((c) => c.keys().then((ks) => Promise.all(ks.filter((r) => /dientes-[ab]\.bin/.test(r.url)).map((r) => c.delete(r))))).catch(() => {}));
   self.clients.claim();
 });
 
