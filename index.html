@@ -2948,7 +2948,7 @@
             return d <= 0 ? 'hoy' : (d === 1 ? 'ayer' : 'hace ' + d + ' d');
         }
         function usaSmile(nombre){ const u = usoSmile[nombre]; return !!(u && u.ts); }
-        const DA_VERSION = 'v100';
+        const DA_VERSION = 'v101';
         window.addEventListener('load', () => document.querySelectorAll('.da-ver-txt').forEach(e => e.textContent = 'DentiAgenda ' + DA_VERSION));
         // Texto del estado de SmileLike para un paciente (usa lo guardado; abajo se refresca solo ese paciente)
         function textoEstadoSmile(nombre){
@@ -5587,6 +5587,18 @@ function mesaAtencionInforme(d){
     return L;
 }
 // Texto para el paciente: claro, sobrio, sin adornos
+// Extracciones que NO son por ortodoncia: marcadas "Por extraer" en el odontograma, caries profundas y muelas del juicio
+function mesaOtrasExtr(d){
+    const orto = (d.extr === 'si' ? d.dientes || [] : []).map(Number);
+    let x = []; try{ const o = dpOdonto(d); x = Object.keys(o).filter(n => o[n] === 'x').map(Number).filter(n => !orto.includes(n)).sort((a, b) => a - b); }catch(e){}
+    const prof = (d.cariesDet || []).filter(z => !z.x && z.prof === 'profunda').map(z => z.d).filter(n => !x.includes(n) && !orto.includes(n)).sort((a, b) => a - b);
+    let ter = []; const ht = (d.hallDientes || {}).terceros;
+    if((d.hall || []).includes('terceros')) ter = String(ht || '').split(/[^0-9]+/).map(Number).filter(n => n % 10 === 8);
+    (d.impDet || []).filter(z => !z.x && z.d % 10 === 8).forEach(z => { if(!ter.includes(z.d)) ter.push(z.d); });
+    ter = ter.filter(n => !x.includes(n) && !prof.includes(n)).sort((a, b) => a - b);
+    const terceros = ter.length > 0 || ((d.hall || []).includes('terceros') && !String(ht || '').trim());
+    return { x: x, prof: prof, ter: ter, terceros: terceros };
+}
 function mesaArmarMensaje(nombre, d){
     const dc = mesaDocClinica(), L = [];
     L.push(`Buen día, ${nombrePreferido(nombre)}. Le escribe el ${dc.doc} de ${dc.clinica}. Con base en la revisión de sus estudios, le comparto las siguientes observaciones:`);
@@ -5605,8 +5617,12 @@ function mesaArmarMensaje(nombre, d){
     if(d.otro && d.otro.trim()) hs.push(d.otro.trim());
     if(hs.length) L.push('Otros hallazgos: ' + hs.join('; ') + '.');
     const at = mesaAtencionPaciente(d); if(at.length){ L.push(''); at.forEach(x => L.push(x)); L.push(''); }
-    if(d.extr === 'no') L.push('Extracciones: por el momento no se contempla la extracción de premolares.');
-    else if(d.extr === 'si') L.push('Extracciones: se contempla la extracción de ' + (d.dientes.length && d.dientes.every(n => [14, 15, 24, 25, 34, 35, 44, 45].includes(n)) ? 'premolares' : 'algunos dientes') + (d.dientes.length ? ` (dientes ${d.dientes.slice().sort((a, b) => a - b).join(', ')})` : '') + ' para lograr un resultado estable.');
+    const ox = mesaOtrasExtr(d), dts = l => (l.length > 1 ? 'dientes ' : 'diente ') + mesaListaTexto(l);
+    if(d.extr === 'no') L.push('Extracciones por ortodoncia: para acomodar los dientes no se contempla extraer premolares.' + (ox.x.length || ox.prof.length || ox.terceros ? ' Esto no descarta extracciones por otra causa, como se indica a continuación.' : ''));
+    else if(d.extr === 'si') L.push('Extracciones por ortodoncia: se contempla la extracción de ' + (d.dientes.length && d.dientes.every(n => [14, 15, 24, 25, 34, 35, 44, 45].includes(n)) ? 'premolares' : 'algunos dientes') + (d.dientes.length ? ` (dientes ${d.dientes.slice().sort((a, b) => a - b).join(', ')})` : '') + ' para lograr un resultado estable.');
+    if(ox.x.length) L.push('Extracciones por otra causa: será necesario extraer ' + (ox.x.length > 1 ? 'los ' : 'el ') + dts(ox.x) + ' por su estado, independientemente del tratamiento de ortodoncia.');
+    if(ox.prof.length) L.push('Las caries profundas (' + dts(ox.prof) + ') pueden requerir endodoncia o incluso extracción; se definirá al valorarlas.');
+    if(ox.terceros) L.push('Las muelas del juicio' + (ox.ter.length ? ' (' + dts(ox.ter) + ')' : '') + ' podrían requerir extracción; se valorará antes o durante el tratamiento.');
     const aps = d.aparatos.map(a => MESA_NOM_APAR[a] || a.toLowerCase());
     if(d.aparatoOtro && d.aparatoOtro.trim()) aps.push(d.aparatoOtro.trim());
     if(aps.length) L.push('Tratamiento recomendado: ' + mesaListaTexto(aps) + (d.aparatos.includes('Férula de desprogramación') ? ' (la férula busca relajar la articulación antes o junto con el tratamiento)' : '') + '.');
@@ -5645,7 +5661,11 @@ function mesaArmarInforme(nombre, d){
     const ai = mesaAtencionInforme(d); if(ai.length){ L.push(''); L.push('RIESGOS Y PRECAUCIONES'); ai.forEach(x => L.push(x)); }
     L.push(''); L.push('PLAN DE TRATAMIENTO');
     if(d.extr === 'si') L.push('Extracciones: ' + (d.dientes.length ? 'premolares ' + d.dientes.slice().sort((a, b) => a - b).join(', ') : 'indicadas, dientes por definir') + '.');
-    else if(d.extr === 'no') L.push('Extracciones: sin extracción de premolares.');
+    else if(d.extr === 'no') L.push('Extracciones por ortodoncia: sin extracción de premolares.');
+    { const ox = mesaOtrasExtr(d);
+      if(ox.x.length) L.push('Extracciones por otra causa (indicadas): ' + ox.x.join(', ') + '.');
+      if(ox.prof.length) L.push('Caries profundas ' + ox.prof.join(', ') + ': valorar endodoncia contra extracción.');
+      if(ox.terceros) L.push('Terceros molares' + (ox.ter.length ? ' ' + ox.ter.join(', ') : '') + ': valorar extracción.'); }
     const aps = d.aparatos.map(a => MESA_NOM_APAR[a] || a.toLowerCase());
     if(d.aparatoOtro && d.aparatoOtro.trim()) aps.push(d.aparatoOtro.trim());
     if(aps.length) L.push('Aparatología: ' + aps.join('; ') + '.');
