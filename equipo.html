@@ -105,7 +105,11 @@ auth.onAuthStateChanged(async user => {
     equipo = sn.exists ? sn.data() : null;
   }catch(e){ equipo = null; }
   if(equipo && equipo.owner === user.uid){ location.href = 'index.html'; return; }   // el Dr. Miguel usa su DentiAgenda completa
-  if(!equipo || !(equipo.miembros || {})[user.uid]){ registro(user); return; }
+  if(!equipo || !(equipo.miembros || {})[user.uid]){
+    // ¿Es una cuenta de doctor del consultorio (puede ver la agenda completa)? Entonces va a DentiAgenda
+    try{ await db.collection('agenda').doc('principal').get(); location.href = 'index.html'; return; }catch(e){}
+    registro(user); return;
+  }
   try{ const h = await db.collection('config_publica').doc('horarios').get(); if(h.exists) horarios = Object.assign(horarios, h.data()); }catch(e){}
   escuchar(); render();
 });

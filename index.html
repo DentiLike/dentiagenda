@@ -1197,9 +1197,15 @@
                         window._equipoRevisado = true;
                         db.collection('equipo').doc('config').get().then(sn => {
                             const e = sn.exists ? sn.data() : null; window._equipoCfg = e;
-                            if(e && e.owner && e.owner !== user.uid){ location.replace('equipo.html'); return; }
+                            if(e && (e.miembros || {})[user.uid] && e.owner !== user.uid){ location.replace('equipo.html'); return; }
                             iniciarSesionCompleta(user);
-                        }).catch(() => iniciarSesionCompleta(user));
+                        }).catch(err => {
+                            // Sin permiso para ver el equipo: si tampoco puede ver la agenda, es un colega (o alguien sin acceso)
+                            if(!err || err.code !== 'permission-denied'){ iniciarSesionCompleta(user); return; }
+                            db.collection('agenda').doc('principal').get().then(() => iniciarSesionCompleta(user)).catch(e2 => {
+                                if(e2 && e2.code === 'permission-denied') location.replace('equipo.html'); else iniciarSesionCompleta(user);
+                            });
+                        });
                         return;
                     }
                     iniciarSesionCompleta(user);
@@ -1419,13 +1425,14 @@
         // Las citas del Dr. Miguel se publican como espejo (m_<id>) con lo mínimo; sus expedientes nunca salen de agenda/principal.
         let citasEquipo = [], equipoCfg = null, equipoUid = null, _equipoEsc = null, _equipoSol = null, equipoSolic = [];
         const EQ_COLORES = ['#6b46c1', '#c05621', '#2c7a7b', '#b83280', '#2f855a'];
-        function equipoActivo(){ return !!(equipoCfg && equipoCfg.owner === equipoUid && Object.keys(equipoCfg.miembros || {}).length); }
+        function eqDueno(){ return (equipoCfg && equipoCfg.owner) || equipoUid; }   // las citas del Dr. Miguel (desde cualquiera de sus cuentas)
+        function equipoActivo(){ return !!(equipoCfg && Object.keys(equipoCfg.miembros || {}).length); }
         function equipoNombre(uid){ const m = ((equipoCfg || {}).miembros || {})[uid]; return (m && m.nombre) || 'Otro doctor'; }
         function equipoColor(uid){ const m = ((equipoCfg || {}).miembros || {})[uid]; return (m && m.color) || '#6b46c1'; }
         async function equipoIniciar(user){
             equipoUid = user.uid;
             try{ const sn = await db.collection('equipo').doc('config').get(); equipoCfg = sn.exists ? sn.data() : null; }catch(e){ equipoCfg = null; return; }
-            if(!equipoCfg || equipoCfg.owner !== equipoUid) return;
+            if(!equipoCfg) return;
             equipoEscuchar(); equipoEscucharSolicitudes(); equipoEspejo();
         }
         function equipoEscucharSolicitudes(){
@@ -1444,9 +1451,9 @@
                 const otros = [], hechos = JSON.parse(localStorage.getItem('da_eq_movidas') || '{}'); let cambio = false;
                 sn.forEach(doc => {
                     const x = doc.data();
-                    if(x.doctorUid !== equipoUid){ if(!x.cancelada) otros.push(Object.assign({ _id: doc.id }, x)); return; }
+                    if(x.doctorUid !== eqDueno()){ if(!x.cancelada) otros.push(Object.assign({ _id: doc.id }, x)); return; }
                     // un colega movió una cita mía
-                    if(x.editadoPor && x.editadoPor !== equipoUid && x.editadoTs && !hechos[doc.id + '_' + x.editadoTs]){
+                    if(x.editadoPor && x.editadoPor !== equipoUid && x.editadoPor !== eqDueno() && x.editadoTs && !hechos[doc.id + '_' + x.editadoTs]){
                         hechos[doc.id + '_' + x.editadoTs] = 1;
                         const c = citas.find(k => String(k.id) === String(x.origenId));
                         if(c && (c.fecha !== x.fecha || c.horaInicio !== x.horaInicio)){
@@ -1474,7 +1481,7 @@
             if(!equipoActivo() || !fbOK || !authListo) return;
             const desde = fechaAISO(new Date(Date.now() - 7 * 86400000)), prev = JSON.parse(localStorage.getItem('da_espejo') || '{}'), nuevo = {}, ops = [];
             citas.filter(c => c.fecha >= desde).forEach(c => {
-                const id = 'm_' + c.id, d = { fecha: c.fecha, horaInicio: c.horaInicio, horaFin: c.horaFin, paciente: c.paciente || '', telefono: c.telefono || '', motivo: c.motivo || '', estado: c.estado || '', origenId: c.id, doctorUid: equipoUid, doctorNombre: 'Dr. Miguel' };
+                const id = 'm_' + c.id, d = { fecha: c.fecha, horaInicio: c.horaInicio, horaFin: c.horaFin, paciente: c.paciente || '', telefono: c.telefono || '', motivo: c.motivo || '', estado: c.estado || '', origenId: c.id, doctorUid: eqDueno(), doctorNombre: 'Dr. Miguel' };
                 const h = JSON.stringify(d); nuevo[id] = h; if(prev[id] !== h) ops.push(['set', id, d]);
             });
             Object.keys(prev).forEach(id => { if(!nuevo[id]) ops.push(['del', id]); });
@@ -2931,7 +2938,7 @@
             return d <= 0 ? 'hoy' : (d === 1 ? 'ayer' : 'hace ' + d + ' d');
         }
         function usaSmile(nombre){ const u = usoSmile[nombre]; return !!(u && u.ts); }
-        const DA_VERSION = 'v97';
+        const DA_VERSION = 'v98';
         window.addEventListener('load', () => document.querySelectorAll('.da-ver-txt').forEach(e => e.textContent = 'DentiAgenda ' + DA_VERSION));
         // Texto del estado de SmileLike para un paciente (usa lo guardado; abajo se refresca solo ese paciente)
         function textoEstadoSmile(nombre){
