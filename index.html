@@ -2948,7 +2948,7 @@
             return d <= 0 ? 'hoy' : (d === 1 ? 'ayer' : 'hace ' + d + ' d');
         }
         function usaSmile(nombre){ const u = usoSmile[nombre]; return !!(u && u.ts); }
-        const DA_VERSION = 'v99';
+        const DA_VERSION = 'v100';
         window.addEventListener('load', () => document.querySelectorAll('.da-ver-txt').forEach(e => e.textContent = 'DentiAgenda ' + DA_VERSION));
         // Texto del estado de SmileLike para un paciente (usa lo guardado; abajo se refresca solo ese paciente)
         function textoEstadoSmile(nombre){
@@ -6987,7 +6987,7 @@ function rapidoInner(){
     return `<div class="mesa-sec" style="border:1.5px solid var(--primary); border-radius:12px; padding:10px;">
         <label>Análisis rápido <span style="font-weight:normal; color:var(--text-muted);">detector + trazado automático + bot; segundos, sin internet de IA</span></label>
         <button class="btn-3d${run ? ' ia-trabajando' : ''}" style="width:100%; padding:0.8rem;" ${run ? 'disabled' : ''} onclick="rapidoAnalizar()">${run ? 'Analizando…' : (F ? 'Volver a analizar' : 'Analizar caso (bot)')}</button>
-        ${prog}${pano}${traz}
+        ${prog}${pano}${!run && F && (mesa.d.dientesNum || []).length ? dpPanel() : ''}${traz}
         ${F && !run ? '<button class="esc-mini" style="margin-top:8px; width:100%;" onclick="mesaPaso(3)">Ir a revisar</button>' : ''}
     </div>`;
 }
