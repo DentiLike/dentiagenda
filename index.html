@@ -2948,7 +2948,7 @@
             return d <= 0 ? 'hoy' : (d === 1 ? 'ayer' : 'hace ' + d + ' d');
         }
         function usaSmile(nombre){ const u = usoSmile[nombre]; return !!(u && u.ts); }
-        const DA_VERSION = 'v103';
+        const DA_VERSION = 'v105';
         window.addEventListener('load', () => document.querySelectorAll('.da-ver-txt').forEach(e => e.textContent = 'DentiAgenda ' + DA_VERSION));
         // Texto del estado de SmileLike para un paciente (usa lo guardado; abajo se refresca solo ese paciente)
         function textoEstadoSmile(nombre){
@@ -6417,7 +6417,8 @@ function trazoAbrir(nombre){
     let inicial = est.length ? est[est.length - 1] : null;
     const lat = est.filter(e => /later|tele|ceph|cefal/i.test(e.nombre || ''));
     if(lat.length) inicial = lat[lat.length - 1];
-    if(pre && pre.url && est.some(e => e.url === pre.url)) inicial = est.find(e => e.url === pre.url);
+    const preMal = pre && pre.w && pre.h && pre.w / pre.h > 1.7;
+    if(pre && pre.url && !preMal && est.some(e => e.url === pre.url)) inicial = est.find(e => e.url === pre.url);
     document.getElementById('trazoModal').style.display = 'flex';
     trazoPintarShell(est, inicial);
     if(inicial) trazoCargar(inicial.url, pre && pre.url === inicial.url ? pre : null);
@@ -6936,6 +6937,7 @@ async function trazoAutoGuardar(nombre, est){
     if(!r.ok) throw new Error('No se pudo leer la lateral (' + r.status + ').');
     const blob = await r.blob(), img = new Image(), u = URL.createObjectURL(blob);
     await new Promise((ok, ko) => { img.onload = ok; img.onerror = () => ko(new Error('La lateral no es una imagen válida.')); img.src = u; });
+    if(img.naturalWidth / img.naturalHeight > 1.7){ URL.revokeObjectURL(u); throw new Error('La imagen marcada como lateral parece una panorámica (es muy ancha). Revisa ese estudio.'); }
     const res = await cephDetectar(img), P = {}, dud = [];
     const T = trazoDesdeModelo(res); Object.assign(P, T.P); T.dud.forEach(x => dud.push(x));
     const m = trazoMedir(P, null), w = img.naturalWidth, h = img.naturalHeight;
@@ -6977,9 +6979,10 @@ async function rapidoAnalizar(){
         }catch(e){ fase('det', e.message === 'NO_PANO' ? 'skip' : 'err', e.message === 'NO_PANO' ? 'no hay panorámica subida' : String(e.message || e)); }
     })();
     const tTraz = (async () => {
-        const tp = p.trazadoPuntos;
-        if(tp && tp.m && tp.m.anb != null){ fase('traz', 'skip', tp.auto ? 'ya había un trazado automático' : 'ya tienes tu trazado'); return; }
-        const lat = rapidoLateral(p);
+        const tp = p.trazadoPuntos, lat = rapidoLateral(p);
+        const tpMal = tp && tp.w && tp.h && tp.w / tp.h > 1.7;   // trazado hecho sobre una panorámica
+        const tpViejo = tp && tp.auto && lat && tp.url !== lat.url;   // automático hecho sobre otra imagen
+        if(tp && tp.m && tp.m.anb != null && !tpMal && !tpViejo){ fase('traz', 'skip', tp.auto ? 'ya había un trazado automático' : 'ya tienes tu trazado'); return; }
         if(!lat){ fase('traz', 'skip', 'no encontré una lateral (nombra el estudio "Lateral")'); return; }
         fase('traz', 'run');
         try{ const r = await trazoAutoGuardar(mm.nombre, lat); fase('traz', 'ok', 'Clase ' + (trazoClase(r.m) || '?') + ' · ANB ' + r.m.anb + '°' + (r.dud.length ? ' · revisa ' + r.dud.join(', ') : '')); }
@@ -8237,13 +8240,23 @@ async function dpImagenPaciente(){
         x.font = Math.round(fs * 0.8) + 'px sans-serif'; x.fillText('Dr. Miguel Ángel Alvarado Avilés · Ortodoncia', fs, cab * 0.72);
         x.textAlign = 'right'; x.fillText((String(mesa.nombre || '').split(' ')[0] || '') + ' · ' + new Date().toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' }), W - fs, cab * 0.72); x.textAlign = 'left';
         x.drawImage(img, 0, cab, W, H);
-        const caja = (b, col, dash) => { x.save(); x.strokeStyle = col; x.lineWidth = Math.max(3, W / 450); if(dash) x.setLineDash([10, 7]); x.strokeRect(b[1] / 1000 * W, cab + b[0] / 1000 * H, (b[3] - b[1]) / 1000 * W, (b[2] - b[0]) / 1000 * H); x.restore(); };
+        const etiqueta = (txt, col, cx, cy) => { x.save(); x.font = 'bold ' + Math.round(fs * 0.7) + 'px sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; const tw = x.measureText(txt).width + 10, th = fs * 0.95;
+            x.fillStyle = col; x.fillRect(cx - tw / 2, cy - th / 2, tw, th); x.fillStyle = col === '#f6ad55' || col === '#d69e2e' ? '#1a202c' : '#fff'; x.fillText(txt, cx, cy); x.restore(); };
+        const caja = (b, col, dash, n) => { x.save(); x.strokeStyle = col; x.lineWidth = Math.max(3, W / 450); if(dash) x.setLineDash([10, 7]); x.strokeRect(b[1] / 1000 * W, cab + b[0] / 1000 * H, (b[3] - b[1]) / 1000 * W, (b[2] - b[0]) / 1000 * H); x.restore();
+            if(n){ const sup = Math.floor(n / 10) <= 2, cx = (b[1] + b[3]) / 2000 * W, cy = cab + (sup ? b[0] : b[2]) / 1000 * H + (sup ? -fs * 0.6 : fs * 0.6); etiqueta(String(n), col, cx, cy); } };
+        // tachita en el hueco del diente que falta (entre sus vecinos)
+        const hueco = n => { const q = Math.floor(n / 10), k = n % 10, c = t => [(t.box[1] + t.box[3]) / 2, (t.box[0] + t.box[2]) / 2, t.box[3] - t.box[1]];
+            let a = null, b = null, ka = 0, kb = 0; for(let j = k - 1; j >= 1 && !a; j--) if(by[q * 10 + j]){ a = c(by[q * 10 + j]); ka = j; }
+            for(let j = k + 1; j <= 8 && !b; j++) if(by[q * 10 + j]){ b = c(by[q * 10 + j]); kb = j; }
+            if(a && b) return [a[0] + (b[0] - a[0]) * (k - ka) / (kb - ka), a[1] + (b[1] - a[1]) * (k - ka) / (kb - ka), (a[2] + b[2]) / 2];
+            return null; };
+        const tacha = (p, col, n) => { const cx = p[0] / 1000 * W, cy = cab + p[1] / 1000 * H, r = Math.max(fs * 0.7, p[2] / 1000 * W * 0.3);
+            x.save(); x.strokeStyle = 'rgba(0,0,0,.6)'; x.lineWidth = Math.max(7, W / 220); x.lineCap = 'round'; x.beginPath(); x.moveTo(cx - r, cy - r); x.lineTo(cx + r, cy + r); x.moveTo(cx + r, cy - r); x.lineTo(cx - r, cy + r); x.stroke();
+            x.strokeStyle = col; x.lineWidth = Math.max(4, W / 380); x.stroke(); x.restore(); etiqueta(String(n), col, cx, cy + (Math.floor(n / 10) <= 2 ? -r - fs * 0.6 : r + fs * 0.6)); };
         const boxDe = n => { const c = (d.cariesDet || []).find(z => z.d === n && !z.x && z.box); return c ? c.box : (by[n] ? by[n].box : null); };
-        filas.forEach(f => { if(f[0][0] === 'a') return; f[1].forEach(n => { const b = f[0][0] === 'i' ? ((d.impDet || []).find(z => z.d === n && z.box) || {}).box || boxDe(n) : boxDe(n); if(b) caja(b, f[0][2], f[0][0] === 'i'); }); });
-        peri.forEach(n => { const t = by[n]; if(!t || !t.ax) return; x.save(); x.strokeStyle = '#805ad5'; x.lineWidth = Math.max(3, W / 450); x.beginPath(); x.arc(t.ax[2] / 1000 * W, cab + t.ax[3] / 1000 * H, W / 70, 0, Math.PI * 2); x.stroke(); x.restore(); });
-        x.font = 'bold ' + Math.round(fs * 0.62) + 'px sans-serif'; x.textAlign = 'center';
-        (d.dientesNum || []).forEach(t => { const sup = Math.floor(t.d / 10) <= 2, cx = (t.box[1] + t.box[3]) / 2000 * W, cy = cab + (sup ? t.box[2] : t.box[0]) / 1000 * H + (sup ? -fs * 0.5 : fs * 0.5);
-            x.fillStyle = 'rgba(15,23,42,.65)'; const tw = x.measureText(String(t.d)).width + 6; x.fillRect(cx - tw / 2, cy - fs * 0.4, tw, fs * 0.8); x.fillStyle = '#fff'; x.fillText(String(t.d), cx, cy); });
+        filas.forEach(f => { f[1].forEach(n => { if(f[0][0] === 'a'){ const p = hueco(n); if(p) tacha(p, f[0][2], n); return; }
+            const b = f[0][0] === 'i' ? ((d.impDet || []).find(z => z.d === n && z.box) || {}).box || boxDe(n) : boxDe(n); if(b) caja(b, f[0][2], f[0][0] === 'i', n); }); });
+        peri.forEach(n => { const t = by[n]; if(!t || !t.ax) return; x.save(); x.strokeStyle = '#805ad5'; x.lineWidth = Math.max(3, W / 450); x.beginPath(); x.arc(t.ax[2] / 1000 * W, cab + t.ax[3] / 1000 * H, W / 70, 0, Math.PI * 2); x.stroke(); x.restore(); etiqueta(String(n), '#805ad5', t.ax[2] / 1000 * W, cab + t.ax[3] / 1000 * H + (Math.floor(n / 10) <= 2 ? -W / 70 - fs * 0.6 : W / 70 + fs * 0.6)); });
         x.textAlign = 'left'; let y = cab + H + fs * 1.4;
         x.fillStyle = '#124578'; x.font = 'bold ' + fs + 'px sans-serif'; x.fillText('Lo que vemos en tu radiografía', fs, y); y += fs * 1.7;
         x.font = Math.round(fs * 0.85) + 'px sans-serif';
