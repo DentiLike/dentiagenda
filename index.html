@@ -1438,12 +1438,13 @@
         const EQ_COLORES = ['#6b46c1', '#c05621', '#2c7a7b', '#b83280', '#2f855a'];
         function eqDueno(){ return (equipoCfg && equipoCfg.owner) || equipoUid; }   // las citas del Dr. Miguel (desde cualquiera de sus cuentas)
         function equipoActivo(){ return !!(equipoCfg && Object.keys(equipoCfg.miembros || {}).length); }
-        function equipoNombre(uid){ const m = ((equipoCfg || {}).miembros || {})[uid]; return (m && m.nombre) || 'Otro doctor'; }
-        function equipoColor(uid){ const m = ((equipoCfg || {}).miembros || {})[uid]; return (m && m.color) || '#6b46c1'; }
+        const _eqExt = {};   // doctores cuyas citas vienen de su Google Calendar (docs g_...)
+        function equipoNombre(uid){ const m = ((equipoCfg || {}).miembros || {})[uid]; return (m && m.nombre) || (_eqExt[uid] && _eqExt[uid].nombre) || 'Otro doctor'; }
+        function equipoColor(uid){ const m = ((equipoCfg || {}).miembros || {})[uid]; return (m && m.color) || (_eqExt[uid] && _eqExt[uid].color) || '#6b46c1'; }
         async function equipoIniciar(user){
             equipoUid = user.uid; window._daEmail = user.email || '';
             try{ const sn = await db.collection('equipo').doc('config').get(); equipoCfg = sn.exists ? sn.data() : null; }catch(e){ equipoCfg = null; return; }
-            if(!equipoCfg) return;
+            if(!equipoCfg){ equipoEscuchar(); return; }   // aunque no haya colegas registrados, se ven las citas que vienen de sus Google Calendar
             equipoEscuchar(); equipoEscucharSolicitudes(); equipoEspejo();
         }
         function equipoEscucharSolicitudes(){
@@ -1462,6 +1463,7 @@
                 const otros = [], hechos = JSON.parse(localStorage.getItem('da_eq_movidas') || '{}'); let cambio = false;
                 sn.forEach(doc => {
                     const x = doc.data();
+                    if(x.origen === 'google') _eqExt[x.doctorUid] = { nombre: x.doctorNombre, color: x.color };
                     if(x.doctorUid !== eqDueno()){ if(!x.cancelada) otros.push(Object.assign({ _id: doc.id }, x)); return; }
                     // un colega movió una cita mía
                     if(x.editadoPor && x.editadoPor !== equipoUid && x.editadoPor !== eqDueno() && x.editadoTs && !hechos[doc.id + '_' + x.editadoTs]){
@@ -1520,19 +1522,44 @@
             if(_gcalEsc) _gcalEsc();
             _gcalEsc = db.collection('agenda').doc('gcal').onSnapshot(sn => { gcalCfg = sn.exists ? sn.data() : {}; gcalRender(); }, e => { gcalCfg = { estado: { ok: false, msg: 'No pude leer el estado: ' + (e.code || e.message) } }; gcalRender(); });
         }
-        function gcalCerrar(){ if(_gcalEsc){ _gcalEsc(); _gcalEsc = null; } const m = document.getElementById('gcalModal'); if(m) m.remove(); }
+        function gcalCerrar(){ gcalImp = null; if(_gcalEsc){ _gcalEsc(); _gcalEsc = null; } const m = document.getElementById('gcalModal'); if(m) m.remove(); }
         function gcalRender(){
             const el = document.getElementById('gcalBody'); if(!el) return;
             const c = gcalCfg || {}, st = c.estado || null, correo = c.correo || window._daEmail || '';
             const nCal = Object.keys(c.cals || {}).length, cuando = st && st.ts ? new Date(st.ts).toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
             const api = st && /Calendar API/i.test(st.msg || '');
-            el.innerHTML = `<p style="font-size:0.84rem; color:var(--text-muted); margin-top:0;">Tus citas y las de los otros doctores aparecen solas en Google Calendar, <b>un calendario por doctor</b>, segundos después de guardarlas aquí. Va en un solo sentido: los cambios se hacen en DentiAgenda; lo que muevas en Google no regresa.</p>
+            const imp = (c.importar || []), ie = Object.values(c.importEstado || {});
+            const filas = (gcalImp || imp).map((x, i) => { const e = ie.find(q => q.cal === x.cal);
+                return `<div style="display:flex; gap:6px; align-items:center; margin-bottom:6px;"><input type="color" value="${escAttr(x.color || '#2b6cb0')}" onchange="gcalImpCambio(${i}, 'color', this.value)" style="width:34px; height:34px; border:none; background:none; padding:0;">
+                    <div style="flex:1; min-width:0;"><input class="inset-3d" style="width:100%; margin-bottom:4px;" placeholder="Nombre (ej. Andrei)" value="${escAttr(x.nombre || '')}" oninput="gcalImpCambio(${i}, 'nombre', this.value)">
+                    <input class="inset-3d" style="width:100%;" type="email" placeholder="Su Gmail (el de su Google Calendar)" value="${escAttr(x.cal || '')}" oninput="gcalImpCambio(${i}, 'cal', this.value)">
+                    ${e ? `<div style="font-size:0.76rem; margin-top:2px; color:${e.ok ? '#2f855a' : '#c53030'};">${e.ok ? '✓ ' : ''}${escHtml(e.msg)}</div>` : ''}</div>
+                    <button class="esc-mini" onclick="gcalImpQuitar(${i})" title="Quitar">✕</button></div>`; }).join('');
+            el.innerHTML = `<p style="font-size:0.84rem; color:var(--text-muted); margin-top:0;"><b>Tus citas → Google:</b> aparecen solas en el calendario "DentiAgenda · Dr. Miguel", segundos después de guardarlas aquí (los cambios se hacen en DentiAgenda). <b>Sus citas → DentiAgenda:</b> abajo agregas los calendarios de los otros doctores.</p>
                 <div class="form-group"><label>Tu Gmail (donde quieres ver los calendarios)</label><input id="gcalCorreo" class="inset-3d" type="email" value="${escAttr(correo)}" placeholder="tucorreo@gmail.com"></div>
                 <button class="btn-3d btn-submit" style="width:100%;" onclick="gcalConectar()">${c.conectado ? 'Volver a copiar todas las citas' : 'Conectar y copiar mis citas'}</button>
                 ${st ? `<div style="margin-top:10px; padding:8px 10px; border-radius:10px; font-size:0.84rem; background:${st.ok ? '#f0fff4' : '#fff5f5'}; border:1px solid ${st.ok ? '#68d391' : '#fc8181'}; color:#1a202c;"><b>${st.ok ? (c.conectado ? 'Conectado' : 'En proceso') : 'Algo falló'}</b>${cuando ? ' · ' + cuando : ''}<br>${escHtml(st.msg || '')}</div>` : ''}
                 ${api ? `<div style="margin-top:8px; font-size:0.82rem;">Abre <a href="https://console.cloud.google.com/apis/library/calendar-json.googleapis.com?project=misonrisa-citas" target="_blank">este enlace</a>, toca <b>Habilitar</b>, espera un minuto y vuelve a tocar "Conectar".</div>` : ''}
-                ${c.conectado ? `<div style="font-size:0.8rem; color:var(--text-muted); margin-top:8px;">Calendarios creados: ${nCal}. Cada colega recibe el suyo en el Gmail con el que se registró. En Google Calendar puedes ponerle color y avisos a cada uno.</div>
-                <button class="esc-mini" style="margin-top:8px;" onclick="gcalPausar()">Pausar sincronización</button>` : ''}`;
+                ${c.conectado ? `<div style="font-size:0.8rem; color:var(--text-muted); margin-top:8px;">Tu calendario también se comparte con los doctores de abajo, para que vean cuándo estás ocupado. En Google Calendar puedes ponerle color y avisos.</div>
+                <button class="esc-mini" style="margin-top:8px;" onclick="gcalPausar()">Pausar sincronización</button>` : ''}
+                <h4 style="color:var(--primary); margin:16px 0 4px;">Ver en DentiAgenda los calendarios de los otros doctores</h4>
+                <p style="font-size:0.8rem; color:var(--text-muted); margin:0 0 8px;">Cada 5 minutos se copian sus citas de Google Calendar a tu agenda (solo para verlas; no se editan aquí). Tu calendario "DentiAgenda · Dr. Miguel" también se les comparte.</p>
+                ${filas}
+                <div style="display:flex; gap:6px; flex-wrap:wrap;"><button class="esc-mini" onclick="gcalImpAgregar()">+ Agregar doctor</button>${(gcalImp || imp).length || gcalImp ? '<button class="esc-mini" style="font-weight:bold;" onclick="gcalImpGuardar()">Guardar y leer ahora</button>' : ''}</div>
+                ${(imp.length || gcalImp) ? `<div style="margin-top:10px; font-size:0.8rem; padding:8px; border-radius:10px; border:1px dashed var(--primary);"><b>Lo que debe hacer cada doctor una sola vez:</b> en Google Calendar (computadora) → Configuración de su calendario → <b>Compartir con personas específicas</b> → agregar este correo con permiso <b>"Ver todos los detalles de los eventos"</b>:
+                    ${c.sa ? `<div style="display:flex; gap:6px; margin-top:6px;"><input class="inset-3d" style="flex:1; font-size:0.78rem;" readonly value="${escAttr(c.sa)}"><button class="esc-mini" onclick="navigator.clipboard.writeText('${escAttr(c.sa)}'); daToast('Copiado', 'ok');">Copiar</button></div>` : '<div style="margin-top:4px;">(el correo aparece aquí después de tocar "Conectar" arriba)</div>'}</div>` : ''}`;
+        }
+        let gcalImp = null;   // edición en curso de la lista de calendarios a importar
+        function gcalImpBase(){ if(!gcalImp) gcalImp = JSON.parse(JSON.stringify((gcalCfg || {}).importar || [])); return gcalImp; }
+        function gcalImpCambio(i, k, v){ gcalImpBase()[i][k] = v; }
+        function gcalImpAgregar(){ const cols = ['#2b6cb0', '#d53f8c', '#2f855a', '#dd6b20', '#6b46c1']; const L = gcalImpBase(); L.push({ nombre: '', cal: '', color: cols[L.length % cols.length] }); gcalRender(); }
+        function gcalImpQuitar(i){ gcalImpBase().splice(i, 1); gcalRender(); }
+        async function gcalImpGuardar(){
+            const L = (gcalImp || []).map(x => ({ nombre: String(x.nombre || '').trim(), cal: String(x.cal || '').trim().toLowerCase(), color: x.color || '#2b6cb0' })).filter(x => x.cal);
+            if(L.some(x => !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x.cal))){ daToast('Revisa los correos: alguno no es válido', 'err'); return; }
+            const correo = ((document.getElementById('gcalCorreo') || {}).value || (gcalCfg || {}).correo || window._daEmail || '').trim().toLowerCase();
+            try{ await db.collection('agenda').doc('gcal').set({ importar: L, correo: correo, pedidoTs: Date.now(), estado: { ok: true, msg: 'Guardado. Leyendo los calendarios de los otros doctores…', ts: Date.now() } }, { merge: true }); gcalImp = null; daToast('Guardado', 'ok'); }
+            catch(e){ daToast('No se pudo guardar: ' + (e.code || e.message), 'err'); }
         }
         async function gcalConectar(){
             const correo = (document.getElementById('gcalCorreo').value || '').trim().toLowerCase();
@@ -2985,7 +3012,7 @@
             return d <= 0 ? 'hoy' : (d === 1 ? 'ayer' : 'hace ' + d + ' d');
         }
         function usaSmile(nombre){ const u = usoSmile[nombre]; return !!(u && u.ts); }
-        const DA_VERSION = 'v106';
+        const DA_VERSION = 'v107';
         window.addEventListener('load', () => document.querySelectorAll('.da-ver-txt').forEach(e => e.textContent = 'DentiAgenda ' + DA_VERSION));
         // Texto del estado de SmileLike para un paciente (usa lo guardado; abajo se refresca solo ese paciente)
         function textoEstadoSmile(nombre){
