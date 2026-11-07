@@ -138,6 +138,7 @@
         .appointment-item strong { color: white !important; }
         .potencial-item, .potencial-item strong { color: var(--primary) !important; }
         .appointment-item.cita-color strong { color: var(--txt) !important; }
+        .appointment-item.cita-otro strong { color: #1a202c !important; }
         .color-row { display:flex; gap:8px; align-items:center; margin-bottom:8px; }
         .color-row .inset-3d { flex:1; min-width:0; padding:0.6rem 0.8rem; font-size:0.9rem; }
         .color-row input[type=color] { flex:none; width:46px; height:40px; border:none; border-radius:8px; padding:0; background:none; cursor:pointer; }
@@ -1440,10 +1441,13 @@
         function equipoActivo(){ return !!(equipoCfg && Object.keys(equipoCfg.miembros || {}).length); }
         const _eqExt = {};
         // Vista: eventos tuyos que vienen de Google (duplicados de tu agenda) y citas de otros doctores
-        function eqVer(){ try{ return Object.assign({ propios: false, otros: true }, JSON.parse(localStorage.getItem('da_eq_ver') || '{}')); }catch(e){ return { propios: false, otros: true }; } }
-        function eqVerCambiar(k){ const v = eqVer(); v[k] = !v[k]; try{ localStorage.setItem('da_eq_ver', JSON.stringify(v)); }catch(e){} equipoEscucharDeNuevo(); }
+        // Ocultar por doctor (solo a la vista: sus citas SIGUEN bloqueando horas). "propio" = lo que tú pusiste directo en Google (duplicados): oculto de entrada
+        function eqOcultos(){ try{ return Object.assign({ propio: true }, JSON.parse(localStorage.getItem('da_eq_ocultos') || '{}')); }catch(e){ return { propio: true }; } }
+        function eqClave(c){ return c.propio ? 'propio' : c.doctorUid; }
+        function eqOculto(c){ return !!eqOcultos()[eqClave(c)]; }
+        function eqAlternar(k){ const o = eqOcultos(); o[k] = !o[k]; try{ localStorage.setItem('da_eq_ocultos', JSON.stringify(o)); }catch(e){} equipoEscucharDeNuevo(); }
         let _eqTodos = [];
-        function equipoEscucharDeNuevo(){ citasEquipo = _eqTodos.filter(x => !x.propio || eqVer().propios); try{ loadCalendar(); }catch(e){} const d = document.getElementById('dayModalOverlay'); const dia = (typeof selectedDate !== 'undefined' && selectedDate) || window._diaAbierto; if(d && getComputedStyle(d).display !== 'none' && dia) openDay(dia); }   // doctores cuyas citas vienen de su Google Calendar (docs g_...)
+        function equipoEscucharDeNuevo(){ citasEquipo = _eqTodos.filter(x => !x.propio || !eqOcultos().propio); try{ loadCalendar(); }catch(e){} const d = document.getElementById('dayModalOverlay'); const dia = (typeof selectedDate !== 'undefined' && selectedDate) || window._diaAbierto; if(d && getComputedStyle(d).display !== 'none' && dia) openDay(dia); }   // doctores cuyas citas vienen de su Google Calendar (docs g_...)
         function equipoNombre(uid){ const m = ((equipoCfg || {}).miembros || {})[uid]; return (m && m.nombre) || (_eqExt[uid] && _eqExt[uid].nombre) || 'Otro doctor'; }
         function equipoColor(uid){ const m = ((equipoCfg || {}).miembros || {})[uid]; return (m && m.color) || (_eqExt[uid] && _eqExt[uid].color) || '#6b46c1'; }
         async function equipoIniciar(user){
@@ -1486,7 +1490,13 @@
                     }
                 });
                 localStorage.setItem('da_eq_movidas', JSON.stringify(hechos));
-                _eqTodos = otros; citasEquipo = otros.filter(x => !x.propio || eqVer().propios);
+                // aviso dentro de la app cuando otro doctor agenda (lo que llega de Google)
+                try{ const vistos = JSON.parse(localStorage.getItem('da_eq_vistos') || 'null'), hoyI = fechaAISO(new Date()), ids = {};
+                    otros.forEach(x => { if(x.origen === 'google' && !x.propio && x.fecha >= hoyI) ids[x._id] = x.fecha + x.horaInicio; });
+                    if(vistos){ const nuevas = otros.filter(x => ids[x._id] && vistos[x._id] !== ids[x._id]);
+                        if(nuevas.length) daToast(nuevas.length === 1 ? (nuevas[0].doctorNombre || 'Otro doctor') + ' agendó: ' + nuevas[0].paciente + ' · ' + formatearFechaLegible(nuevas[0].fecha) + ' ' + formatearHoraAmPm(nuevas[0].horaInicio) : 'Los otros doctores agendaron ' + nuevas.length + ' citas nuevas', 'ok'); }
+                    localStorage.setItem('da_eq_vistos', JSON.stringify(ids)); }catch(e){}
+                _eqTodos = otros; citasEquipo = otros.filter(x => !x.propio || !eqOcultos().propio);
                 if(cambio){ localStorage.setItem('denti_citas_v16', JSON.stringify(citas)); guardarAgendaEnNube(); }
                 try{ loadCalendar(); if(selectedDate && document.getElementById('dayModalOverlay') && document.getElementById('dayModalOverlay').style.display === 'flex') openDay(selectedDate); }catch(e){}
                 try{ publicarDisponibilidad(); }catch(e){}
@@ -2038,7 +2048,7 @@
                     const citasDia = citas.filter(c => c.fecha === iso).concat(citasEquipoDia(iso));
                     libres = libres.filter(h=>{
                         // ocupada si cae dentro de alguna cita
-                        const choca = citasDia.some(c => h >= c.horaInicio && h < c.horaFin);
+                        const choca = citasDia.some(c => horaChoca(h, c));
                         return !choca;
                     });
                     // quitar horas bloqueadas manualmente
@@ -2681,7 +2691,7 @@
                         if(dateStr < hoyStr) sq.classList.add('dia-pasado');
                         else sq.classList.add('dia-futuro');
                     }
-                    const nEq = eqVer().otros ? citasEquipo.filter(c => c.fecha === dateStr).length : 0;
+                    const nEq = citasEquipo.filter(c => c.fecha === dateStr && !eqOculto(c)).length;
                     if(nEq){ let bd = sq.querySelector('.badges-container'); if(!bd){ bd = document.createElement('div'); bd.classList.add('badges-container'); sq.appendChild(bd); } const be = document.createElement('span'); be.className = 'badge-v'; be.style.background = '#6b46c1'; be.style.color = '#fff'; be.innerText = 'E' + nEq; be.title = nEq + ' cita(s) de otros doctores'; bd.appendChild(be); }
                     if(dateStr === hoyStr) sq.classList.add('dia-hoy');
                     sq.classList.add('btn-3d'); sq.addEventListener('click', () => openDay(dateStr));
@@ -2792,16 +2802,36 @@
                     </div>`
                 }).join('');
             }
-            // ===== Citas de otros doctores del consultorio (mismo sillón) =====
-            const eqDia = citasEquipoDia(dateStr).sort((a, b) => a.horaInicio.localeCompare(b.horaInicio)), _ev = eqVer(), _nProp = _eqTodos.filter(x => x.propio && x.fecha === dateStr).length;
+            // ===== Citas de otros doctores: intercaladas por hora con las tuyas, con el nombre de su doctor =====
+            const eqDia = citasEquipoDia(dateStr).sort((a, b) => a.horaInicio.localeCompare(b.horaInicio));
             window._diaAbierto = dateStr;
-            if(eqDia.length || _nProp){
-                list.innerHTML += `<div style="margin-top:12px; display:flex; align-items:center; gap:6px; flex-wrap:wrap;"><span style="font-size:0.8rem; color:var(--text-muted); font-weight:bold; flex:1;">Otros doctores del consultorio${!_ev.otros && eqDia.length ? ' (' + eqDia.length + ' ocultas)' : ''}</span>
-                    ${eqDia.length ? `<button class="esc-mini" onclick="event.stopPropagation(); eqVerCambiar('otros')">${_ev.otros ? 'Ocultar' : 'Mostrar'}</button>` : ''}
-                    ${_nProp ? `<button class="esc-mini" onclick="event.stopPropagation(); eqVerCambiar('propios')" title="Eventos que tú pusiste directo en Google Calendar">${_ev.propios ? 'Ocultar mis eventos de Google' : 'Ver mis eventos de Google (' + _nProp + ')'}</button>` : ''}</div>` + (_ev.otros ? eqDia : []).map(c => `<div class="appointment-item" style="border-left:5px solid ${equipoColor(c.doctorUid)}; opacity:0.92; cursor:default;">
-                    <div class="appointment-header"><strong>${formatearHoraAmPm(c.horaInicio)} - ${formatearHoraAmPm(c.horaFin)}</strong> <span style="font-size:0.78rem; color:${equipoColor(c.doctorUid)}; font-weight:bold;">${escHtml(equipoNombre(c.doctorUid))}</span></div>
-                    <div style="margin-left:6px;">${escHtml(c.paciente.replace(/^[^:]*: /, ''))}${c.motivo ? ' · ' + escHtml(c.motivo) : ''}</div></div>`).join('');
+            const eqTodosDia = _eqTodos.filter(x => x.fecha === dateStr);
+            const eqVis = eqTodosDia.filter(x => !eqOculto(x) && (!x.propio || !eqOcultos().propio)).sort((a, b) => a.horaInicio.localeCompare(b.horaInicio));
+            // botones: uno por doctor (se agregan solos conforme aparecen)
+            const docsMap = {}; _eqTodos.forEach(x => { const k = eqClave(x); if(!docsMap[k]) docsMap[k] = { k: k, nombre: x.propio ? 'Tus eventos de Google' : equipoNombre(x.doctorUid), color: x.propio ? '#718096' : equipoColor(x.doctorUid), n: 0 }; if(x.fecha === dateStr) docsMap[k].n++; });
+            const docsL = Object.values(docsMap).sort((a, b) => (a.k === 'propio') - (b.k === 'propio') || a.nombre.localeCompare(b.nombre));
+            if(docsL.length){
+                const oc = eqOcultos(), barra = document.createElement('div');
+                barra.style.cssText = 'display:flex; flex-wrap:wrap; gap:6px; margin:-4px 0 12px; align-items:center;';
+                barra.innerHTML = '<span style="font-size:0.78rem; color:var(--text-muted);">Ver:</span>' + docsL.map(d => `<button class="esc-mini" onclick="event.stopPropagation(); eqAlternar('${escAttr(d.k)}')" title="${oc[d.k] ? 'Oculto (sus horas siguen bloqueadas)' : 'Visible'}" style="${oc[d.k] ? 'opacity:0.5; text-decoration:line-through;' : ''}"><span style="display:inline-block; width:9px; height:9px; border-radius:50%; background:${d.color}; margin-right:4px;"></span>${escHtml(d.nombre)}${d.n ? ' (' + d.n + ')' : ''}</button>`).join('');
+                const res = list.firstElementChild; if(res && res.nextSibling) list.insertBefore(barra, res.nextSibling); else list.appendChild(barra);
             }
+            if(eqVis.length){
+                const vacio = [...list.querySelectorAll(':scope > p')].find(p => /libre este dia/.test(p.textContent)); if(vacio) vacio.remove();
+                const mias = [...list.querySelectorAll(':scope > .appointment-item')];
+                // a tus citas les pongo "Dr. Miguel" para distinguirlas
+                mias.forEach(el => { const h = el.querySelector('.appointment-header'); if(h && !h.querySelector('.tag-doc')) h.insertAdjacentHTML('beforeend', ' <span class="tag-doc" style="font-size:0.72rem; font-weight:bold; opacity:0.85; margin-left:4px;">Dr. Miguel</span>'); });
+                eqVis.forEach(c => {
+                    const col = c.propio ? '#718096' : equipoColor(c.doctorUid), nom = c.propio ? 'Tú (en Google)' : equipoNombre(c.doctorUid);
+                    const div = document.createElement('div'); div.className = 'appointment-item cita-otro'; div.style.cssText = `border-left:6px solid ${col}; background:#f7fafc; color:#1a202c; cursor:default;`;
+                    div.innerHTML = `<div class="appointment-header"><span class="status-dot" style="background:${col};"></span><strong style="font-size:1.05rem; color:#1a202c;">${formatearHoraAmPm(c.horaInicio)} - ${formatearHoraAmPm(c.horaFin)}</strong> <span style="font-size:0.78rem; font-weight:bold; color:${col}; margin-left:4px;">${escHtml(nom)}</span></div>
+                        <div style="margin-left:22px; color:#1a202c;">- ${escHtml(String(c.paciente || '').replace(/^[^:]*: /, ''))}${c.motivo ? ' · ' + escHtml(c.motivo) : ''}</div>`;
+                    const idx = citasDelDia.findIndex(x => x.horaInicio > c.horaInicio);
+                    if(idx >= 0 && mias[idx]) list.insertBefore(div, mias[idx]); else list.appendChild(div);
+                });
+            }
+            const ocN = eqTodosDia.length - eqVis.length - (eqOcultos().propio ? eqTodosDia.filter(x => x.propio).length : 0);
+            if(ocN > 0) list.insertAdjacentHTML('beforeend', `<div style="font-size:0.78rem; color:var(--text-muted); margin-top:6px;">${ocN} cita(s) de otros doctores ocultas; sus horas siguen bloqueadas.</div>`);
             // ===== Espacios libres (cuadros grises, click para agendar) =====
             const libres = calcularEspaciosLibres(dateStr, citasDelDia.concat(eqDia));
             if(libres.length){
@@ -2814,11 +2844,13 @@
             document.getElementById('dayModalOverlay').style.display = 'flex';
         }
         // calcula los huecos libres de un día (cada 30 min), quitando ocupados
+        // ¿el espacio de 30 min que empieza en h se cruza con la cita c?
+        function horaChoca(h, c){ const m = x => { const p = String(x || '').split(':'); return (+p[0]) * 60 + (+p[1] || 0); }; const a = m(h); return a < m(c.horaFin) && a + 30 > m(c.horaInicio); }
         function calcularEspaciosLibres(dateStr, citasDelDia){
             function horas(ini,fin){ const o=[]; if(!ini||!fin)return o; let[h,m]=ini.split(':').map(Number); const[hf,mf]=fin.split(':').map(Number); while(h<hf||(h===hf&&m<mf)){o.push(`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`); m+=30; if(m>=60){m-=60;h++;}} return o; }
             let todos = [...horas(config.mInicio,config.mFin), ...horas(config.vInicio,config.vFin)];
             // quitar los ocupados por citas
-            todos = todos.filter(h => !citasDelDia.some(c => h >= c.horaInicio && h < c.horaFin));
+            todos = todos.filter(h => !citasDelDia.some(c => horaChoca(h, c)));
             // quitar los bloqueados manualmente (vacaciones, comida, etc.)
             todos = todos.filter(h => !horaBloqueada(dateStr, h));
             return todos;
@@ -3017,7 +3049,7 @@
             return d <= 0 ? 'hoy' : (d === 1 ? 'ayer' : 'hace ' + d + ' d');
         }
         function usaSmile(nombre){ const u = usoSmile[nombre]; return !!(u && u.ts); }
-        const DA_VERSION = 'v109';
+        const DA_VERSION = 'v110';
         window.addEventListener('load', () => document.querySelectorAll('.da-ver-txt').forEach(e => e.textContent = 'DentiAgenda ' + DA_VERSION));
         // Texto del estado de SmileLike para un paciente (usa lo guardado; abajo se refresca solo ese paciente)
         function textoEstadoSmile(nombre){
