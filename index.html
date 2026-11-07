@@ -1438,7 +1438,12 @@
         const EQ_COLORES = ['#6b46c1', '#c05621', '#2c7a7b', '#b83280', '#2f855a'];
         function eqDueno(){ return (equipoCfg && equipoCfg.owner) || equipoUid; }   // las citas del Dr. Miguel (desde cualquiera de sus cuentas)
         function equipoActivo(){ return !!(equipoCfg && Object.keys(equipoCfg.miembros || {}).length); }
-        const _eqExt = {};   // doctores cuyas citas vienen de su Google Calendar (docs g_...)
+        const _eqExt = {};
+        // Vista: eventos tuyos que vienen de Google (duplicados de tu agenda) y citas de otros doctores
+        function eqVer(){ try{ return Object.assign({ propios: false, otros: true }, JSON.parse(localStorage.getItem('da_eq_ver') || '{}')); }catch(e){ return { propios: false, otros: true }; } }
+        function eqVerCambiar(k){ const v = eqVer(); v[k] = !v[k]; try{ localStorage.setItem('da_eq_ver', JSON.stringify(v)); }catch(e){} equipoEscucharDeNuevo(); }
+        let _eqTodos = [];
+        function equipoEscucharDeNuevo(){ citasEquipo = _eqTodos.filter(x => !x.propio || eqVer().propios); try{ loadCalendar(); }catch(e){} const d = document.getElementById('dayModalOverlay'); const dia = (typeof selectedDate !== 'undefined' && selectedDate) || window._diaAbierto; if(d && getComputedStyle(d).display !== 'none' && dia) openDay(dia); }   // doctores cuyas citas vienen de su Google Calendar (docs g_...)
         function equipoNombre(uid){ const m = ((equipoCfg || {}).miembros || {})[uid]; return (m && m.nombre) || (_eqExt[uid] && _eqExt[uid].nombre) || 'Otro doctor'; }
         function equipoColor(uid){ const m = ((equipoCfg || {}).miembros || {})[uid]; return (m && m.color) || (_eqExt[uid] && _eqExt[uid].color) || '#6b46c1'; }
         async function equipoIniciar(user){
@@ -1481,7 +1486,7 @@
                     }
                 });
                 localStorage.setItem('da_eq_movidas', JSON.stringify(hechos));
-                citasEquipo = otros;
+                _eqTodos = otros; citasEquipo = otros.filter(x => !x.propio || eqVer().propios);
                 if(cambio){ localStorage.setItem('denti_citas_v16', JSON.stringify(citas)); guardarAgendaEnNube(); }
                 try{ loadCalendar(); if(selectedDate && document.getElementById('dayModalOverlay') && document.getElementById('dayModalOverlay').style.display === 'flex') openDay(selectedDate); }catch(e){}
                 try{ publicarDisponibilidad(); }catch(e){}
@@ -1560,7 +1565,8 @@
             const docs = gcalDocs().map(x => ({ nombre: String(x.nombre || '').trim(), correo: String(x.correo || '').trim().toLowerCase(), color: x.color || '#2b6cb0' })).filter(x => x.nombre || x.correo);
             if(!soloCorreo && !id){ daToast('Falta pegar el ID del calendario (paso 3)', 'err'); return; }
             if(docs.some(x => x.correo && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x.correo))){ daToast('Revisa los correos de los doctores', 'err'); return; }
-            try{ await db.collection('agenda').doc('gcal').set({ compartido: soloCorreo ? ((gcalCfg || {}).compartido || '') : id, doctores: docs, pedidoTs: Date.now(), estado: { ok: true, msg: soloCorreo ? 'Pidiendo el correo del servidor…' : 'Conectando… (de unos segundos a un par de minutos)', ts: Date.now() } }, { merge: true }); gcalDoc = null; }
+            const propios = [...new Set(((gcalCfg || {}).propios || []).concat(window._daEmail ? [String(window._daEmail).toLowerCase()] : []))];
+            try{ await db.collection('agenda').doc('gcal').set({ propios: propios, compartido: soloCorreo ? ((gcalCfg || {}).compartido || '') : id, doctores: docs, pedidoTs: Date.now(), estado: { ok: true, msg: soloCorreo ? 'Pidiendo el correo del servidor…' : 'Conectando… (de unos segundos a un par de minutos)', ts: Date.now() } }, { merge: true }); gcalDoc = null; }
             catch(e){ daToast('No se pudo guardar: ' + (e.code || e.message), 'err'); }
         }
         async function gcalPausar(){
@@ -2675,7 +2681,7 @@
                         if(dateStr < hoyStr) sq.classList.add('dia-pasado');
                         else sq.classList.add('dia-futuro');
                     }
-                    const nEq = citasEquipo.filter(c => c.fecha === dateStr).length;
+                    const nEq = eqVer().otros ? citasEquipo.filter(c => c.fecha === dateStr).length : 0;
                     if(nEq){ let bd = sq.querySelector('.badges-container'); if(!bd){ bd = document.createElement('div'); bd.classList.add('badges-container'); sq.appendChild(bd); } const be = document.createElement('span'); be.className = 'badge-v'; be.style.background = '#6b46c1'; be.style.color = '#fff'; be.innerText = 'E' + nEq; be.title = nEq + ' cita(s) de otros doctores'; bd.appendChild(be); }
                     if(dateStr === hoyStr) sq.classList.add('dia-hoy');
                     sq.classList.add('btn-3d'); sq.addEventListener('click', () => openDay(dateStr));
@@ -2787,9 +2793,12 @@
                 }).join('');
             }
             // ===== Citas de otros doctores del consultorio (mismo sillón) =====
-            const eqDia = citasEquipoDia(dateStr).sort((a, b) => a.horaInicio.localeCompare(b.horaInicio));
-            if(eqDia.length){
-                list.innerHTML += `<div style="margin-top:12px; font-size:0.8rem; color:var(--text-muted); font-weight:bold;">Otros doctores del consultorio</div>` + eqDia.map(c => `<div class="appointment-item" style="border-left:5px solid ${equipoColor(c.doctorUid)}; opacity:0.92; cursor:default;">
+            const eqDia = citasEquipoDia(dateStr).sort((a, b) => a.horaInicio.localeCompare(b.horaInicio)), _ev = eqVer(), _nProp = _eqTodos.filter(x => x.propio && x.fecha === dateStr).length;
+            window._diaAbierto = dateStr;
+            if(eqDia.length || _nProp){
+                list.innerHTML += `<div style="margin-top:12px; display:flex; align-items:center; gap:6px; flex-wrap:wrap;"><span style="font-size:0.8rem; color:var(--text-muted); font-weight:bold; flex:1;">Otros doctores del consultorio${!_ev.otros && eqDia.length ? ' (' + eqDia.length + ' ocultas)' : ''}</span>
+                    ${eqDia.length ? `<button class="esc-mini" onclick="event.stopPropagation(); eqVerCambiar('otros')">${_ev.otros ? 'Ocultar' : 'Mostrar'}</button>` : ''}
+                    ${_nProp ? `<button class="esc-mini" onclick="event.stopPropagation(); eqVerCambiar('propios')" title="Eventos que tú pusiste directo en Google Calendar">${_ev.propios ? 'Ocultar mis eventos de Google' : 'Ver mis eventos de Google (' + _nProp + ')'}</button>` : ''}</div>` + (_ev.otros ? eqDia : []).map(c => `<div class="appointment-item" style="border-left:5px solid ${equipoColor(c.doctorUid)}; opacity:0.92; cursor:default;">
                     <div class="appointment-header"><strong>${formatearHoraAmPm(c.horaInicio)} - ${formatearHoraAmPm(c.horaFin)}</strong> <span style="font-size:0.78rem; color:${equipoColor(c.doctorUid)}; font-weight:bold;">${escHtml(equipoNombre(c.doctorUid))}</span></div>
                     <div style="margin-left:6px;">${escHtml(c.paciente.replace(/^[^:]*: /, ''))}${c.motivo ? ' · ' + escHtml(c.motivo) : ''}</div></div>`).join('');
             }
@@ -3008,7 +3017,7 @@
             return d <= 0 ? 'hoy' : (d === 1 ? 'ayer' : 'hace ' + d + ' d');
         }
         function usaSmile(nombre){ const u = usoSmile[nombre]; return !!(u && u.ts); }
-        const DA_VERSION = 'v108';
+        const DA_VERSION = 'v109';
         window.addEventListener('load', () => document.querySelectorAll('.da-ver-txt').forEach(e => e.textContent = 'DentiAgenda ' + DA_VERSION));
         // Texto del estado de SmileLike para un paciente (usa lo guardado; abajo se refresca solo ese paciente)
         function textoEstadoSmile(nombre){
