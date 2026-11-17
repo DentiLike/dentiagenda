@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DentiAgenda · Dentilike</title>
     <link rel="manifest" href="manifest.json"/>
-    <link rel="icon" type="image/png" href="favicon.png"/>
-    <link rel="apple-touch-icon" href="favicon.png"/>
+    <link rel="icon" type="image/png" href="icono-app.png"/>
+    <link rel="apple-touch-icon" href="icono-app.png"/>
     <meta name="theme-color" content="#124578"/>
     <style>
         :root { 
@@ -321,6 +321,7 @@
             <button class="btn-3d btn-text-icon" id="btnEscritorio" onclick="abrirEscritorio()">🖥️ Mi consultorio</button>
             <button class="btn-3d btn-text-icon" id="btnSeguimiento" onclick="abrirSeguimiento()">📋 Seguimiento</button>
             <button class="btn-3d btn-text-icon" id="btnMateriales" onclick="abrirMateriales()">🛒 Surtir</button>
+            <button class="btn-3d btn-text-icon" id="btnPersonal" style="display:none;" onclick="perAbrir()">Personal</button>
             <button class="btn-3d btn-text-icon" onclick="openConfig()">Ajustes</button>
         </div>
     </header>
@@ -337,6 +338,7 @@
     </div>
 
     <div class="container">
+        <div id="perTarjeta" style="display:none; margin-bottom:1rem;"></div>
         <div id="bannerSolicitudes" style="display:none; background:var(--accent); color:white; padding:0.9rem; border-radius:12px; margin-bottom:1rem; text-align:center; font-weight:bold; cursor:pointer;" onclick="abrirSolicitudes()">
             📥 Tienes <span id="bannerSolicitudesCount">0</span> solicitud(es) de cita nueva(s) — toca para revisar
         </div>
@@ -1233,6 +1235,7 @@
                 {
                     // Doctor autenticado con Google
                     authListo = true;
+                    try{ perIniciar(user); }catch(e){ console.warn('personal', e); }
                     localStorage.setItem('da_sesion_previa','1'); // recordar que ya entró antes
                     document.getElementById('uidValor').innerText = user.uid;
                     document.getElementById('uidBox').style.display = 'block';
@@ -1525,6 +1528,170 @@
         // Citas de otros doctores como si fueran del sillón (para choques y disponibilidad)
         function citasEquipoDia(fecha){ return citasEquipo.filter(c => c.fecha === fecha).map(c => ({ id: c._id, fecha: c.fecha, horaInicio: c.horaInicio, horaFin: c.horaFin, paciente: equipoNombre(c.doctorUid) + ': ' + c.paciente, motivo: c.motivo || '', equipo: true, doctorUid: c.doctorUid })); }
         // --- administración
+// ============ PERSONAL (solo dr.alvarado.ortodoncia@gmail.com): frase del día por etapa, tareas en casa y recuerdos ============
+// Datos en Firestore personal/{uid}. La cuenta de días es interna: nunca se muestra el número.
+const PER_CORREO = 'dr.alvarado.ortodoncia@gmail.com';
+// Etapas de recuperación de estimulantes (modelo Matrix): 0-15, 16-45, 46-120, 121-180, 181+
+const PER_ETAPAS = [
+    { hasta: 15, frases: [
+        'Hoy solo tienes que pasar hoy. Mañana es otro trato.',
+        'El cansancio de estos días es tu cuerpo reparándose, no tu vida rompiéndose.',
+        'Dormir de más, comer, tomar agua: hoy eso cuenta como avanzar.',
+        'Las ganas suben como ola y bajan solas. Aguanta la ola, no la persigas.',
+        'No tienes que sentirte bien para estar haciéndolo bien.',
+        'Lo que sientes hoy es químico y temporal. No le creas todo lo que te dice.',
+        'Un vaso de agua, un bocado, una tarea pequeña. Así se construye un día.',
+        'Ya diste el paso más difícil: decidir. Lo demás es repetirlo hoy.',
+        'Si el día pesa, hazlo más chico: una hora a la vez.',
+        'Tu cerebro está aprendiendo a funcionar sin ayuda. Dale tiempo.',
+        'Estar cansado y aburrido es mejor que estar en peligro.',
+        'Pedir apoyo no es debilidad; es la parte inteligente del plan.'
+    ] },
+    { hasta: 45, frases: [
+        'Te sientes con más energía: úsala para reforzar lo que te está funcionando.',
+        'Sentirse bien no es lo mismo que estar a salvo. Sigue con tu rutina.',
+        '"Ya lo tengo controlado" es la frase más peligrosa de esta etapa.',
+        'Ordena tu semana: los días con estructura son días protegidos.',
+        'Aleja lo que te pone en riesgo aunque hoy no lo sientas cerca.',
+        'Aprovecha esta claridad para arreglar algo que habías dejado.',
+        'Cada día limpio también es un día más de confianza de los tuyos.',
+        'El ejercicio de hoy es inversión para los días difíciles que vienen.',
+        'Disfruta este impulso, pero no bajes la guardia.',
+        'Cumplir lo que te propones hoy es la mejor prueba de que puedes.'
+    ] },
+    { hasta: 120, frases: [
+        'Si hoy todo parece gris, es la etapa, no tu vida. Esto también pasa.',
+        'El aburrimiento es incómodo, no peligroso. Muévete aunque no tengas ganas.',
+        'Tu cerebro está recalibrando el placer. Lo sencillo volverá a sentirse bien.',
+        'Las ganas pueden volver sin aviso. Tenerlas no es fallar; actuar es una decisión.',
+        'Los días planos también suman. No necesitan sentirse bien para valer.',
+        'Habla con alguien hoy, aunque sea de cualquier cosa.',
+        'Haz una cosa que te guste aunque todavía no la disfrutes. La alegría regresa practicándola.',
+        'No negocies contigo mismo: "solo una vez" nunca fue solo una vez.',
+        'Revisa por qué empezaste. Esa razón sigue ahí.',
+        'Esta es la parte más pesada del camino y la estás caminando.',
+        'Cuida el sueño: un día cansado hace más fuertes las ganas.',
+        'Si sientes que te hundes, pide ayuda hoy, no mañana.'
+    ] },
+    { hasta: 180, frases: [
+        'Ya no solo estás dejando algo: estás construyendo otra vida.',
+        'Revisa tus rutinas: lo que te sostuvo al inicio te sigue sosteniendo.',
+        'Los problemas de siempre van a aparecer. Ahora los enfrentas con la mente clara.',
+        'La confianza se recupera igual que se perdió: poco a poco y con hechos.',
+        'Cuidado con la comodidad. Mantén lo que te trajo hasta aquí.',
+        'Ponte una meta nueva que no tenga nada que ver con dejar de consumir.',
+        'Tu consultorio, tu gente, tu salud: todo eso está creciendo contigo.',
+        'Un mal día no borra lo construido. Sigue.'
+    ] },
+    { hasta: 99999, frases: [
+        'Lo que lograste se cuida todos los días, como una ortodoncia en retención.',
+        'Hoy eres alguien que eligió su vida. Sigue eligiéndola.',
+        'Tu historia puede ayudar a alguien más cuando estés listo.',
+        'Mantener es menos ruidoso que empezar, pero igual de importante.',
+        'Celebra las cosas pequeñas: un día tranquilo es un regalo.',
+        'Sigue cuidando el sueño, el cuerpo y a tu gente. Ese es tu escudo.',
+        'Si algún día tambaleas, ya sabes el camino de regreso.'
+    ] }
+];
+// Para estar listo antes de cada etapa (se muestran en los últimos días de la anterior)
+const PER_PREPARA = [
+    'Lo pesado de los primeros días está por aflojar. Vendrá energía: úsala con cabeza y sin confiarte.',
+    'Se acerca una etapa donde puedes sentirte plano o aburrido. Es normal y pasa. Ten listo un plan para esos días.',
+    'Viene una etapa de reconstrucción. Piensa qué quieres en tu vida además de mantenerte limpio.',
+    'Entras a una etapa de mantener. Lo que ya funciona, no lo sueltes.'
+];
+// Momentos para felicitar (sin decir el número)
+const PER_HITOS = { 1: 'Primer día completo. Ese es el más difícil y ya lo hiciste.', 3: 'Lo estás logrando. Estos primeros días son los más duros y aquí sigues.', 7: 'Hoy alcanzas una meta importante. Reconócetelo.', 14: 'Llevas más tiempo del que imaginabas al empezar. Estás saliendo de lo más pesado.', 21: 'Tus hábitos nuevos ya están echando raíz.', 30: 'Hoy es un día para celebrar en serio. Mira hasta dónde llegaste.', 45: 'Ya cruzaste la etapa de la euforia sin confiarte. Muy bien hecho.', 60: 'Lo estás sosteniendo incluso en días grises. Eso es fuerza real.', 90: 'Hoy cumples una meta grande. Tu cerebro y tu vida lo notan.', 120: 'Pasaste la parte más pesada del camino. Felicidades de verdad.', 180: 'Medio camino hacia algo que hace meses parecía imposible. Reconócetelo.', 270: 'Esto ya es tu forma de vivir. Sigue cuidándola.', 365: 'Hoy se cumple algo enorme. Tómate un momento para sentirlo.' };
+let perDoc = null, perUid = null, _perEsc = null;
+function perEsDueno(){ const u = firebase.auth().currentUser; return !!(u && u.email && u.email.toLowerCase() === PER_CORREO); }
+function perHoy(){ return fechaAISO(new Date()); }
+function perDias(){ if(!perDoc || !perDoc.inicio) return 0; return Math.max(0, Math.round((new Date(perHoy() + 'T12:00:00') - new Date(perDoc.inicio + 'T12:00:00')) / 864e5)); }
+function perEtapa(n){ let i = 0; while(n > PER_ETAPAS[i].hasta) i++; return i; }
+function perSemilla(s){ let h = 0; for(const c of s) h = (h * 31 + c.charCodeAt(0)) | 0; return Math.abs(h); }
+function perFraseHoy(){
+    const n = perDias(), et = perEtapa(n), hoy = perHoy(), sem = perSemilla(hoy), recs = (perDoc && perDoc.recuerdos) || [];
+    if(PER_HITOS[n] || (n > 365 && n % 365 === 0)) return { tipo: 'hito', txt: PER_HITOS[n] || PER_HITOS[365] };
+    const ayer = fechaAISO(new Date(Date.now() - 864e5)), ganasAyer = (((perDoc || {}).dias || {})[ayer] || {}).ganas >= 2;
+    const cada = et === 0 ? 3 : (et <= 2 ? 2 : 4);   // en las etapas de más riesgo, más seguido
+    if(recs.length && (ganasAyer || n % cada === 1)) return { tipo: 'recuerdo', txt: recs[sem % recs.length].txt };
+    if(et < PER_ETAPAS.length - 1 && PER_ETAPAS[et].hasta - n < 3) return { tipo: 'prepara', txt: PER_PREPARA[et] };
+    const L = PER_ETAPAS[et].frases; return { tipo: 'frase', txt: L[sem % L.length] };
+}
+function perTarjeta(){
+    const el = document.getElementById('perTarjeta'); if(!el) return;
+    if(!perEsDueno() || !perDoc){ el.style.display = 'none'; return; }
+    const f = perFraseHoy(), cerrada = (() => { try{ return localStorage.getItem('da_per_cerrada') === perHoy(); }catch(e){ return false; } })();
+    el.style.display = 'block';
+    if(cerrada){ el.innerHTML = `<button class="esc-mini" onclick="perAbrirTarjeta()">💬 Frase del día</button>`; return; }
+    const ico = { hito: '🎉', recuerdo: '🧠', prepara: '🧭', frase: '💬' }[f.tipo], tit = { hito: 'Felicidades', recuerdo: 'Recuerda lo que viviste', prepara: 'Prepárate', frase: 'Para hoy' }[f.tipo];
+    el.innerHTML = `<div style="position:relative; padding:12px 38px 12px 14px; border-radius:14px; background:linear-gradient(135deg, var(--primary), #2b6cb0); color:#fff; box-shadow:0 4px 14px rgba(0,0,0,.15);">
+        <div style="font-size:0.72rem; opacity:0.85; font-weight:bold; text-transform:uppercase; letter-spacing:0.5px;">${ico} ${tit}</div>
+        <div style="font-size:0.95rem; margin-top:4px; line-height:1.35;">${escHtml(f.txt)}</div>
+        <button onclick="perCerrarTarjeta()" style="position:absolute; top:6px; right:8px; background:none; border:none; color:#fff; font-size:1.1rem; cursor:pointer; opacity:0.8;" title="Ocultar por hoy">✕</button></div>`;
+}
+function perCerrarTarjeta(){ try{ localStorage.setItem('da_per_cerrada', perHoy()); }catch(e){} perTarjeta(); }
+function perAbrirTarjeta(){ try{ localStorage.removeItem('da_per_cerrada'); }catch(e){} perTarjeta(); }
+function perIniciar(user){
+    if(!user || !user.email || user.email.toLowerCase() !== PER_CORREO) return;
+    perUid = user.uid; const b = document.getElementById('btnPersonal'); if(b) b.style.display = '';
+    if(_perEsc) _perEsc();
+    _perEsc = db.collection('personal').doc(perUid).onSnapshot(sn => {
+        perDoc = sn.exists ? sn.data() : null;
+        if(!perDoc){ perDoc = { inicio: perHoy(), tareas: [], dias: {}, recuerdos: [] }; perGuardar({ inicio: perDoc.inicio, tareas: [], dias: {}, recuerdos: [] }); }
+        perTarjeta(); perRender();
+    }, e => { console.warn('personal', e); const el = document.getElementById('perTarjeta'); if(el){ el.style.display = 'block'; el.innerHTML = '<div class="esc-sub">Personal: falta actualizar las reglas de Firebase (sección personal).</div>'; } });
+}
+async function perGuardar(cambio){ try{ await db.collection('personal').doc(perUid).set(cambio, { merge: true }); }catch(e){ daToast('No se pudo guardar: ' + (e.code || e.message), 'err'); } }
+function perAbrir(){
+    if(!perEsDueno()) return;
+    let m = document.getElementById('perModal'); if(m) m.remove();
+    m = document.createElement('div'); m.id = 'perModal'; m.className = 'modal-overlay'; m.style.display = 'flex';
+    m.onclick = e => { if(e.target === m) m.remove(); };
+    m.innerHTML = '<div class="modal"><div class="modal-header"><h2 style="margin:0; color:var(--primary);">Personal</h2><button class="close-btn" onclick="document.getElementById(\'perModal\').remove()">X</button></div><div id="perBody"></div></div>';
+    document.body.appendChild(m); perRender();
+}
+function perRender(){
+    const el = document.getElementById('perBody'); if(!el || !perDoc) return;
+    const hoy = perHoy(), dia = (perDoc.dias || {})[hoy] || {}, hechas = dia.hechas || [], T = perDoc.tareas || [], R = perDoc.recuerdos || [];
+    const ganasTxt = ['Nada', 'Leves', 'Fuertes', 'Muy fuertes'];
+    const hist = [...Array(14)].map((_, i) => { const f = fechaAISO(new Date(Date.now() - (13 - i) * 864e5)), x = (perDoc.dias || {})[f] || {}, pc = T.length ? Math.round((x.hechas || []).filter(id => T.some(t => t.id === id)).length / T.length * 100) : 0;
+        return `<div title="${f}: ${pc}% tareas${x.ganas != null ? ', ganas ' + ganasTxt[x.ganas].toLowerCase() : ''}" style="flex:1; text-align:center;"><div style="height:46px; display:flex; align-items:flex-end; justify-content:center;"><div style="width:70%; height:${Math.max(3, pc * 0.46)}px; border-radius:3px; background:${pc >= 80 ? '#38a169' : pc >= 40 ? '#d69e2e' : '#a0aec0'};"></div></div>
+            <div style="height:6px; margin-top:2px; border-radius:3px; background:${x.ganas >= 2 ? '#e53e3e' : x.ganas === 1 ? '#f6ad55' : 'transparent'};"></div><div style="font-size:0.6rem; color:var(--text-muted);">${f.slice(8)}</div></div>`; }).join('');
+    el.innerHTML = `
+        <h4 style="color:var(--primary); margin:0 0 6px;">Hoy</h4>
+        ${T.length ? T.map(t => `<label style="display:flex; align-items:center; gap:10px; padding:8px 4px; font-size:0.95rem; cursor:pointer;"><input type="checkbox" style="width:22px; height:22px;" ${hechas.includes(t.id) ? 'checked' : ''} onchange="perMarcar('${t.id}', this.checked)"><span style="${hechas.includes(t.id) ? 'text-decoration:line-through; opacity:0.6;' : ''}">${escHtml(t.txt)}</span></label>`).join('') : '<div class="esc-sub">Agrega abajo tus tareas de casa de cada día.</div>'}
+        <div style="margin-top:10px; font-size:0.85rem; font-weight:bold;">Ganas de consumir hoy</div>
+        <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:4px;">${ganasTxt.map((g, i) => `<button class="esc-mini${dia.ganas === i ? ' on' : ''}" style="${dia.ganas === i ? 'background:var(--primary); color:#fff;' : ''}" onclick="perGanas(${i})">${g}</button>`).join('')}</div>
+        ${dia.ganas >= 2 ? '<div style="font-size:0.82rem; margin-top:6px; padding:8px; border-radius:10px; background:#fff5f5; border:1px solid #fc8181;">Las ganas suben y bajan solas, en minutos. Sal de donde estás, toma agua, llama a alguien. Si sientes que no puedes solo: Línea de la Vida 800 911 2000.</div>' : ''}
+        <div style="margin-top:10px; font-size:0.85rem; font-weight:bold;">¿Cómo estuvo el día?</div>
+        <textarea id="perNota" class="inset-3d" rows="3" style="width:100%; margin-top:4px;" placeholder="Lo que quieras anotar" onchange="perNota(this.value)">${escHtml(dia.nota || '')}</textarea>
+        <h4 style="color:var(--primary); margin:16px 0 6px;">Últimos 14 días</h4>
+        <div style="display:flex; gap:2px;">${hist}</div>
+        <div class="esc-sub">Barra: tareas cumplidas · línea roja: días con ganas fuertes.</div>
+        <details class="ft-plegable" style="margin-top:14px;"><summary>Mis tareas de casa (${T.length})</summary>
+            ${T.map(t => `<div style="display:flex; gap:6px; align-items:center; margin:4px 0;"><span style="flex:1; font-size:0.88rem;">${escHtml(t.txt)}</span><button class="esc-mini" onclick="perQuitarTarea('${t.id}')">✕</button></div>`).join('')}
+            <div style="display:flex; gap:6px; margin-top:6px;"><input id="perNuevaTarea" class="inset-3d" style="flex:1;" placeholder="Ej. Tender la cama, caminar 20 min, cenar…" onkeydown="if(event.key==='Enter') perAgregarTarea()"><button class="esc-mini" onclick="perAgregarTarea()">Agregar</button></div></details>
+        <details class="ft-plegable" style="margin-top:10px;"><summary>Lo que no quiero repetir (${R.length})</summary>
+            <div class="esc-sub" style="margin-bottom:6px;">Tus experiencias negativas. La frase del día te las recuerda de vez en cuando, más seguido en las etapas difíciles y al día siguiente de tener ganas fuertes.</div>
+            ${R.map(r => `<div style="display:flex; gap:6px; align-items:flex-start; margin:6px 0; padding:6px 8px; border-left:3px solid #e53e3e;"><span style="flex:1; font-size:0.88rem;">${escHtml(r.txt)}</span><button class="esc-mini" onclick="perQuitarRecuerdo('${r.id}')">✕</button></div>`).join('')}
+            <textarea id="perNuevoRec" class="inset-3d" rows="2" style="width:100%; margin-top:6px;" placeholder="Algo que viviste y no quieres volver a vivir"></textarea>
+            <button class="esc-mini" style="margin-top:4px;" onclick="perAgregarRecuerdo()">Guardar</button></details>
+        <details class="ft-plegable" style="margin-top:10px;"><summary>Volver a empezar</summary>
+            <div class="esc-sub">Si un día tropiezas, reinicia la cuenta desde hoy. Lo aprendido no se borra.</div>
+            <button class="esc-mini" style="margin-top:6px;" onclick="perReiniciar()">Empezar de nuevo desde hoy</button></details>
+        <div class="esc-sub" style="margin-top:12px;">Solo tu cuenta puede ver esta sección.</div>`;
+}
+function perDia(){ const hoy = perHoy(); perDoc.dias = perDoc.dias || {}; return perDoc.dias[hoy] = perDoc.dias[hoy] || {}; }
+function perMarcar(id, si){ const d = perDia(); d.hechas = (d.hechas || []).filter(x => x !== id).concat(si ? [id] : []); perGuardar({ dias: { [perHoy()]: d } }); perRender(); }
+function perGanas(i){ const d = perDia(); d.ganas = i; perGuardar({ dias: { [perHoy()]: d } }); perRender(); }
+function perNota(v){ const d = perDia(); d.nota = v; perGuardar({ dias: { [perHoy()]: d } }); }
+function perAgregarTarea(){ const i = document.getElementById('perNuevaTarea'), t = (i.value || '').trim(); if(!t) return; perDoc.tareas = (perDoc.tareas || []).concat([{ id: 't' + Date.now(), txt: t }]); perGuardar({ tareas: perDoc.tareas }); perRender(); setTimeout(() => { const x = document.getElementById('perNuevaTarea'); if(x) x.focus(); }, 50); }
+function perQuitarTarea(id){ perDoc.tareas = (perDoc.tareas || []).filter(t => t.id !== id); perGuardar({ tareas: perDoc.tareas }); perRender(); }
+function perAgregarRecuerdo(){ const i = document.getElementById('perNuevoRec'), t = (i.value || '').trim(); if(!t) return; perDoc.recuerdos = (perDoc.recuerdos || []).concat([{ id: 'r' + Date.now(), txt: t }]); perGuardar({ recuerdos: perDoc.recuerdos }); perRender(); }
+function perQuitarRecuerdo(id){ if(!confirm('¿Borrar este recuerdo?')) return; perDoc.recuerdos = (perDoc.recuerdos || []).filter(r => r.id !== id); perGuardar({ recuerdos: perDoc.recuerdos }); perRender(); }
+function perReiniciar(){ if(!confirm('¿Empezar la cuenta de nuevo desde hoy?')) return; perDoc.inicio = perHoy(); perGuardar({ inicio: perDoc.inicio }); perTarjeta(); daToast('Hoy empieza de nuevo. Bien por volver.', 'ok'); }
+
+        document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible') try{ perTarjeta(); }catch(e){} });
         // ===== Google Calendar: conecta DentiAgenda con el calendario compartido del consultorio (funciones gcal* en la nube) =====
         let _gcalEsc = null, gcalCfg = {}, gcalDoc = null;
         function gcalAbrir(){
@@ -3049,7 +3216,7 @@
             return d <= 0 ? 'hoy' : (d === 1 ? 'ayer' : 'hace ' + d + ' d');
         }
         function usaSmile(nombre){ const u = usoSmile[nombre]; return !!(u && u.ts); }
-        const DA_VERSION = 'v110';
+        const DA_VERSION = 'v112';
         window.addEventListener('load', () => document.querySelectorAll('.da-ver-txt').forEach(e => e.textContent = 'DentiAgenda ' + DA_VERSION));
         // Texto del estado de SmileLike para un paciente (usa lo guardado; abajo se refresca solo ese paciente)
         function textoEstadoSmile(nombre){
@@ -5592,6 +5759,7 @@ function renderMesaDecisiones(){
         ${pane(2, `${hTraz}${hBot}`)}
 
         ${pane(3, `
+            ${brPrescHtml(p)}
             ${botNotasHtml(p)}
             ${Object.keys(F).length ? `<div style="margin-bottom:10px;"><button class="btn-3d" style="width:100%; padding:0.8rem; color:var(--accent);" onclick="unifTodo('prioridad')">Resolver todo: manda el trazado, la IA aporta hallazgos</button>
                 <div class="esc-sub" style="margin-top:4px;">Después ajusta lo que quieras. Aquí abajo queda tu decisión final.</div></div>` : ''}
@@ -5770,6 +5938,7 @@ function mesaArmarInforme(nombre, d){
     const aps = d.aparatos.map(a => MESA_NOM_APAR[a] || a.toLowerCase());
     if(d.aparatoOtro && d.aparatoOtro.trim()) aps.push(d.aparatoOtro.trim());
     if(aps.length) L.push('Aparatología: ' + aps.join('; ') + '.');
+    { const pt = brPrescTexto(d); if(pt && (d.aparatos || []).some(a => ['Estándar metálico', 'Metálico flex', 'Autoligado'].includes(a))) L.push(pt); }
     if(d.nota && d.nota.trim()){ L.push(''); L.push('OBSERVACIONES'); L.push(d.nota.trim()); }
     L.push(''); L.push('Valoración preliminar, sujeta a confirmación clínica.'); L.push(''); L.push(dc.doc); L.push(dc.clinica);
     return L.join('\n');
@@ -7170,11 +7339,112 @@ function botNotas(p, d){
     if(b.limite) add(sug, 'Caso limítrofe de extracción: decide con el análisis de espacio en modelos y el perfil.', 'La cefalometría sola no basta en casos limítrofes.');
     return { mod: mod, lim: lim, sug: sug };
 }
+// ============ BRACKET RECOMENDADO: prescripción por arcada (Roth .022 / MBT .022) y autoligado Memory (Roth) ============
+// Valores estándar (torque/angulación). Si llegan los de Borgatta, se cambian aquí.
+const PRESC_TQ = [
+    ['Central superior', 'torque', '+12°', '+17°', 'sup'], ['Lateral superior', 'torque', '+8°', '+10°', 'sup'], ['Canino superior', 'torque', '−2°', '−7°', 'sup'],
+    ['Angulación anterior superior', 'tip', '5 / 9 / 9°', '4 / 8 / 8°', 'sup'],
+    ['Incisivos inferiores', 'torque', '0 a −1°', '−6°', 'inf'], ['Canino inferior', 'torque', '−11°', '−6°', 'inf'], ['Molares inferiores', 'torque', '−30°', '−20°', 'inf']
+];
+function brPresc(p, d){
+    const tp = p.trazadoPuntos || {}, m = tp.m || {}, edad = iaEdadDe(p);
+    const vt = (typeof trazoVert === 'function') ? trazoVert(m, edad) : null;
+    const vertical = (m.j_ind != null && m.j_ind < 59) || (vt && vt.v <= -0.5) || (m.snmp != null && m.snmp > 37);
+    const horizontal = (m.j_ind != null && m.j_ind > 65) || (vt && vt.v >= 0.5) || (m.snmp != null && m.snmp < 27);
+    const cl = ['I', 'II', 'III'].includes(d.rel) ? d.rel : trazoClase(m);
+    const incSup = d.incSup || trazoIncl(m.u1na, 26, 18), incInf = d.incInf || trazoIncl(m.l1nb, 29, 21);
+    const div2 = cl === 'II' && ((m.ii != null && m.ii > 140) || incSup === 'retro');
+    const dts = (d.dientes || []).map(Number), extrSup = d.extr === 'si' && (dts.some(n => n >= 10 && n < 30) || !dts.length), extrInf = d.extr === 'si' && (dts.some(n => n >= 30 && n < 50) || !dts.length);
+    const apinI = ['moderado', 'severo'].includes(d.apinInf), apinAlgo = ['leve', 'moderado', 'severo'].includes(d.apinInf) || ['leve', 'moderado', 'severo'].includes(d.apinSup);
+    if(!cl && !incSup && !incInf) return null;
+    const bio = vertical ? 'vertical (dolicofacial)' : horizontal ? 'horizontal (braquifacial)' : 'mesofacial';
+    // --- arriba
+    let sup, porSup, cs;
+    if(cl === 'III'){ cs = 'permitir que los incisivos se proinclinen'; sup = 'Roth'; porSup = 'Clase III: arriba conviene permitir que los incisivos se proinclinen un poco (menos torque).'; }
+    else if(div2){ cs = 'dar torque a los incisivos verticalizados'; sup = 'MBT'; porSup = 'Incisivos superiores verticalizados (Clase II div. 2): el +17° ayuda a darles torque.'; }
+    else if(incSup === 'retro'){ cs = 'dar torque a los incisivos retroinclinados'; sup = 'MBT'; porSup = 'Incisivos superiores retroinclinados: más torque palatino de raíz.'; }
+    else if(extrSup){ cs = 'compensar el torque que se pierde al retraer'; sup = 'MBT'; porSup = 'Extracción superior: al retraer se pierde torque; el +17° lo compensa.'; }
+    else if(vertical){ cs = 'menos angulación y anclaje'; sup = 'MBT'; porSup = 'Patrón vertical: menos angulación anterior, menos demanda de anclaje.'; }
+    else { cs = ''; sup = 'Roth'; porSup = 'Sin indicación especial arriba: prescripción estándar.'; }
+    // --- abajo
+    let inf, porInf, ci;
+    if(cl === 'III'){ ci = 'que los incisivos no se vayan hacia vestibular'; inf = 'MBT'; porInf = 'Clase III: el −6° evita que los incisivos inferiores se vayan hacia vestibular' + (incInf === 'retro' ? ' (ya están compensados: vigila la tabla ósea lingual).' : '.'); }
+    else if(incInf === 'retro'){ ci = 'no retroinclinar más los incisivos'; inf = 'Roth'; porInf = 'Incisivos inferiores retroinclinados: MBT los retroinclinaría más.'; }
+    else if(div2){ ci = 'permitir proinclinar y nivelar la mordida profunda'; inf = 'Roth'; porInf = 'Mordida profunda de div. 2: abajo conviene permitir algo de proinclinación para nivelar.'; }
+    else if(incInf === 'pro'){ ci = 'frenar la proinclinación de los incisivos'; inf = 'MBT'; porInf = 'Incisivos inferiores proinclinados: el −6° frena que se adelanten más.'; }
+    else if(apinI){ ci = 'frenar la proinclinación al alinear'; inf = 'MBT'; porInf = 'Apiñamiento inferior ' + d.apinInf + ': al alinear tienden a proinclinarse; el −6° lo frena.'; }
+    else if(cl === 'II'){ ci = 'frenar la proinclinación con elásticos de Clase II'; inf = 'MBT'; porInf = 'Clase II (elásticos y nivelación de Spee): el −6° frena la proinclinación inferior.'; }
+    else if(horizontal){ ci = 'nivelar la curva de Spee'; inf = 'Roth'; porInf = 'Patrón horizontal: nivelar la curva de Spee con algo de proinclinación es aceptable.'; }
+    else if(vertical){ ci = 'menos angulación y anclaje'; inf = 'MBT'; porInf = 'Patrón vertical: menos angulación, menos anclaje.'; }
+    else { ci = ''; inf = 'Roth'; porInf = 'Sin indicación especial abajo: prescripción estándar.'; }
+    // --- autoligado (Memory es Roth; con extracciones no lo usas)
+    let auto = false, porAuto;
+    if(d.extr === 'si') porAuto = 'Con extracción de premolares no usas autoligado: convencional.';
+    else if(sup !== 'Roth' || inf !== 'Roth') porAuto = 'Tu autoligado (Memory) solo viene en Roth y aquí conviene MBT en ' + (sup !== 'Roth' && inf !== 'Roth' ? 'ambas arcadas' : sup !== 'Roth' ? 'la superior' : 'la inferior') + ': convencional' + (sup !== inf ? ' (o autoligado solo en la arcada Roth)' : '') + '.';
+    else if(apinAlgo || (d.aparatos || []).includes('Autoligado')){ auto = true; porAuto = 'Sin extracciones, todo en Roth' + (apinAlgo ? ' y con apiñamiento' : '') + ': el autoligado Memory aprovecha la baja fricción.'; }
+    else porAuto = 'Sin extracciones y todo en Roth: puedes usar convencional o autoligado Memory; sin apiñamiento no hay ventaja clara.';
+    // --- datos que se usaron
+    const datos = [cl ? 'Clase ' + cl + (['I', 'II', 'III'].includes(d.rel) ? ' (tu decisión)' : (m.anb != null ? ' (ANB ' + m.anb + '°)' : '')) : '',
+        div2 ? 'patrón de div. 2' + (m.ii != null ? ' (interincisal ' + m.ii + '°)' : '') : '',
+        incSup ? 'superiores ' + ({ pro: 'proinclinados', retro: 'retroinclinados', normal: 'bien inclinados' })[incSup] + (d.incSup ? '' : (m.u1na != null ? ' (U1-NA ' + m.u1na + '°)' : '')) : '',
+        incInf ? 'inferiores ' + ({ pro: 'proinclinados', retro: 'retroinclinados', normal: 'bien inclinados' })[incInf] + (d.incInf ? '' : (m.l1nb != null ? ' (L1-NB ' + m.l1nb + '°)' : '')) : '',
+        'biotipo ' + bio + ([m.j_ind != null ? 'Jarabak ' + m.j_ind + ' %' : '', vt ? 'VERT ' + vt.v : ''].filter(Boolean).length ? ' (' + [m.j_ind != null ? 'Jarabak ' + m.j_ind + ' %' : '', vt ? 'VERT ' + vt.v : ''].filter(Boolean).join(', ') + ')' : ''),
+        d.extr === 'si' ? 'con extracción' + (dts.length ? ' (' + dts.join(', ') + ')' : '') : d.extr === 'no' ? 'sin extracción' : 'extracción sin definir',
+        d.apinInf ? 'apiñamiento inferior ' + d.apinInf : ''].filter(Boolean);
+    // --- mecánica según el biotipo
+    const mec = [];
+    if(vertical){ mec.push('Control vertical: evita elásticos intermaxilares prolongados, tracción cervical y extruir molares al nivelar.'); mec.push('Para abrir espacio o corregir la mordida, prefiere intrusión (microtornillos, tracción alta) a extrusión.'); }
+    if(horizontal){ mec.push('Mordida profunda probable: nivela la curva de Spee extruyendo premolares e intruyendo incisivos; tolera bien la extrusión posterior.'); mec.push('Evita extracciones si el perfil no lo pide: profundizan la mordida y aplanan el perfil.'); }
+    if(cl === 'II' && inf === 'MBT') mec.push('Con elásticos de Clase II, el −6° inferior ayuda, pero revisa los incisivos inferiores en cada cita.');
+    if(cl === 'III') mec.push('Con elásticos de Clase III, vigila que los superiores no se proinclinen de más y los inferiores no pierdan tabla ósea.');
+    if(d.extr === 'si') mec.push('En extracciones, mantén la raíz del canino centrada en el hueso al cerrar espacios.');
+    if(!mec.length) mec.push('Mesofacial: mecánica estándar; decide por apiñamiento e inclinación de incisivos.');
+    const igual = sup === inf;
+    const titulo = (igual ? sup + ' en ambas arcadas' : 'Arriba: ' + sup + ' · Abajo: ' + inf) + ' · ' + (auto ? 'Autoligado Memory' : 'Convencional');
+    const motivos = [...new Set([cs, ci].filter(Boolean))];
+    const resumen = igual ? (motivos.length ? sup + ' para ' + motivos.join(' y ') + '.' : 'Sin indicaciones especiales: prescripción estándar.')
+        : 'Arriba ' + sup + (cs ? ' para ' + cs : ' (estándar)') + '; abajo ' + inf + (ci ? ' para ' + ci : ' (estándar)') + '.';
+    return { sup: sup, inf: inf, auto: auto, porSup: porSup, porInf: porInf, porAuto: porAuto, datos: datos, mec: mec, titulo: titulo, resumen: resumen, bio: bio };
+}
+function brPrescHtml(p){
+    const d = mesa.d, r = brPresc(p, d); if(!r) return '';
+    const ap = d.presc && d.presc.sup === r.sup && d.presc.inf === r.inf && !!d.presc.auto === r.auto;
+    const tq = PRESC_TQ.map(x => { const elegido = x[4] === 'sup' ? r.sup : r.inf;
+        return `<tr><td>${x[0]}</td><td style="text-align:center;${elegido === 'Roth' ? ' font-weight:bold; color:var(--primary);' : ' opacity:0.6;'}">${x[2]}</td><td style="text-align:center;${elegido === 'MBT' ? ' font-weight:bold; color:var(--primary);' : ' opacity:0.6;'}">${x[3]}</td></tr>`; }).join('');
+    return `<div style="margin-bottom:10px; padding:10px 12px; border-radius:12px; border:1.5px solid var(--primary);">
+        <div style="font-size:0.75rem; color:var(--text-muted); font-weight:bold; text-transform:uppercase; letter-spacing:0.5px;">Bracket recomendado</div>
+        <div style="font-size:1.02rem; font-weight:bold; color:var(--primary); margin:3px 0;">${escHtml(r.titulo)}</div>
+        <div style="font-size:0.82rem;">${escHtml(r.resumen)}</div>
+        <div style="display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; align-items:center;">
+            <button class="esc-mini" style="font-weight:bold;" ${ap ? 'disabled' : ''} onclick="brAplicar()">${ap ? '✓ Aplicado' : 'Aplicar'}</button>
+            <details class="br-det" style="flex-basis:100%;"><summary style="cursor:pointer; font-size:0.82rem; color:var(--primary); font-weight:bold;">Ver detalles</summary>
+                <div style="font-size:0.8rem; margin-top:6px;"><b>Arriba (${r.sup}):</b> ${escHtml(r.porSup)}</div>
+                <div style="font-size:0.8rem; margin-top:4px;"><b>Abajo (${r.inf}):</b> ${escHtml(r.porInf)}</div>
+                <div style="font-size:0.8rem; margin-top:4px;"><b>${r.auto ? 'Autoligado' : 'Convencional'}:</b> ${escHtml(r.porAuto)}</div>
+                <div style="font-size:0.8rem; margin-top:8px;"><b>Datos del caso:</b> ${escHtml(r.datos.join(' · '))}</div>
+                <div style="font-size:0.8rem; margin-top:8px;"><b>Mecánica según el biotipo (${escHtml(r.bio)}):</b><ul style="margin:3px 0 0 18px; padding:0;">${r.mec.map(x => `<li>${escHtml(x)}</li>`).join('')}</ul></div>
+                <table style="width:100%; font-size:0.76rem; margin-top:8px; border-collapse:collapse;"><tr style="color:var(--text-muted);"><th style="text-align:left;">Torque / angulación (.022)</th><th>Roth</th><th>MBT</th></tr>${tq}</table>
+                <div class="esc-sub" style="margin-top:6px;">Valores estándar de cada prescripción. Con arco .019×.025 en ranura .022 el juego es de 10 a 14°, así que la mecánica y la posición del bracket pesan tanto como la prescripción. Tu criterio manda.</div>
+            </details></div></div>`;
+}
+function brAplicar(){
+    const d = mesa.d, r = brPresc(pacientes[mesa.nombre] || {}, d); if(!r) return;
+    d.presc = { sup: r.sup, inf: r.inf, auto: r.auto };
+    const br = ['Estándar metálico', 'Metálico flex', 'Autoligado'];
+    d.aparatos = (d.aparatos || []).filter(a => !br.includes(a)).concat([r.auto ? 'Autoligado' : 'Estándar metálico']);
+    mesaCambio(); daToast('Aplicado: ' + r.titulo, 'ok');
+}
+function brPrescTexto(d){ const x = d.presc; if(!x) return ''; return 'Prescripción: ' + (x.sup === x.inf ? x.sup + ' en ambas arcadas' : x.sup + ' superior, ' + x.inf + ' inferior') + ', ranura .022' + (x.auto ? ', autoligado interactivo (Roth)' : '') + '.'; }
 function botNotasHtml(p){
-    const N = botNotas(p, mesa.d), bloque = (t, col, L) => L.length ? `<div style="margin-top:6px;"><div style="font-size:0.82rem; font-weight:bold; color:${col};">${t}</div>${L.map(x => `<div style="font-size:0.8rem; margin:3px 0;">• ${escHtml(x.t)}<div class="esc-sub" style="margin-left:10px;">Por qué: ${escHtml(x.por)}</div></div>`).join('')}</div>` : '';
+    const N = botNotas(p, mesa.d);
+    const bloque = (t, col, L, abierto) => L.length ? `<details class="bn-sec" ${abierto ? 'open' : ''} style="margin-top:6px;"><summary style="cursor:pointer; font-size:0.84rem; font-weight:bold; color:${col};">${t} (${L.length})</summary>
+        ${L.map(x => `<details class="bn-it" style="margin:4px 0 4px 6px; border-left:3px solid ${col}; padding-left:8px;"><summary style="cursor:pointer; font-size:0.82rem; list-style:none;">${escHtml(x.t)}</summary><div class="esc-sub" style="margin-top:2px;">Por qué: ${escHtml(x.por)}</div></details>`).join('')}</details>` : '';
     if(!N.mod.length && !N.lim.length && !N.sug.length) return '';
-    return `<details class="ft-plegable" open style="margin-bottom:10px;"><summary>Notas del bot para el Dr. (${N.mod.length + N.lim.length + N.sug.length})</summary>
-        ${bloque('Factores que modifican el plan', 'var(--primary)', N.mod)}${bloque('Limitantes del diagnóstico', '#b7791f', N.lim)}${bloque('Sugerencias', '#2f855a', N.sug)}
+    const chip = (n, t, col) => n ? `<span style="font-size:0.74rem; padding:2px 8px; border-radius:10px; border:1px solid ${col}; color:${col}; font-weight:bold;">${n} ${t}</span>` : '';
+    return `<details class="ft-plegable" open style="margin-bottom:10px;"><summary>Notas del bot para el Dr.</summary>
+        <div style="display:flex; gap:6px; flex-wrap:wrap; margin:4px 0;">${chip(N.mod.length, N.mod.length === 1 ? 'modifica el plan' : 'modifican el plan', 'var(--primary)')}${chip(N.lim.length, N.lim.length === 1 ? 'limitante' : 'limitantes', '#b7791f')}${chip(N.sug.length, N.sug.length === 1 ? 'sugerencia' : 'sugerencias', '#2f855a')}</div>
+        <div class="esc-sub">Toca una nota para ver el porqué.</div>
+        ${bloque('Factores que modifican el plan', 'var(--primary)', N.mod, true)}${bloque('Limitantes del diagnóstico', '#b7791f', N.lim, false)}${bloque('Sugerencias', '#2f855a', N.sug, false)}
         <div class="esc-sub" style="margin-top:6px;">Herramienta de apoyo basada en principios clínicos generales; tu criterio manda. Si una regla no coincide con tu forma de trabajar, dímelo y la ajusto.</div></details>`;
 }
 function botNotasTexto(p){ const N = botNotas(p, mesa.d), f = L => L.map(x => '- ' + x.t + ' (' + x.por + ')').join('\n'); return [N.mod.length ? 'Factores que modifican el plan:\n' + f(N.mod) : '', N.lim.length ? 'Limitantes:\n' + f(N.lim) : '', N.sug.length ? 'Sugerencias:\n' + f(N.sug) : ''].filter(Boolean).join('\n'); }
@@ -7186,6 +7456,7 @@ function iaChatResumen(p){
     if(tp.m){ L.push(trazoTexto(m, tp.mmpx)); const D = trazoDiagLineas(m, edad, d); if(D.length) L.push('Diagnóstico tentativo automático:\n' + D.map(x => '- ' + x).join('\n')); }
     const b = mesa.bot || {}; if(b.rel || b.extr || (b.aparatos || []).length) L.push('Propuesta del bot de reglas: ' + [b.rel ? 'Clase ' + b.rel : '', b.extr ? 'extracción ' + b.extr + (b.dientes && b.dientes.length ? ' (' + b.dientes.join(', ') + ')' : '') : (b.limite ? 'caso limítrofe' : ''), (b.aparatos || []).join(', ')].filter(Boolean).join('; ') + '.');
     try{ if((d.dientesNum || []).length){ const o = dpOdontoTexto(d); if(o) L.push('Odontograma (panorámica, verificado por el doctor donde corrigió): ' + o + '.'); } }catch(e){}
+    try{ const r = brPresc(p, d); if(r) L.push('Bracket recomendado por el bot: ' + r.titulo + '. Arriba: ' + r.porSup + ' Abajo: ' + r.porInf + ' ' + r.porAuto); }catch(e){}
     const notas = botNotasTexto(p); if(notas) L.push('Notas del bot:\n' + notas);
     const REL = { I: 'Clase I', II: 'Clase II', III: 'Clase III' };
     L.push('Decisión actual del doctor: ' + [d.rel ? REL[d.rel] || d.rel : 'clase sin definir', d.incSup ? 'inc. sup. ' + d.incSup : '', d.incInf ? 'inc. inf. ' + d.incInf : '', d.extr ? 'extracción ' + d.extr + ((d.dientes || []).length ? ' (' + d.dientes.join(', ') + ')' : '') : '', (d.aparatos || []).length ? d.aparatos.join(', ') : '', d.apinSup ? 'apiñamiento sup. ' + d.apinSup : '', d.apinInf ? 'apiñamiento inf. ' + d.apinInf : '', d.nota ? 'nota: ' + d.nota : ''].filter(Boolean).join('; ') + '.');

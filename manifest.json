@@ -9,7 +9,17 @@
   "theme_color": "#124578",
   "orientation": "portrait",
   "icons": [
-    { "src": "favicon.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "icon-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    {
+      "src": "icono-app.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icono-app-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
   ]
 }
