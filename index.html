@@ -3216,7 +3216,7 @@ function perReiniciar(){ if(!confirm('¿Empezar la cuenta de nuevo desde hoy?'))
             return d <= 0 ? 'hoy' : (d === 1 ? 'ayer' : 'hace ' + d + ' d');
         }
         function usaSmile(nombre){ const u = usoSmile[nombre]; return !!(u && u.ts); }
-        const DA_VERSION = 'v112';
+        const DA_VERSION = 'v113';
         window.addEventListener('load', () => document.querySelectorAll('.da-ver-txt').forEach(e => e.textContent = 'DentiAgenda ' + DA_VERSION));
         // Texto del estado de SmileLike para un paciente (usa lo guardado; abajo se refresca solo ese paciente)
         function textoEstadoSmile(nombre){

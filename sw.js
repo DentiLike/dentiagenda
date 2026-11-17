@@ -1,7 +1,7 @@
 // Service Worker ÚNICO de DentiAgenda: arranque instantáneo (caché) + notificaciones push (FCM).
 // ⚠️ La app debe registrar SOLO este archivo. Dos service workers en el mismo alcance
 //    se reemplazan entre sí y las notificaciones dejan de mostrarse.
-const CACHE_NAME = "dentiagenda-v112";
+const CACHE_NAME = "dentiagenda-v113";
 const ASSETS = ["./", "./index.html", "./manifest.json", "./badge.png"];
 
 
@@ -89,7 +89,8 @@ try {
 /* ---------- Caché: arranque instantáneo ---------- */
 self.addEventListener("install", (e) => {
   self.skipWaiting();
-  e.waitUntil(caches.open(CACHE_NAME).then((c) => Promise.all(ASSETS.map((u) => c.add(u).catch(() => {})))));
+  // cache:"reload" = siempre del servidor, nunca de la caché del navegador (así no se guarda una versión vieja)
+  e.waitUntil(caches.open(CACHE_NAME).then((c) => Promise.all(ASSETS.map((u) => fetch(new Request(u, {cache: "reload"})).then((r) => { if (r && r.ok) return c.put(u, r); }).catch(() => {})))));
 });
 
 self.addEventListener("activate", (e) => {
@@ -111,13 +112,16 @@ self.addEventListener("fetch", (e) => {
 
   // La agenda compartida de los colegas es otra página: va directo a la red (nunca se sirve como index.html)
   if (u.includes("equipo.html")) { e.respondWith(fetch(e.request).catch(() => caches.match(e.request))); return; }
+  // Abrir la app: primero la versión del servidor (si responde en 4 s); sin internet, la guardada
   if (e.request.mode === "navigate") {
     e.respondWith(caches.match("./index.html").then((cached) => {
-      const red = fetch(e.request).then((res) => {
+      const red = fetch(e.request, {cache: "no-cache"}).then((res) => {
         if (res && res.status === 200) { const copia = res.clone(); caches.open(CACHE_NAME).then((c) => c.put("./index.html", copia)); }
         return res;
-      }).catch(() => cached);
-      return cached || red;
+      });
+      if (!cached) return red;
+      const tiempo = new Promise((ok) => setTimeout(() => ok(cached), 4000));
+      return Promise.race([red.catch(() => cached), tiempo]);
     }));
     return;
   }
