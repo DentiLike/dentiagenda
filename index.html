@@ -332,6 +332,57 @@
             .odo-board { padding: 8px 4px; } .odo-bigbox svg.odo-big { width: 96px; height: 96px; }
             .odo-lado { font-size: .58rem; }
         }
+        .pc-docs { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; margin-top: 8px; }
+        /* ===== Primera cita (v116) ===== */
+        #pcModal { z-index: 1150; }
+        #pcModal .modal.pc-modal { max-width: 900px; padding: 1.3rem; }
+        .pc-tabs { display: flex; gap: 6px; overflow-x: auto; padding: 4px 2px 10px; }
+        .pc-tab { display: flex; align-items: center; gap: 6px; white-space: nowrap; padding: 8px 12px; border-radius: 12px; font-size: .8rem; font-weight: bold; color: var(--text-muted); cursor: pointer; background: var(--bg-color); box-shadow: 3px 3px 6px var(--shadow-dark), -3px -3px 6px var(--shadow-light); }
+        .pc-tab i { font-style: normal; width: 20px; height: 20px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: .7rem; background: #e2e8f0; color: #4a5568; }
+        .pc-tab.ok i { background: #38a169; color: #fff; } .pc-tab.on { color: var(--primary); box-shadow: inset 3px 3px 6px var(--shadow-dark), inset -3px -3px 6px var(--shadow-light); outline: 2px solid var(--accent); }
+        .pc-cont h3 { font-size: .95rem; color: var(--primary); margin: 14px 0 8px; } .pc-cont h3:first-child { margin-top: 4px; }
+        .pc-lbl { display: block; font-size: .78rem; font-weight: bold; color: var(--text-muted); margin: 10px 0 5px; }
+        .pc-in { width: 100%; padding: .7rem .8rem; border: none; border-radius: 12px; background: var(--bg-color); color: var(--text-main); font-size: .95rem; font-family: inherit; box-shadow: inset 3px 3px 6px var(--shadow-dark), inset -3px -3px 6px var(--shadow-light); }
+        .pc-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+        .pc-chip { padding: 10px 14px; border-radius: 14px; font-size: .85rem; font-weight: bold; color: var(--primary); cursor: pointer; user-select: none; background: var(--bg-color); box-shadow: 3px 3px 6px var(--shadow-dark), -3px -3px 6px var(--shadow-light); }
+        .pc-chip.on { background: var(--primary); color: #fff; box-shadow: inset 2px 2px 5px rgba(0,0,0,.25); }
+        .pc-seg { display: inline-flex; flex-wrap: wrap; padding: 4px; border-radius: 12px; box-shadow: inset 3px 3px 6px var(--shadow-dark), inset -3px -3px 6px var(--shadow-light); }
+        .pc-seg span { padding: 9px 14px; border-radius: 9px; font-size: .85rem; font-weight: bold; color: var(--text-muted); cursor: pointer; user-select: none; }
+        .pc-seg span.on { background: var(--primary); color: #fff; }
+        .pc-sn { padding: 10px 12px; border-radius: 14px; margin-bottom: 8px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; background: var(--bg-color); box-shadow: 3px 3px 6px var(--shadow-dark), -3px -3px 6px var(--shadow-light); }
+        .pc-sn-q { flex: 1; min-width: 200px; font-size: .9rem; } .pc-sn .pc-in { flex-basis: 100%; } .pc-sn.alerta { outline: 2px solid #e53e3e; }
+        .pc-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 4px 18px; }
+        .pc-num { display: flex; align-items: center; gap: 8px; margin: 6px 0; font-size: .85rem; } .pc-num span { min-width: 74px; color: var(--text-muted); font-weight: bold; }
+        .pc-num button { width: 40px; height: 40px; border-radius: 12px; border: none; font-size: 1.2rem; font-weight: bold; color: var(--primary); background: var(--bg-color); box-shadow: 3px 3px 6px var(--shadow-dark), -3px -3px 6px var(--shadow-light); cursor: pointer; }
+        .pc-num b { min-width: 64px; text-align: center; color: var(--primary); }
+        .pc-check { display: flex; align-items: center; gap: 10px; font-size: .95rem; margin: 8px 0; cursor: pointer; } .pc-check input { width: 24px; height: 24px; }
+        .pc-prev { white-space: normal; font-size: .78rem; max-height: 180px; overflow: auto; margin: 12px 0; padding: 10px; border-radius: 12px; background: rgba(37,211,102,.08); border: 1px solid rgba(37,211,102,.4); color: var(--text-main); }
+        .pc-prim { background: var(--primary) !important; color: #fff !important; }
+        .btn-3d.pc-prim { width: auto; }
+        .pc-pie { display: flex; align-items: center; gap: 10px; margin-top: 16px; position: sticky; bottom: -1.3rem; padding: 10px 0 6px; background: var(--bg-color); }
+        .pc-pie .btn-3d { padding: .75rem 1.2rem; }
+        .pc-alerta { border: 2px solid #e53e3e; background: #fff5f5; color: #9b2c2c; border-radius: 12px; padding: 8px 12px; font-size: .82rem; font-weight: bold; margin-bottom: 10px; }
+        .pc-fotos { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; } .pc-fotos.ext { grid-template-columns: repeat(4, 1fr); }
+        .pc-foto { cursor: pointer; border-radius: 12px; overflow: hidden; background: var(--bg-color); box-shadow: 3px 3px 6px var(--shadow-dark), -3px -3px 6px var(--shadow-light); }
+        .pc-foto img { width: 100%; display: block; aspect-ratio: 4/3; object-fit: cover; } .pc-fotos.ext .pc-foto img { aspect-ratio: 4/5; }
+        .pc-foto-vacia { aspect-ratio: 4/3; display: flex; align-items: center; justify-content: center; background: #edf2f7; } .pc-fotos.ext .pc-foto-vacia { aspect-ratio: 4/5; }
+        .pc-foto-vacia svg { width: 82%; height: 82%; }
+        .pc-foto-t { font-size: .72rem; font-weight: bold; color: var(--primary); padding: 5px 6px; text-align: center; }
+        .pc-acc2 { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; } .pc-acc2 .btn-3d { flex: 1; min-width: 180px; }
+        .pc-cola { display: inline-block; font-size: .78rem; font-weight: bold; color: #975a16; background: #fefcbf; padding: 5px 10px; border-radius: 10px; }
+        .pc-elige { position: fixed; inset: 0; z-index: 1400; background: rgba(0,0,0,.45); display: flex; align-items: flex-end; justify-content: center; }
+        .pc-elige-c { width: min(420px, 100%); background: var(--bg-color); border-radius: 18px 18px 0 0; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+        .pc-elige-c b { color: var(--primary); text-align: center; }
+        .pc-crop { position: fixed; inset: 0; z-index: 1450; background: #1a202c; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 10px; color: #fff; }
+        .pc-crop-top { text-align: center; display: flex; flex-direction: column; gap: 2px; }
+        .pc-crop-ctl { display: flex; gap: 18px; flex-wrap: wrap; justify-content: center; font-size: .8rem; } .pc-crop-ctl input { vertical-align: middle; width: 150px; }
+        .pc-crop-bt { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; } .pc-crop-bt .btn-3d { padding: .6rem .9rem; font-size: .82rem; }
+        .pc-mini-fotos { display: flex; gap: 6px; flex-wrap: wrap; } .pc-mini-fotos img { width: 64px; height: 52px; object-fit: cover; border-radius: 8px; cursor: pointer; }
+        @media (max-width: 640px){
+            #pcModal .modal.pc-modal { padding: .9rem; max-height: 96vh; }
+            .pc-fotos { grid-template-columns: repeat(3, 1fr); } .pc-fotos.ext { grid-template-columns: repeat(2, 1fr); }
+            .pc-seg span { padding: 8px 10px; font-size: .8rem; } .pc-pie { bottom: -.9rem; }
+        }
 </style>
 </head>
 <body>
@@ -544,6 +595,7 @@
                     <div style="font-size:0.85rem; color:var(--primary); margin-bottom:6px;">🎯 Este paciente sigue marcado como <strong>potencial</strong>.</div>
                     <button class="btn-3d" style="width:100%; background:var(--accent); color:white;" onclick="marcarComoCautivoDesdeFicha()">✅ Convertido (ya pagó sus radiografías)</button>
                 </div>
+                <div id="pcBannerFicha"></div>
                 <div class="form-group" style="display:none;"><input type="text" id="editDirNombre" readonly></div>
                 <div class="form-group"><label>Nombre del paciente</label><input type="text" id="editDirNombreNuevo" class="inset-3d" placeholder="Nombre completo"></div>
                 <div class="form-group"><label>¿Cómo le gusta que le digan?</label><input type="text" id="editDirApodo" class="inset-3d" placeholder="Ej. Male (si lo dejas vacío, se usa su primer nombre)"></div>
@@ -653,6 +705,11 @@
                 </div>
                 </div>
                 <div class="ft-pane" data-t="est" style="display:none;">
+                <div class="plan-box">
+                    <h5>📸 Fotos clínicas (solo tú las ves)</h5>
+                    <div id="fotosClinFicha"></div>
+                    <button type="button" class="plan-add-btn" style="margin-top:8px;" onclick="pcAbrir(null, 'fotos')">Tomar o subir fotos</button>
+                </div>
                 <div class="plan-box">
                     <h5>🩻 Estudios / Radiografías (los verá el paciente en Mi Sonrisa)</h5>
                     <div id="estudiosLista"></div>
@@ -893,6 +950,7 @@
     </div>
 
     <!-- Modal Materiales por surtir -->
+    <div class="modal-overlay" id="pcModal"><div class="modal pc-modal" id="pcBody"></div></div>
     <div class="modal-overlay" id="odoModal"><div class="modal odo-modal" id="odoBody"></div></div>
     <div class="modal-overlay" id="materialesModal">
         <div class="modal">
@@ -3403,7 +3461,7 @@ function perReiniciar(){ if(!confirm('¿Empezar la cuenta de nuevo desde hoy?'))
             return d <= 0 ? 'hoy' : (d === 1 ? 'ayer' : 'hace ' + d + ' d');
         }
         function usaSmile(nombre){ const u = usoSmile[nombre]; return !!(u && u.ts); }
-        const DA_VERSION = 'v115';
+        const DA_VERSION = 'v118';
         window.addEventListener('load', () => document.querySelectorAll('.da-ver-txt').forEach(e => e.textContent = 'DentiAgenda ' + DA_VERSION));
         // Texto del estado de SmileLike para un paciente (usa lo guardado; abajo se refresca solo ese paciente)
         function textoEstadoSmile(nombre){
@@ -9047,6 +9105,7 @@ function odoCerrar(){
     if(_odoTimer){ clearTimeout(_odoTimer); _odoTimer = null; odoGuardar(true); }
     document.getElementById('odoModal').style.display = 'none';
     if(dirNombreActual === odoS.n){ try{ renderPlanTratamiento(odoS.n); }catch(e){} }
+    try{ if(document.getElementById('pcModal').style.display === 'flex') pcRender(); }catch(e){}
 }
 function odoRender(){
     const nombre = odoS.n, O = odoDe(nombre); if(!O) return;
@@ -9219,8 +9278,8 @@ function odoBotConfirmar(n){ const st = odoDe(odoS.n).d[n]; if(st) delete st.bot
 function odoBotDescartar(n){ const D = odoDe(odoS.n).d, st = D[n]; if(!st) return; const nota = st.nota; D[n] = nota ? { nota: nota } : undefined; if(!nota) delete D[n]; odoGuardar(); odoRender(); }
 function odoBotConfirmarTodos(){ const D = odoDe(odoS.n).d; Object.keys(D).forEach(n => { if(D[n] && D[n].bot) delete D[n].bot; }); odoGuardar(); odoRender(); daToast('Confirmados; lo rojo ya está en el plan', 'ok'); }
 // ---------- Vista previa en la pestaña Tratamiento ----------
-function odoMiniRender(nombre){
-    const box = document.getElementById('odoMini'); if(!box) return;
+function odoMiniRender(nombre, boxEl){
+    const box = boxEl || document.getElementById('odoMini'); if(!box) return;
     const p = pacientes[nombre]; const O = p && p.odo; const D = (O && O.d) || {};
     const n = Object.keys(D).filter(k => !odoVacio(D[k])).length, roj = odoDeseados(D).length, bot = Object.keys(D).filter(k => D[k] && D[k].bot).length;
     const fila = A => `<div class="odo-mini-f">${A.map((x, i) => (i === A.length / 2 ? '<span class="odo-mid"></span>' : '') + odoSvg(x, D[x], { sinBot: 1 })).join('')}</div>`;
@@ -9263,6 +9322,566 @@ async function odoImagenPaciente(){
         dpVerImagen(url, 'Dentilike-odontograma.jpg', blob);
     }catch(e){ console.error(e); daToast('No pude generar la imagen', 'err'); }
 }
+
+</script>
+<script>
+// ===== PRIMERA CITA POR PASOS (v116) =====
+// pacientes[n].hc = { plat:{...}, med:{k:{si,txt}}, dent:{...}, hab:[], atm:[], hig:{}, rev:{}, orto:{}, est:{pano,lat,otros}, ordenEnviada, fotosDespues, tutor, t }
+// pacientes[n].fotosClin = [{ id, slot, etapa:'ini'|'fin', url, th, t }]
+const PC_DR = { nombre: 'Dr. Miguel Ángel Alvarado Avilés', esp: 'Especialista en Ortodoncia', cedP: '8900233', cedPU: 'UASLP', cedE: '11491679', cedEU: 'UCSLP',
+    dir: 'Av. Himno Nacional 1902-C, Col. Tangamanga, C.P. 78269, San Luis Potosí, S.L.P.', tel: '444 603 6659', correo: 'dr.alvarado@dentilike.com' };
+const PC_LOGO = 'data:image/png;base64,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';   // logo de Dentilike incrustado: sale aunque no haya internet al imprimir
+const PC_PASOS = [['plat', 'Plática'], ['hc', 'Historia clínica'], ['rev', 'Revisión'], ['orto', 'Ortodoncia'], ['fotos', 'Fotos'], ['est', 'Estudios']];
+const PC_MOTIVOS = ['Estética de la sonrisa', 'Dientes chuecos', 'Mordida', 'Dientes separados', 'Dolor o ruido en mandíbula', 'Lo envió su dentista', 'Segunda opinión', 'Otro'];
+const PC_MED = [['enf', 'Enfermedades (diabetes, corazón, asma, epilepsia, otras)'], ['coag', 'Problemas de coagulación o toma anticoagulantes', 1], ['alergMed', 'Alergia a medicamentos', 1], ['latex', 'Alergia al látex', 1],
+    ['niquel', 'Alergia al níquel o a metales', 1], ['meds', 'Toma medicamentos actualmente'], ['emb', 'Embarazo o posibilidad de embarazo', 1], ['cir', 'Cirugías u hospitalizaciones'], ['bisf', 'Toma bifosfonatos (osteoporosis o tratamiento de cáncer)', 1]];
+const PC_DENT = [['ortoPrev', 'Ortodoncia previa', '¿A qué edad? ¿Usó retenedor?'], ['trauma', 'Golpes o traumatismos en dientes', '¿Cuáles dientes? ¿Cuándo?'], ['extrPrev', 'Extracciones previas', '¿Cuáles?']];
+const PC_HAB = ['Succión de dedo o chupón', 'Respiración bucal o ronquido', 'Empuje lingual o deglución atípica', 'Bruxismo o apretamiento', 'Se muerde las uñas', 'Se muerde labio o mejilla'];
+const PC_ATM = ['Ruido al abrir', 'Dolor', 'Apertura limitada', 'Desviación al abrir', 'Sin molestias'];
+const PC_SLOTS = [
+    { k: 'ext_frente', t: 'Frente', g: 'frente', ar: 4 / 5 }, { k: 'ext_sonrisa', t: 'Frente sonriendo', g: 'frente', ar: 4 / 5 },
+    { k: 'ext_perfil', t: 'Perfil derecho', g: 'perfil', ar: 4 / 5 }, { k: 'ext_34', t: '3/4', g: 'perfil', ar: 4 / 5 },
+    { k: 'int_frontal', t: 'Intraoral frontal', g: 'ifront', ar: 3 / 2 }, { k: 'int_der', t: 'Lateral derecha', g: 'ilatD', ar: 3 / 2 },
+    { k: 'int_izq', t: 'Lateral izquierda', g: 'ilatI', ar: 3 / 2 }, { k: 'ocl_sup', t: 'Oclusal superior', g: 'oclsup', ar: 4 / 3 },
+    { k: 'ocl_inf', t: 'Oclusal inferior', g: 'oclinf', ar: 4 / 3 }];
+// Líneas guía en coordenadas 0..1: [x1,y1,x2,y2,tipo] tipo m = línea media (verde), h = plano (naranja), l = límite (morado)
+const PC_GUIAS = {
+    frente: [[.5, 0, .5, 1, 'm'], [0, .4, 1, .4, 'h', 'pupilas'], [0, .07, 1, .07, 'l', 'tope de cabeza'], [0, .93, 1, .93, 'l', 'mentón']],
+    perfil: [[0, .4, 1, .4, 'h', 'Frankfort'], [.82, .33, .66, .9, 'm', 'línea E'], [.9, 0, .9, 1, 'l', 'punta de nariz'], [0, .93, 1, .93, 'l', 'mentón']],
+    ifront: [[.5, 0, .5, 1, 'm'], [0, .5, 1, .5, 'h', 'plano oclusal'], [.08, 0, .08, 1, 'l', '1er molar'], [.92, 0, .92, 1, 'l', '1er molar']],
+    ilatD: [[0, .5, 1, .5, 'h', 'plano oclusal'], [.33, 0, .33, 1, 'm', '1er molar'], [.64, 0, .64, 1, 'l', 'canino']],
+    ilatI: [[0, .5, 1, .5, 'h', 'plano oclusal'], [.67, 0, .67, 1, 'm', '1er molar'], [.36, 0, .36, 1, 'l', 'canino']],
+    oclsup: [[.5, 0, .5, 1, 'm'], [0, .78, 1, .78, 'h', 'primeros molares'], [0, .1, 1, .1, 'l', 'incisivos']],
+    oclinf: [[.5, 0, .5, 1, 'm'], [0, .22, 1, .22, 'h', 'primeros molares'], [0, .9, 1, .9, 'l', 'incisivos']]
+};
+const PC_GCOL = { m: '#1D9E75', h: '#D85A30', l: '#7F77DD' };
+let pcS = { n: null, paso: 'plat' }, _pcTimer = null;
+
+function pcHC(n){ const p = pacientes[n]; if(!p) return null; if(!p.hc || typeof p.hc !== 'object') p.hc = {}; const h = p.hc;
+    ['plat', 'med', 'dent', 'hig', 'rev', 'orto', 'est'].forEach(k => { if(!h[k] || typeof h[k] !== 'object') h[k] = {}; });
+    if(!Array.isArray(h.hab)) h.hab = []; if(!Array.isArray(h.atm)) h.atm = []; if(!Array.isArray(h.plat.motivo)) h.plat.motivo = [];
+    if(h.est.pano === undefined){ h.est.pano = true; h.est.lat = true; }
+    return h; }
+function pcEdad(p){ try{ return iaEdadDe(p) || 0; }catch(e){ return 0; } }
+function pcGuardar(ya){
+    const n = pcS.n; if(!n || !pacientes[n]) return; pacientes[n].hc.t = Date.now();
+    try{ localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes)); }catch(e){}
+    if(_pcTimer) clearTimeout(_pcTimer);
+    _pcTimer = setTimeout(() => { _pcTimer = null; guardarAgendaEnNube(); }, ya ? 10 : 900);
+}
+function pcFotosDe(n, etapa){ const L = ((pacientes[n] || {}).fotosClin || []).filter(f => f && f.etapa === (etapa || 'ini')); const m = {}; L.forEach(f => { if(!m[f.slot] || m[f.slot].t < f.t) m[f.slot] = f; }); return m; }
+// ¿Qué paso está completo?
+function pcHecho(n, k){
+    const p = pacientes[n] || {}, h = p.hc || {};
+    if(k === 'plat') return !!(h.plat && h.plat.motivo && h.plat.motivo.length);
+    if(k === 'hc') return PC_MED.every(m => h.med && h.med[m[0]] && h.med[m[0]].si !== undefined);
+    if(k === 'rev') return !!(h.rev && (h.rev.encia || h.rev.hig)) || !!(p.odo && p.odo.d && Object.keys(p.odo.d).length);
+    if(k === 'orto') return !!(h.orto && h.orto.molD && h.orto.molI && h.orto.apSup && h.orto.apInf);
+    if(k === 'fotos'){ const f = pcFotosDe(n, 'ini'), cola = pcColaDe(n); return PC_SLOTS.every(s => f[s.k] || cola.some(c => c.slot === s.k && c.etapa === 'ini')); }
+    if(k === 'est') return !!h.ordenEnviada;
+    return false;
+}
+function pcFaltantes(n){
+    const p = pacientes[n]; if(!p || !p.hc) return [];
+    const out = [];
+    PC_PASOS.forEach(x => { if(x[0] === 'fotos'){ const f = pcFotosDe(n, 'ini'), falt = PC_SLOTS.filter(s => !f[s.k] && !pcColaDe(n).some(c => c.slot === s.k)); if(falt.length) out.push('Fotos iniciales: faltan ' + falt.length + ' (' + falt.map(s => s.t.toLowerCase()).slice(0, 4).join(', ') + (falt.length > 4 ? '…' : '') + ')'); }
+        else if(!pcHecho(n, x[0])) out.push(x[0] === 'est' ? 'Orden de estudios sin enviar' : x[1] + ' sin terminar'); });
+    if(!p.hc.firmados) out.push('Historia, consentimiento y aviso de privacidad sin firmar');
+    return out;
+}
+function pcAlertas(p){
+    const h = (p && p.hc) || {}, m = h.med || {}, out = [];
+    if(m.niquel && m.niquel.si) out.push('Alergia al níquel' + (m.niquel.txt ? ': ' + m.niquel.txt : '') + ' · usar brackets y arcos sin níquel');
+    if(m.latex && m.latex.si) out.push('Alergia al látex · guantes y ligas sin látex');
+    if(m.bisf && m.bisf.si) out.push('Toma bifosfonatos · el movimiento dental puede ser muy lento');
+    if(m.emb && m.emb.si) out.push('Embarazo o posible embarazo · cuidado con radiografías y medicamentos');
+    if(m.coag && m.coag.si) out.push('Coagulación / anticoagulantes · precaución en extracciones');
+    if(m.alergMed && m.alergMed.si) out.push('Alergia a medicamentos' + (m.alergMed.txt ? ': ' + m.alergMed.txt : ''));
+    return out;
+}
+// ---------- Modal ----------
+function pcAbrir(nombre, paso){
+    nombre = nombre || dirNombreActual; if(!nombre || !pacientes[nombre]) return;
+    const otro = pcS.n !== nombre; pcS.n = nombre; pcS.paso = paso || (otro ? 'plat' : (pcS.paso || 'plat')); if(otro) pcS.etapaFotos = 'ini'; pcHC(nombre);
+    document.getElementById('pcModal').style.display = 'flex'; pcRender();
+}
+function pcCerrar(){ if(_pcTimer){ clearTimeout(_pcTimer); _pcTimer = null; guardarAgendaEnNube(); } document.getElementById('pcModal').style.display = 'none'; try{ pcBanner(pcS.n); }catch(e){} try{ renderFotosClinFicha(pcS.n); }catch(e){} }
+function pcIr(k){ pcS.paso = k; pcRender(); const b = document.getElementById('pcBody'); if(b) b.scrollTop = 0; }
+function pcSig(d){ const i = PC_PASOS.findIndex(x => x[0] === pcS.paso), j = Math.max(0, Math.min(PC_PASOS.length - 1, i + d)); pcIr(PC_PASOS[j][0]); }
+// controles reutilizables
+function pcSeg(path, ops, val){ return `<div class="pc-seg">${ops.map(o => { const v = Array.isArray(o) ? o[0] : o, t = Array.isArray(o) ? o[1] : o; return `<span class="${String(val) === String(v) ? 'on' : ''}" onclick="pcSet('${path}', ${JSON.stringify(v).replace(/"/g, '&quot;')}, true)">${escHtml(t)}</span>`; }).join('')}</div>`; }
+function pcChips(path, ops, sel){ sel = sel || []; return `<div class="pc-chips">${ops.map(o => `<span class="pc-chip${sel.includes(o) ? ' on' : ''}" onclick="pcToggle('${path}', ${JSON.stringify(o).replace(/"/g, '&quot;')})">${escHtml(o)}</span>`).join('')}</div>`; }
+function pcGet(path){ let o = pacientes[pcS.n].hc; const ks = path.split('.'); for(const k of ks){ if(o == null) return undefined; o = o[k]; } return o; }
+function pcSet(path, v, rerender){
+    let o = pacientes[pcS.n].hc; const ks = path.split('.');
+    for(let i = 0; i < ks.length - 1; i++){ if(!o[ks[i]] || typeof o[ks[i]] !== 'object') o[ks[i]] = {}; o = o[ks[i]]; }
+    const last = ks[ks.length - 1];
+    if(rerender && o[last] === v && typeof v !== 'boolean') delete o[last]; else if(v === '' || v === null) delete o[last]; else o[last] = v;
+    pcGuardar(); if(rerender) pcRender();
+}
+function pcToggle(path, v){
+    let arr = pcGet(path); if(!Array.isArray(arr)){ arr = []; pcSet(path, arr); arr = pcGet(path); }
+    const i = arr.indexOf(v); if(i >= 0) arr.splice(i, 1); else { arr.push(v); if(path === 'atm'){ if(v === 'Sin molestias') arr.splice(0, arr.length, v); else { const j = arr.indexOf('Sin molestias'); if(j >= 0) arr.splice(j, 1); } } }
+    pcGuardar(); pcRender();
+}
+function pcTxt(path, ph, rows){ const v = pcGet(path) || ''; return rows ? `<textarea class="pc-in" rows="${rows}" placeholder="${escHtml(ph || '')}" oninput="pcSet('${path}', this.value)">${escHtml(v)}</textarea>` : `<input class="pc-in" value="${escHtml(v)}" placeholder="${escHtml(ph || '')}" oninput="pcSet('${path}', this.value)">`; }
+function pcSiNo(path, label, ph, alerta){
+    const v = pcGet(path) || {};
+    return `<div class="pc-sn${v.si ? ' si' : ''}${v.si && alerta ? ' alerta' : ''}"><div class="pc-sn-q">${escHtml(label)}</div>
+        <div class="pc-seg"><span class="${v.si === true ? 'on' : ''}" onclick="pcSN('${path}', true)">Sí</span><span class="${v.si === false ? 'on' : ''}" onclick="pcSN('${path}', false)">No</span></div>
+        ${v.si ? `<input class="pc-in" style="margin-top:6px;" value="${escHtml(v.txt || '')}" placeholder="${escHtml(ph || '¿Cuál? Detalles')}" oninput="pcSet('${path}.txt', this.value)">` : ''}</div>`;
+}
+function pcSN(path, si){ const o = pcGet(path) || {}; if(o.si === si) delete o.si; else o.si = si; pcSet(path, Object.assign({}, o), true); }
+function pcNum(path, label, min, max){ const v = pcGet(path); return `<div class="pc-num"><span>${escHtml(label)}</span><button type="button" onclick="pcStep('${path}', -0.5, ${min}, ${max})">−</button><b>${v === undefined ? '—' : v + ' mm'}</b><button type="button" onclick="pcStep('${path}', 0.5, ${min}, ${max})">+</button></div>`; }
+function pcStep(path, d, min, max){ let v = pcGet(path); v = v === undefined ? (d > 0 ? 2 : 2) : Math.max(min, Math.min(max, Math.round((v + d) * 2) / 2)); pcSet(path, v, true); }
+function pcRender(){
+    const n = pcS.n, p = pacientes[n], h = pcHC(n), edad = pcEdad(p);
+    const nav = PC_PASOS.map((x, i) => `<span class="pc-tab${pcS.paso === x[0] ? ' on' : ''}${pcHecho(n, x[0]) ? ' ok' : ''}" onclick="pcIr('${x[0]}')"><i>${pcHecho(n, x[0]) ? '✓' : i + 1}</i>${x[1]}</span>`).join('');
+    let c = '';
+    if(pcS.paso === 'plat'){
+        c = `<h3>¿Qué lo trae a consulta?</h3>${pcChips('plat.motivo', PC_MOTIVOS, h.plat.motivo)}
+            <label class="pc-lbl">¿Qué espera del tratamiento?</label>${pcTxt('plat.espera', 'En sus palabras', 2)}
+            <label class="pc-lbl">¿Quién lo refiere?</label>${pcTxt('plat.refiere', 'Dentista, familiar, redes…')}
+            ${edad > 0 && edad < 18 ? `<label class="pc-lbl">Padre, madre o tutor (firma la historia clínica)</label>${pcTxt('tutor', 'Nombre completo del tutor')}` : `<label class="pc-lbl">Tutor (solo si es menor de edad)</label>${pcTxt('tutor', 'Nombre del tutor, si aplica')}`}
+            <label class="pc-lbl">Notas de la plática</label>${pcTxt('plat.nota', 'Lo que te contó', 3)}`;
+    } else if(pcS.paso === 'hc'){
+        c = `<h3>Datos médicos</h3>${PC_MED.map(m => pcSiNo('med.' + m[0], m[1], m[0] === 'meds' ? '¿Cuáles?' : null, m[2])).join('')}
+            <h3>Antecedentes dentales</h3>${PC_DENT.map(d => pcSiNo('dent.' + d[0], d[1], d[2])).join('')}
+            <label class="pc-lbl">Última visita al dentista</label>${pcTxt('dent.ultima', 'Ej. hace 6 meses, limpieza')}
+            <h3>Hábitos</h3>${pcChips('hab', PC_HAB, h.hab)}
+            <h3>ATM</h3>${pcChips('atm', PC_ATM, h.atm)}
+            <h3>Higiene</h3><div class="pc-grid">
+                <div><label class="pc-lbl">Cepillados al día</label>${pcSeg('hig.cep', ['0', '1', '2', '3+'], h.hig.cep)}</div>
+                <div><label class="pc-lbl">Hilo dental</label>${pcSeg('hig.hilo', [['si', 'Sí'], ['no', 'No'], ['aveces', 'A veces']], h.hig.hilo)}</div>
+                <div><label class="pc-lbl">Sangrado de encías</label>${pcSeg('hig.sangra', [['si', 'Sí'], ['no', 'No']], h.hig.sangra)}</div></div>`;
+    } else if(pcS.paso === 'rev'){
+        c = `<h3>Odontograma</h3><div id="pcOdoMini"></div><button type="button" class="btn-3d" style="width:100%; margin-top:8px;" onclick="odoAbrir(pcS.n)">Abrir odontograma</button>
+            <div class="pc-grid" style="margin-top:12px;"><div><label class="pc-lbl">Encía</label>${pcSeg('rev.encia', ['Sana', 'Gingivitis', 'Recesiones', 'Sospecha de periodontitis'], h.rev.encia)}</div>
+            <div><label class="pc-lbl">Higiene que observas</label>${pcSeg('rev.hig', ['Buena', 'Regular', 'Mala'], h.rev.hig)}</div></div>
+            <label class="pc-lbl">Notas de la revisión</label>${pcTxt('rev.nota', 'Lo que viste', 2)}`;
+    } else if(pcS.paso === 'orto'){
+        const cl = ['I', 'II', 'III', ['nv', 'No valorable']], ap = ['Sin', 'Leve', 'Moderado', 'Severo'], lm = [['c', 'Centrada'], ['der', 'Desv. derecha'], ['izq', 'Desv. izquierda']];
+        c = `<h3>Cara y sonrisa</h3><div class="pc-grid">
+                <div><label class="pc-lbl">Perfil</label>${pcSeg('orto.perfil', ['Recto', 'Convexo', 'Cóncavo'], h.orto.perfil)}</div>
+                <div><label class="pc-lbl">Simetría facial</label>${pcSeg('orto.simetria', ['Simétrica', 'Asimétrica'], h.orto.simetria)}</div>
+                <div><label class="pc-lbl">Sonrisa gingival</label>${pcSeg('orto.ging', [['no', 'No'], ['si', 'Sí']], h.orto.ging)}</div></div>
+            <h3>Líneas medias</h3><div class="pc-grid">
+                <div><label class="pc-lbl">Superior (vs. cara)</label>${pcSeg('orto.lmSup', lm, h.orto.lmSup)}${h.orto.lmSup && h.orto.lmSup !== 'c' ? pcNum('orto.lmSupMm', 'Desviación', 0, 10) : ''}</div>
+                <div><label class="pc-lbl">Inferior (vs. superior)</label>${pcSeg('orto.lmInf', lm, h.orto.lmInf)}${h.orto.lmInf && h.orto.lmInf !== 'c' ? pcNum('orto.lmInfMm', 'Desviación', 0, 10) : ''}</div></div>
+            <h3>Clases</h3><div class="pc-grid">
+                <div><label class="pc-lbl">Molar derecha</label>${pcSeg('orto.molD', cl, h.orto.molD)}</div><div><label class="pc-lbl">Molar izquierda</label>${pcSeg('orto.molI', cl, h.orto.molI)}</div>
+                <div><label class="pc-lbl">Canina derecha</label>${pcSeg('orto.canD', cl, h.orto.canD)}</div><div><label class="pc-lbl">Canina izquierda</label>${pcSeg('orto.canI', cl, h.orto.canI)}</div></div>
+            <h3>Mordida</h3><div class="pc-grid">
+                <div><label class="pc-lbl">Vertical</label>${pcSeg('orto.vert', ['Normal', 'Profunda', 'Abierta', 'Borde a borde'], h.orto.vert)}</div>
+                <div>${pcNum('orto.oj', 'Overjet', -10, 15)}${pcNum('orto.ob', 'Overbite', -10, 15)}</div></div>
+            <label class="pc-lbl">Mordida cruzada</label>${pcChips('orto.cruz', ['Anterior', 'Posterior derecha', 'Posterior izquierda'], h.orto.cruz)}
+            <h3>Espacio</h3><div class="pc-grid">
+                <div><label class="pc-lbl">Apiñamiento superior</label>${pcSeg('orto.apSup', ap, h.orto.apSup)}</div><div><label class="pc-lbl">Apiñamiento inferior</label>${pcSeg('orto.apInf', ap, h.orto.apInf)}</div>
+                <div><label class="pc-lbl">Diastemas</label>${pcSeg('orto.diast', [['no', 'No'], ['si', 'Sí']], h.orto.diast)}</div>
+                <div><label class="pc-lbl">Extracción de premolares</label>${pcSeg('orto.extr', [['no', 'No'], ['valorar', 'Valorar con estudios'], ['si', 'Sí']], h.orto.extr)}</div></div>
+            ${h.orto.diast === 'si' ? `<label class="pc-lbl">¿Dónde están los diastemas?</label>${pcTxt('orto.diastTxt', 'Ej. entre 11 y 21, 2 mm')}` : ''}
+            <label class="pc-lbl">Notas de ortodoncia</label>${pcTxt('orto.nota', 'Lo demás que observaste', 2)}`;
+    } else if(pcS.paso === 'fotos'){
+        c = pcFotosHtml(n);
+    } else if(pcS.paso === 'est'){
+        const tel = limpiarTel(p.telefono || '');
+        c = `<h3>Estudios para GEO</h3>
+            <label class="pc-check"><input type="checkbox" ${h.est.pano ? 'checked' : ''} onchange="pcSet('est.pano', this.checked)"> Radiografía panorámica</label>
+            <label class="pc-check"><input type="checkbox" ${h.est.lat ? 'checked' : ''} onchange="pcSet('est.lat', this.checked)"> Lateral de cráneo (cefalometría)</label>
+            <label class="pc-lbl">Otros (opcional)</label>${pcTxt('est.otros', 'Ej. PA de cráneo, periapicales…')}
+            <div class="pc-prev">${escHtml(pcTextoGEO(n)).replace(/\n/g, '<br>')}</div>
+            <button type="button" class="btn-3d pc-prim" onclick="pcEnviarGEO()">${h.ordenEnviada ? 'Volver a enviar' : 'Enviar orden'} por WhatsApp${tel.length >= 10 ? ' a ' + escHtml(p.telefono) : ''}</button>
+            ${h.ordenEnviada ? `<div class="odo-sub" style="text-align:center; margin-top:6px;">Enviada el ${new Date(h.ordenEnviada).toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · el paciente queda en "Esperando estudios"</div>` : ''}
+            <h3 style="margin-top:18px;">Documentos para firmar</h3>
+            <div class="odo-sub">Salen con tu logo, tus datos y los del paciente. Se firman en papel y les tomas foto para guardarlas en Estudios.</div>
+            <div class="pc-docs">${Object.keys(PC_DOCS).map(k => `<button type="button" class="btn-3d" onclick="pcImprimirDocs(['${k}'])">${(h.docs || {})[k] ? '✓ ' : ''}${PC_DOCS[k][0]}</button>`).join('')}</div>
+            <button type="button" class="btn-3d pc-prim" style="width:100%; margin-top:8px;" onclick="pcImprimirDocs(['ap', 'hc', 'ci'])">Imprimir los tres</button>
+            <label class="pc-check" style="margin-top:12px;"><input type="checkbox" ${h.firmados ? 'checked' : ''} onchange="pcSet('firmados', this.checked ? Date.now() : null, true)"> Ya están firmados y guardados en su expediente</label>`;
+    }
+    const falt = pcFaltantes(n), al = pcAlertas(p);
+    document.getElementById('pcBody').innerHTML = `
+        <div class="modal-header" style="margin-bottom:8px;"><div><h2 style="margin:0; color:var(--primary);">Primera cita</h2><div class="odo-sub">${escHtml(n)}${edad ? ' · ' + edad + ' años' : ''}</div></div><button class="close-btn" onclick="pcCerrar()">X</button></div>
+        ${al.length ? `<div class="pc-alerta">${al.map(a => '⚠️ ' + escHtml(a)).join('<br>')}</div>` : ''}
+        <div class="pc-tabs">${nav}</div>
+        <div class="pc-cont">${c}</div>
+        <div class="pc-pie"><button type="button" class="btn-3d" onclick="pcSig(-1)" ${pcS.paso === 'plat' ? 'style="visibility:hidden"' : ''}>Anterior</button>
+            <span class="odo-sub" style="flex:1; text-align:center;">${falt.length ? 'Falta: ' + falt.length : 'Todo completo'}</span>
+            ${pcS.paso === 'est' ? '<button type="button" class="btn-3d pc-prim" onclick="pcCerrar()">Terminar</button>' : '<button type="button" class="btn-3d pc-prim" onclick="pcSig(1)">Siguiente</button>'}</div>`;
+    if(pcS.paso === 'rev'){ const box = document.getElementById('pcOdoMini'); if(box){ try{ odoMiniRender(n, box); }catch(e){} } }
+}
+// ---------- Orden de estudios (plantilla de GEO del doctor) ----------
+function pcTextoGEO(n){
+    const h = pcHC(n), L = [];
+    if(h.est.pano) L.push('Radiografía Panorámica'); if(h.est.lat) L.push('Lateral de cráneo (cefalometría)');
+    String(h.est.otros || '').split(/[,;\n]/).map(x => x.trim()).filter(Boolean).forEach(x => L.push(x));
+    return `*ORDEN DE ESTUDIOS / LABORATORIO*
+DENTILIKE
+
+*Paciente:* ${n}
+*Dr(a):* Dr. Miguel Alvarado Aviles
+Céd. Prof. ${PC_DR.cedP}
+Céd. Esp. ${PC_DR.cedE}
+
+*Estudios solicitados:*
+${L.map(x => '• ' + x).join('\n') || '• (elige al menos un estudio)'}
+
+───────────────
+*GEO · Gabinete Radiológico Dental*
+📍 Calle Artículo 123 #140, Col. Cuauhtémoc
+📞 444 600 4343  ·  444 791 0632
+🕐 Lun-Vie 9:00-20:00h  ·  Sáb 9:00-14:00h
+🗺️ Cómo llegar: https://www.google.com/maps/search/?api=1&query=Calle+Articulo+123+140+Col+Cuauhtemoc+San+Luis+Potosi
+
+*Recomendaciones:*
+1. Pacientes menores de edad y personas con limitaciones físicas deberán estar acompañadas por algún familiar o acompañante.
+2. Los pacientes deberán presentarse sin objetos metálicos para la realización de su(s) estudio(s).
+3. Los estudios digitales se entregarán el mismo día de la toma y se enviarán por e-mail al Dr(a) de referencia.
+4. Los estudios físicos se entregarán máximo 48 horas posteriores a la realización del estudio.
+5. Los estudios físicos y digitales deberán liquidarse al momento de la toma.
+6. Pacientes embarazadas deberán acudir con la orden de autorización del médico responsable.
+7. GEO no se hace responsable de estudios posteriores a 90 días de realizados.
+8. Para series periapicales y estudios de ortodoncia, favor de acudir mínimo 48 horas hábiles antes de su cita.
+
+_GEO y DentiLike, unidos para tu salud dental._`;
+}
+function pcEnviarGEO(){
+    const n = pcS.n, p = pacientes[n], h = pcHC(n), tel = limpiarTel(p.telefono || '');
+    if(!h.est.pano && !h.est.lat && !String(h.est.otros || '').trim()){ alert('Elige al menos un estudio.'); return; }
+    if(tel.length < 10){ alert('Este paciente no tiene teléfono de 10 dígitos. Agrégalo en Datos.'); return; }
+    abrirWa(p.telefono, pcTextoGEO(n));
+    h.ordenEnviada = Date.now(); p.etapa = 'estudios'; p.etapaFecha = Date.now();
+    pcGuardar(true); pcRender();
+}
+// ---------- Fotos clínicas: protocolo, cámara, recorte con guías y cola de subida ----------
+function pcColaDe(n){ return (window._pcCola || []).filter(c => c.nombre === n); }
+function pcFotosHtml(n){
+    const f = pcFotosDe(n, pcS.etapaFotos || 'ini'), cola = pcColaDe(n), h = pcHC(n);
+    const etapa = pcS.etapaFotos || 'ini';
+    const tile = s => { const q = cola.filter(c => c.slot === s.k && c.etapa === etapa).pop(), x = f[s.k];
+        const src = q ? q.prev : x ? (x.th || x.url) : '';
+        return `<div class="pc-foto" onclick="pcFotoElegir('${s.k}')">${src ? `<img src="${src}" alt="">` : `<div class="pc-foto-vacia">${pcGuiaSvg(s)}</div>`}
+            <div class="pc-foto-t">${q ? (q.err ? '⚠️ ' : '⏳ ') : x ? '✓ ' : ''}${s.t}</div></div>`; };
+    const ext = PC_SLOTS.slice(0, 4), intr = PC_SLOTS.slice(4);
+    return `<div class="pc-grid" style="align-items:center;"><div>${pcSegFn('pcEtapaFotos', [['ini', 'Iniciales'], ['fin', 'Finales']], etapa)}</div>
+        <div style="text-align:right;">${cola.length ? `<span class="pc-cola">⏳ ${cola.length} por subir${cola.some(c => c.err) ? ' · reintentando' : ''}</span>` : ''}</div></div>
+        <div class="odo-sub" style="margin:6px 0 10px;">Toca una casilla para tomar la foto con la cámara del cel o elegirla de la galería. Después la acomodas con las líneas guía.</div>
+        <h3>Extraorales</h3><div class="pc-fotos ext">${ext.map(tile).join('')}</div>
+        <h3>Intraorales</h3><div class="pc-fotos">${intr.map(tile).join('')}</div>
+        <div class="pc-acc2"><button type="button" class="btn-3d" onclick="pcVariasGaleria()">Subir varias de la galería</button>
+        ${etapa === 'ini' ? `<button type="button" class="btn-3d" onclick="pcSet('fotosDespues', ${h.fotosDespues ? 'null' : 'Date.now()'}, true)">${h.fotosDespues ? 'Quitar "cargar después"' : 'Cargar después'}</button>` : ''}</div>
+        ${h.fotosDespues && etapa === 'ini' ? '<div class="odo-aviso">Marcadas para cargar después: quedan en los pendientes del paciente hasta que estén las 9.</div>' : ''}
+        ${etapa === 'fin' && Object.keys(pcFotosDe(n, 'ini')).length && Object.keys(f).length ? '<button type="button" class="btn-3d" style="width:100%; margin-top:10px;" onclick="pcAntesDespues()">Armar antes y después</button>' : ''}`;
+}
+function pcSegFn(fn, ops, val){ return `<div class="pc-seg">${ops.map(o => `<span class="${o[0] === val ? 'on' : ''}" onclick="${fn}('${o[0]}')">${o[1]}</span>`).join('')}</div>`; }
+function pcEtapaFotos(e){ pcS.etapaFotos = e; pcRender(); }
+function pcGuiaSvg(s){ const W = 100, H = 100 / s.ar; return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">${(PC_GUIAS[s.g] || []).map(g => `<line x1="${g[0] * W}" y1="${g[1] * H}" x2="${g[2] * W}" y2="${g[3] * H}" stroke="${PC_GCOL[g[4]]}" stroke-width="1.2" stroke-dasharray="${g[4] === 'l' ? '1.5 2' : '4 3'}"/>`).join('')}</svg>`; }
+function pcElegirArchivo(multiple, camara){
+    return new Promise(ok => { const i = document.createElement('input'); i.type = 'file'; i.accept = 'image/*'; if(multiple) i.multiple = true; if(camara) i.setAttribute('capture', 'environment');
+        i.onchange = () => ok(Array.from(i.files || [])); i.click(); });
+}
+function pcFotoElegir(slot){
+    const s = PC_SLOTS.find(x => x.k === slot);
+    const w = document.createElement('div'); w.className = 'pc-elige';
+    w.innerHTML = `<div class="pc-elige-c"><b>${escHtml(s.t)}</b><button type="button" class="btn-3d pc-prim" data-a="cam">Tomar foto</button><button type="button" class="btn-3d" data-a="gal">Elegir de la galería</button>${pcFotosDe(pcS.n, pcS.etapaFotos || 'ini')[slot] ? '<button type="button" class="btn-3d" data-a="ver">Ver la que está</button>' : ''}<button type="button" class="btn-3d" data-a="x">Cancelar</button></div>`;
+    w.onclick = async ev => { const a = ev.target.getAttribute && ev.target.getAttribute('data-a'); if(!a && ev.target !== w) return; w.remove();
+        if(a === 'ver'){ const x = pcFotosDe(pcS.n, pcS.etapaFotos || 'ini')[slot]; dpVerImagen(x.url, pcS.n + ' - ' + s.t + '.jpg'); return; }
+        if(a !== 'cam' && a !== 'gal') return;
+        const files = await pcElegirArchivo(false, a === 'cam'); if(files[0]) pcRecortar(files[0], slot); };
+    document.body.appendChild(w);
+}
+async function pcVariasGaleria(){
+    const files = await pcElegirArchivo(true, false); if(!files.length) return;
+    const etapa = pcS.etapaFotos || 'ini', f = pcFotosDe(pcS.n, etapa), cola = pcColaDe(pcS.n);
+    let libres = PC_SLOTS.filter(s => !f[s.k] && !cola.some(c => c.slot === s.k && c.etapa === etapa)).map(s => s.k);
+    if(files.length > libres.length){ if(!confirm('Elegiste ' + files.length + ' fotos y hay ' + libres.length + ' casillas vacías. ¿Las acomodo desde la primera casilla (reemplazando las que ya hay)?')) return; libres = PC_SLOTS.map(s => s.k); }
+    // ordenadas por fecha de la foto: si las tomas siempre en el mismo orden, caen solas en su lugar
+    files.sort((a, b) => (a.lastModified || 0) - (b.lastModified || 0));
+    for(let i = 0; i < files.length && i < libres.length; i++){ const ok = await pcRecortar(files[i], libres[i], i + 1, Math.min(files.length, libres.length)); if(ok === 'parar') break; }
+}
+// Recorte: mueves, giras y haces zoom a la foto debajo de las líneas guía
+function pcRecortar(file, slot, num, total){
+    return new Promise(async fin => {
+        const s = PC_SLOTS.find(x => x.k === slot);
+        let img; try{ img = await pcCargarImg(file); }catch(e){ alert('No pude abrir esa imagen.'); fin(); return; }
+        const w = document.createElement('div'); w.className = 'pc-crop';
+        const maxW = Math.min(window.innerWidth - 24, 900), maxH = window.innerHeight - 230;
+        let W = maxW, H = W / s.ar; if(H > maxH){ H = maxH; W = H * s.ar; } W = Math.round(W); H = Math.round(H);
+        w.innerHTML = `<div class="pc-crop-top"><b>${escHtml(s.t)}${total ? ' · ' + num + ' de ' + total : ''}</b><span class="odo-sub" style="color:#cbd5e0;">Arrastra, pellizca para zoom y gira con dos dedos</span></div>
+            <div class="pc-crop-slot">${total ? `<select class="pc-in" style="max-width:220px;">${PC_SLOTS.map(x => `<option value="${x.k}" ${x.k === slot ? 'selected' : ''}>${x.t}</option>`).join('')}</select>` : ''}</div>
+            <canvas width="${W * 2}" height="${H * 2}" style="width:${W}px; height:${H}px; touch-action:none; background:#000; border-radius:8px;"></canvas>
+            <div class="pc-crop-ctl"><label>Giro fino <input type="range" min="-20" max="20" step="0.5" value="0" data-c="rot"></label><label>Zoom <input type="range" min="0.5" max="4" step="0.01" value="1" data-c="zoom"></label></div>
+            <div class="pc-crop-bt"><button type="button" class="btn-3d" data-a="r90">Girar 90°</button><button type="button" class="btn-3d" data-a="flip">Voltear (espejo)</button><button type="button" class="btn-3d" data-a="guias">Guías</button>
+            <button type="button" class="btn-3d" data-a="x">${total ? 'Saltar' : 'Cancelar'}</button>${total ? '<button type="button" class="btn-3d" data-a="parar">Terminar</button>' : ''}<button type="button" class="btn-3d pc-prim" data-a="ok">Usar foto</button></div>`;
+        document.body.appendChild(w);
+        const cv = w.querySelector('canvas'), cx = cv.getContext('2d'), k = 2, sel = w.querySelector('select');
+        let slotAct = slot, sAct = s;
+        const base = Math.max(W / img.width, H / img.height);
+        const st = { z: 1, rot90: 0, fino: 0, tx: 0, ty: 0, flip: false, guias: true };
+        const dibujar = (ctx, kk, conGuias, WW, HH) => {
+            ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#000'; ctx.fillRect(0, 0, WW, HH);
+            ctx.translate(WW / 2 + st.tx * kk, HH / 2 + st.ty * kk); ctx.rotate((st.rot90 * 90 + st.fino) * Math.PI / 180);
+            const sc = base * st.z * kk; ctx.scale(st.flip ? -sc : sc, sc); ctx.drawImage(img, -img.width / 2, -img.height / 2);
+            if(conGuias){ ctx.setTransform(1, 0, 0, 1, 0, 0); (PC_GUIAS[sAct.g] || []).forEach(g => { ctx.strokeStyle = PC_GCOL[g[4]]; ctx.lineWidth = 2 * kk; ctx.setLineDash(g[4] === 'l' ? [4 * kk, 6 * kk] : [12 * kk, 8 * kk]);
+                ctx.beginPath(); ctx.moveTo(g[0] * WW, g[1] * HH); ctx.lineTo(g[2] * WW, g[3] * HH); ctx.stroke();
+                if(g[5]){ ctx.setLineDash([]); ctx.font = (12 * kk) + 'px Arial'; ctx.fillStyle = PC_GCOL[g[4]]; ctx.fillText(g[5], Math.min(g[0], g[2]) * WW + 6 * kk, Math.min(g[1], g[3]) * HH + (g[1] === g[3] ? -6 * kk : 16 * kk)); } }); ctx.setLineDash([]); }
+        };
+        const pintar = () => dibujar(cx, k, st.guias, cv.width, cv.height);
+        pintar();
+        const zoomIn = w.querySelector('[data-c=zoom]'), rotIn = w.querySelector('[data-c=rot]');
+        zoomIn.oninput = () => { st.z = +zoomIn.value; pintar(); }; rotIn.oninput = () => { st.fino = +rotIn.value; pintar(); };
+        if(sel) sel.onchange = () => { slotAct = sel.value; sAct = PC_SLOTS.find(x => x.k === slotAct); pintar(); };
+        const P = new Map(); let g0 = null;
+        const info = () => { const a = Array.from(P.values()); if(a.length < 2) return null; const dx = a[1].x - a[0].x, dy = a[1].y - a[0].y; return { d: Math.hypot(dx, dy), a: Math.atan2(dy, dx) * 180 / Math.PI, mx: (a[0].x + a[1].x) / 2, my: (a[0].y + a[1].y) / 2 }; };
+        cv.onpointerdown = e => { cv.setPointerCapture(e.pointerId); P.set(e.pointerId, { x: e.clientX, y: e.clientY }); g0 = info(); };
+        cv.onpointermove = e => { if(!P.has(e.pointerId)) return; const prev = P.get(e.pointerId); P.set(e.pointerId, { x: e.clientX, y: e.clientY });
+            if(P.size === 1){ st.tx += e.clientX - prev.x; st.ty += e.clientY - prev.y; }
+            else { const g = info(); if(g && g0){ st.z = Math.max(.3, Math.min(6, st.z * g.d / g0.d)); st.fino = Math.max(-45, Math.min(45, st.fino + (g.a - g0.a))); st.tx += g.mx - g0.mx; st.ty += g.my - g0.my; zoomIn.value = st.z; rotIn.value = st.fino; g0 = g; } }
+            pintar(); };
+        const fuera = e => { P.delete(e.pointerId); g0 = info(); }; cv.onpointerup = fuera; cv.onpointercancel = fuera;
+        cv.onwheel = e => { e.preventDefault(); st.z = Math.max(.3, Math.min(6, st.z * (e.deltaY < 0 ? 1.06 : 0.94))); zoomIn.value = st.z; pintar(); };
+        w.onclick = async e => { const a = e.target.getAttribute && e.target.getAttribute('data-a'); if(!a) return;
+            if(a === 'r90'){ st.rot90 = (st.rot90 + 1) % 4; pintar(); return; }
+            if(a === 'flip'){ st.flip = !st.flip; pintar(); return; }
+            if(a === 'guias'){ st.guias = !st.guias; pintar(); return; }
+            if(a === 'x' || a === 'parar'){ w.remove(); fin(a === 'parar' ? 'parar' : null); return; }
+            if(a === 'ok'){
+                const OW = sAct.ar >= 1 ? 1600 : Math.round(1600 * sAct.ar), OH = sAct.ar >= 1 ? Math.round(1600 / sAct.ar) : 1600;
+                const out = document.createElement('canvas'); out.width = OW; out.height = OH;
+                // misma posición que en pantalla, escalada al tamaño final (sin guías y sin datos del teléfono)
+                const kk = OW / W; const H2 = OH; dibujar(out.getContext('2d'), kk, false, OW, H2);
+                const full = await new Promise(r => out.toBlob(r, 'image/jpeg', 0.85));
+                const tw = sAct.ar >= 1 ? 320 : Math.round(320 * sAct.ar), thh = sAct.ar >= 1 ? Math.round(320 / sAct.ar) : 320;
+                const tc = document.createElement('canvas'); tc.width = tw; tc.height = thh; tc.getContext('2d').drawImage(out, 0, 0, tw, thh);
+                const th = await new Promise(r => tc.toBlob(r, 'image/jpeg', 0.8));
+                w.remove();
+                await pcEncolar({ id: 'f' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), nombre: pcS.n, slot: slotAct, etapa: pcS.etapaFotos || 'ini', full: full, th: th, t: Date.now() });
+                fin('ok');
+            } };
+    });
+}
+async function pcCargarImg(file){
+    let bmp = null;
+    try{ bmp = await createImageBitmap(file, { imageOrientation: 'from-image' }); }catch(e){ bmp = null; }
+    if(!bmp){ const url = URL.createObjectURL(file); bmp = await new Promise((ok, mal) => { const i = new Image(); i.onload = () => ok(i); i.onerror = mal; i.src = url; }); }
+    const lado = Math.max(bmp.width, bmp.height); if(lado <= 3200) return bmp;
+    const f = 3200 / lado, c = document.createElement('canvas'); c.width = Math.round(bmp.width * f); c.height = Math.round(bmp.height * f); c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height); return c;
+}
+// Cola de subida: la foto se guarda primero en el dispositivo (IndexedDB) y solo se borra cuando la nube confirma
+function pcDB(){ return new Promise((ok, mal) => { const r = indexedDB.open('da_fotos', 1); r.onupgradeneeded = () => r.result.createObjectStore('cola', { keyPath: 'id' }); r.onsuccess = () => ok(r.result); r.onerror = () => mal(r.error); }); }
+async function pcDBop(modo, fn){ const db = await pcDB(); return new Promise((ok, mal) => { const tx = db.transaction('cola', modo), st = tx.objectStore('cola'); const r = fn(st); tx.oncomplete = () => ok(r && r.result); tx.onerror = () => mal(tx.error); }); }
+window._pcCola = [];
+async function pcEncolar(item){
+    item.prev = URL.createObjectURL(item.th);
+    try{ await pcDBop('readwrite', st => st.put({ id: item.id, nombre: item.nombre, slot: item.slot, etapa: item.etapa, full: item.full, th: item.th, t: item.t })); }catch(e){ console.warn('IndexedDB no disponible', e); }
+    window._pcCola.push(item); try{ pcRender(); }catch(e){} pcProcesarCola();
+}
+let _pcSubiendo = false, _pcReint = null;
+async function pcProcesarCola(){
+    if(_pcSubiendo) return; _pcSubiendo = true;
+    try{
+        for(const it of window._pcCola.slice()){
+            if(!pacientes[it.nombre]){ continue; }
+            try{
+                if(!storage){ await cargarExtrasFirebase(); if(!storage) throw new Error('Storage no disponible'); }
+                const base = `estudios_pacientes/${encodeURIComponent(it.nombre)}/foto_${it.etapa}_${it.slot}_${it.id}`;
+                const r1 = storage.ref().child(base + '.jpg'); await r1.put(it.full, { contentType: 'image/jpeg' }); const url = await r1.getDownloadURL();
+                const r2 = storage.ref().child(base + '_th.jpg'); await r2.put(it.th, { contentType: 'image/jpeg' }); const th = await r2.getDownloadURL();
+                const p = pacientes[it.nombre]; if(!Array.isArray(p.fotosClin)) p.fotosClin = [];
+                p.fotosClin = p.fotosClin.filter(f => !(f.slot === it.slot && f.etapa === it.etapa));
+                p.fotosClin.push({ id: it.id, slot: it.slot, etapa: it.etapa, url: url, th: th, t: it.t });
+                if(it.etapa === 'ini' && p.hc && p.hc.fotosDespues && PC_SLOTS.every(s => pcFotosDe(it.nombre, 'ini')[s.k])) delete p.hc.fotosDespues;
+                try{ localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes)); }catch(e){}
+                await guardarAgendaEnNube();
+                window._pcCola = window._pcCola.filter(x => x.id !== it.id);
+                try{ await pcDBop('readwrite', st => st.delete(it.id)); }catch(e){}
+            }catch(e){ console.warn('foto pendiente', e); it.err = true; }
+            try{ if(document.getElementById('pcModal').style.display === 'flex') pcRender(); }catch(e){}
+        }
+    } finally { _pcSubiendo = false; }
+    if(window._pcCola.length){ clearTimeout(_pcReint); _pcReint = setTimeout(pcProcesarCola, 15000); }
+    try{ renderFotosClinFicha(dirNombreActual); }catch(e){}
+}
+async function pcRecuperarCola(){
+    try{ const todos = await pcDBop('readonly', st => st.getAll()); (todos || []).forEach(x => { if(!window._pcCola.some(y => y.id === x.id)){ x.prev = URL.createObjectURL(x.th); window._pcCola.push(x); } }); if(window._pcCola.length) setTimeout(pcProcesarCola, 4000); }catch(e){}
+}
+window.addEventListener('online', () => { if(window._pcCola.length) pcProcesarCola(); });
+window.addEventListener('beforeunload', e => { if(window._pcCola && window._pcCola.length){ e.preventDefault(); e.returnValue = 'Hay fotos subiéndose'; } });
+setTimeout(pcRecuperarCola, 3000);
+// Antes y después (frontal y sonrisa) para el paciente
+async function pcAntesDespues(){
+    const n = pcS.n, A = pcFotosDe(n, 'ini'), D = pcFotosDe(n, 'fin');
+    const pares = PC_SLOTS.filter(s => A[s.k] && D[s.k]).slice(0, 4); if(!pares.length){ alert('Necesitas la misma foto al inicio y al final.'); return; }
+    const carga = async u => { const r = await fetch(u); if(!r.ok) throw new Error('descarga'); return await createImageBitmap(await r.blob()); };
+    try{
+        const W = 1600, fila = 600, H = 150 + pares.length * (fila + 30), c = document.createElement('canvas'); c.width = W; c.height = H; const x = c.getContext('2d');
+        x.fillStyle = '#fff'; x.fillRect(0, 0, W, H); x.fillStyle = '#124578'; x.font = 'bold 44px Arial'; x.fillText('Dentilike · Antes y después', 50, 70); x.font = '26px Arial'; x.fillStyle = '#4a5568'; x.fillText(n, 50, 115);
+        let y = 150;
+        for(const s of pares){ const a = await carga(A[s.k].url), d = await carga(D[s.k].url); const cw = 740, ch = Math.min(fila, cw / s.ar), dy = y + (fila - ch) / 2, cw2 = ch * s.ar;
+            x.drawImage(a, 50 + (cw - cw2) / 2, dy, cw2, ch); x.drawImage(d, 810 + (cw - cw2) / 2, dy, cw2, ch);
+            x.fillStyle = '#124578'; x.font = 'bold 26px Arial'; x.fillText('Antes', 60, y + 30); x.fillText('Después', 820, y + 30); y += fila + 30; }
+        const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.88)); dpVerImagen(c.toDataURL('image/jpeg', 0.88), 'Dentilike-antes-despues.jpg', blob);
+    }catch(e){ console.error(e); alert('No pude armar la imagen (revisa tu conexión).'); }
+}
+// Fotos en la pestaña Estudios del expediente
+function renderFotosClinFicha(n){
+    const box = document.getElementById('fotosClinFicha'); if(!box || !n || !pacientes[n]) return;
+    const etapas = [['ini', 'Iniciales'], ['fin', 'Finales']];
+    const html = etapas.map(e => { const f = pcFotosDe(n, e[0]), L = PC_SLOTS.filter(s => f[s.k]); if(!L.length) return '';
+        return `<div class="odo-sub" style="margin:6px 0 4px; font-weight:bold;">${e[1]} (${L.length}/9)</div><div class="pc-mini-fotos">${L.map(s => `<img src="${f[s.k].th || f[s.k].url}" title="${s.t}" onclick="dpVerImagen('${f[s.k].url}', ${JSON.stringify(n + ' - ' + s.t + '.jpg').replace(/"/g, '&quot;')})">`).join('')}</div>`; }).join('');
+    const cola = pcColaDe(n).length;
+    box.innerHTML = (html || '<div class="odo-sub">Sin fotos clínicas todavía.</div>') + (cola ? `<div class="pc-cola" style="margin-top:6px;">⏳ ${cola} por subir</div>` : '');
+}
+// Aviso rojo en el expediente (alergias, bifosfonatos, embarazo…) y botón de la primera cita
+function pcBanner(n){
+    const box = document.getElementById('pcBannerFicha'); if(!box) return; const p = pacientes[n]; if(!p){ box.innerHTML = ''; return; }
+    const al = pcAlertas(p), falt = p.hc ? pcFaltantes(n) : [];
+    const hechos = p.hc ? PC_PASOS.filter(x => pcHecho(n, x[0])).length : 0;
+    box.innerHTML = (al.length ? `<div class="pc-alerta">${al.map(a => '⚠️ ' + escHtml(a)).join('<br>')}</div>` : '') +
+        `<button type="button" class="btn-3d" style="width:100%; margin-bottom:10px; ${p.hc ? '' : 'background:var(--primary); color:#fff;'}" onclick="pcAbrir()">🩺 ${p.hc ? 'Primera cita · ' + hechos + ' de 6' : 'Primera cita: historia clínica, fotos y estudios'}</button>` +
+        (falt.length && p.hc ? `<div class="odo-sub" style="margin:-4px 0 10px;">Falta: ${escHtml(falt.join(' · '))}</div>` : '');
+}
+// ---------- Documentos imprimibles: historia clínica, consentimiento informado y aviso de privacidad ----------
+const PC_HOJA_CSS = `
+        @page{ size: letter; margin: 14mm 14mm 16mm; } *{ box-sizing:border-box; } body{ font-family: Arial, Helvetica, sans-serif; color:#1a202c; font-size:10.5pt; line-height:1.35; margin:0; }
+        .enc{ display:flex; gap:18px; align-items:center; justify-content:space-between; border-bottom:2.5px solid #124578; padding-bottom:8px; } .enc img{ height:62px; } .enc .dr{ font-size:9pt; color:#2d3748; text-align:right; } .enc .dr b{ font-size:12.5pt; color:#124578; }
+        h1{ font-size:14pt; color:#124578; margin:10px 0 2px; text-align:center; letter-spacing:.5px; } h2{ font-size:10.5pt; color:#fff; background:#124578; padding:3px 8px; margin:12px 0 5px; border-radius:3px; }
+        table{ width:100%; border-collapse:collapse; } th,td{ text-align:left; padding:3px 6px; border-bottom:1px solid #e2e8f0; vertical-align:top; } th{ width:34%; color:#4a5568; font-weight:normal; }
+        .dos{ display:grid; grid-template-columns:1fr 1fr; gap:0 18px; } ul{ margin:2px 0 4px 18px; padding:0; } .niega{ color:#4a5568; font-size:9.5pt; } .al{ border:1.5px solid #c53030; color:#9b2c2c; padding:5px 8px; border-radius:4px; margin-top:8px; font-weight:bold; }
+        .firmas{ display:grid; grid-template-columns:1fr 1fr; gap:40px; margin-top:42px; text-align:center; font-size:9pt; } .firmas div{ border-top:1px solid #1a202c; padding-top:4px; }
+        .leyenda{ font-size:8.5pt; color:#4a5568; margin-top:14px; text-align:justify; } .pie{ font-size:8pt; color:#718096; text-align:center; margin-top:10px; } .sec{ break-inside: avoid; }
+        @media screen{ body{ max-width: 820px; margin: 20px auto; padding: 0 16px; } .imp{ position:fixed; top:10px; right:10px; padding:10px 16px; background:#124578; color:#fff; border:none; border-radius:8px; font-size:14px; } }
+        @media print{ .imp{ display:none; } }
+        .hoja + .hoja{ break-before: page; } h2{ break-after: avoid; page-break-after: avoid; } .txt p{ margin:4px 0 6px; text-align:justify; } .txt ol, .txt ul{ margin:2px 0 6px 20px; } .txt li{ margin:2px 0; }
+        .caja{ display:inline-block; width:12px; height:12px; border:1.3px solid #1a202c; vertical-align:-2px; margin:0 4px 0 10px; }
+        .firmas.cuatro{ grid-template-columns:1fr 1fr; row-gap:46px; } .lugar{ text-align:right; margin:8px 0 2px; font-size:10pt; }`;
+function pcEnc(){ const e = escHtml; return `<div class="enc"><img src="${PC_LOGO}" alt="Dentilike"><div class="dr"><b>${e(PC_DR.nombre)}</b><br>${e(PC_DR.esp)}<br>Céd. Prof. ${PC_DR.cedP} (${PC_DR.cedPU}) · Céd. Esp. ${PC_DR.cedE} (${PC_DR.cedEU})<br>${e(PC_DR.dir)}<br>WhatsApp ${PC_DR.tel} · ${PC_DR.correo}</div></div>`; }
+function pcCuerpoHistoria(n){
+    const p = pacientes[n], h = pcHC(n), edad = pcEdad(p), e = escHtml, hoy = new Date().toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' });
+    const sn = (o, lbl) => o && o.si === true ? `<li><b>Sí</b> · ${e(lbl)}${o.txt ? ': ' + e(o.txt) : ''}</li>` : '';
+    const niega = (lista, grupo) => lista.filter(x => grupo[x[0]] && grupo[x[0]].si === false).map(x => x[1].replace(/ \(.*\)/, '').toLowerCase());
+    const sinResp = (lista, grupo) => lista.filter(x => !grupo[x[0]] || grupo[x[0]].si === undefined).length;
+    const medSi = PC_MED.map(m => sn(h.med[m[0]], m[1])).join(''), medNo = niega(PC_MED, h.med), dentSi = PC_DENT.map(d => sn(h.dent[d[0]], d[1])).join(''), dentNo = niega(PC_DENT, h.dent);
+    const o = h.orto, lmT = (v, mm) => v === 'c' ? 'Centrada' : v === 'der' ? 'Desviada a la derecha' + (mm ? ' ' + mm + ' mm' : '') : v === 'izq' ? 'Desviada a la izquierda' + (mm ? ' ' + mm + ' mm' : '') : '—';
+    const cl = v => v === 'nv' ? 'No valorable' : v ? 'Clase ' + v : '—';
+    const fila = (a, b) => `<tr><th>${a}</th><td>${b || '—'}</td></tr>`;
+    let odoImg = '';
+    try{ const O = p.odo; if(O && O.d && Object.keys(O.d).length){ const D = O.d, cel = 30, gap = 3; let svg = ''; const rows = [ODO_PERM_SUP, ODO_PERM_INF];
+        rows.forEach((r, ri) => r.forEach((t, i) => { const x = i * (cel + gap) + (i >= 8 ? 8 : 0), y = ri * (cel + 22) + (ri === 0 ? 14 : 0); const st = D[t] && !D[t].bot ? D[t] : null;
+            svg += odoSvg(t, st, { sinBot: 1 }).replace('<svg ', `<svg x="${x}" y="${y}" width="${cel}" height="${cel}" `) + `<text x="${x + cel / 2}" y="${ri === 0 ? y - 3 : y + cel + 11}" font-size="9" text-anchor="middle" fill="#124578" font-family="Arial">${t}</text>`; }));
+        odoImg = `<svg width="${16 * (cel + gap) + 8}" height="${2 * (cel + 22) + 14}" viewBox="0 0 ${16 * (cel + gap) + 8} ${2 * (cel + 22) + 14}">${svg}</svg>`; } }catch(x){}
+    const plan = (p.plan || []).filter(t => !t.hecho).map(t => e(t.tipo) + (t.diente ? ' (' + e(t.diente) + ')' : '')).join(' · ');
+    return `        <h1>HISTORIA CLÍNICA DE ORTODONCIA</h1>
+        <div class="sec"><h2>Ficha de identificación</h2><table>${fila('Paciente', e(n))}${fila('Fecha de nacimiento / edad', (p.nacimiento ? new Date(p.nacimiento + 'T12:00').toLocaleDateString('es-MX') : '—') + (edad ? ' · ' + edad + ' años' : ''))}${fila('Teléfono', e(p.telefono || ''))}${h.tutor ? fila('Padre, madre o tutor', e(h.tutor)) : ''}${fila('Fecha de elaboración', hoy)}</table></div>
+        ${pcAlertas(p).length ? `<div class="al">${pcAlertas(p).map(x => '⚠ ' + e(x)).join('<br>')}</div>` : ''}
+        <div class="sec"><h2>Motivo de consulta</h2><table>${fila('Motivo', e((h.plat.motivo || []).join(', ')))}${fila('Expectativas', e(h.plat.espera || ''))}${fila('Referido por', e(h.plat.refiere || ''))}${h.plat.nota ? fila('Notas', e(h.plat.nota)) : ''}</table></div>
+        <div class="sec"><h2>Antecedentes médicos</h2>${medSi ? '<ul>' + medSi + '</ul>' : ''}${medNo.length ? `<div class="niega">Niega: ${e(medNo.join(', '))}.</div>` : ''}${sinResp(PC_MED, h.med) ? `<div class="niega">Sin respuesta: ${sinResp(PC_MED, h.med)} pregunta(s).</div>` : ''}</div>
+        <div class="sec"><h2>Antecedentes dentales, hábitos y ATM</h2>${dentSi ? '<ul>' + dentSi + '</ul>' : ''}${dentNo.length ? `<div class="niega">Niega: ${e(dentNo.join(', '))}.</div>` : ''}
+            <table>${fila('Última visita al dentista', e(h.dent.ultima || ''))}${fila('Hábitos', e(h.hab.join(', ') || 'Ninguno referido'))}${fila('ATM', e(h.atm.join(', ')))}${fila('Higiene', [h.hig.cep ? h.hig.cep + ' cepillado(s) al día' : '', h.hig.hilo ? 'hilo dental: ' + ({ si: 'sí', no: 'no', aveces: 'a veces' })[h.hig.hilo] : '', h.hig.sangra ? 'sangrado: ' + (h.hig.sangra === 'si' ? 'sí' : 'no') : ''].filter(Boolean).join(' · '))}</table></div>
+        <div class="sec"><h2>Exploración intraoral</h2>${odoImg ? '<div style="text-align:center; margin:4px 0;">' + odoImg + '<div class="niega">Rojo: por tratar · Azul: realizado</div></div>' : ''}<table>${fila('Encía', e(h.rev.encia || ''))}${fila('Higiene observada', e(h.rev.hig || ''))}${h.rev.nota ? fila('Notas', e(h.rev.nota)) : ''}${plan ? fila('Tratamientos pendientes', plan) : ''}</table></div>
+        <div class="sec"><h2>Exploración de ortodoncia</h2><div class="dos"><table>${fila('Perfil', e(o.perfil || ''))}${fila('Simetría facial', e(o.simetria || ''))}${fila('Sonrisa gingival', o.ging === 'si' ? 'Sí' : o.ging === 'no' ? 'No' : '')}${fila('Línea media superior', lmT(o.lmSup, o.lmSupMm))}${fila('Línea media inferior', lmT(o.lmInf, o.lmInfMm))}${fila('Mordida vertical', e(o.vert || ''))}${fila('Overjet / overbite', (o.oj !== undefined ? o.oj + ' mm' : '—') + ' / ' + (o.ob !== undefined ? o.ob + ' mm' : '—'))}</table>
+            <table>${fila('Clase molar der. / izq.', cl(o.molD) + ' / ' + cl(o.molI))}${fila('Clase canina der. / izq.', cl(o.canD) + ' / ' + cl(o.canI))}${fila('Mordida cruzada', e((o.cruz || []).join(', ') || 'No'))}${fila('Apiñamiento sup. / inf.', e((o.apSup || '—') + ' / ' + (o.apInf || '—')))}${fila('Diastemas', o.diast === 'si' ? 'Sí' + (o.diastTxt ? ': ' + e(o.diastTxt) : '') : o.diast === 'no' ? 'No' : '')}${fila('Extracción de premolares', ({ no: 'No', valorar: 'Valorar con estudios', si: 'Sí' })[o.extr] || '')}</table></div>${o.nota ? '<table>' + fila('Notas', e(o.nota)) + '</table>' : ''}</div>
+        <div class="leyenda">Declaro que la información proporcionada es verdadera y completa, y que se me explicó en términos comprensibles el motivo de la valoración. Autorizo la toma de fotografías clínicas y estudios radiográficos para fines de diagnóstico y de mi expediente clínico, el cual se manejará de forma confidencial conforme a la NOM-004-SSA3-2012.</div>
+        <div class="firmas"><div>${e(h.tutor || n)}<br>${h.tutor ? 'Nombre y firma del padre, madre o tutor' : 'Nombre y firma del paciente'}</div><div>${e(PC_DR.nombre)}<br>Céd. Prof. ${PC_DR.cedP} · Céd. Esp. ${PC_DR.cedE}</div></div>
+`;
+}
+function pcCuerpoConsent(n){
+    const p = pacientes[n], h = pcHC(n), o = h.orto || {}, e = escHtml, edad = pcEdad(p), menor = edad > 0 && edad < 18;
+    const hoy = new Date().toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' });
+    const quien = h.tutor ? e(h.tutor) + ', en mi carácter de padre, madre o tutor de ' + e(n) : e(n);
+    const dx = [o.molD || o.molI ? 'clase molar ' + (o.molD === 'nv' ? 'no valorable' : (o.molD || '—')) + ' derecha y ' + (o.molI === 'nv' ? 'no valorable' : (o.molI || '—')) + ' izquierda' : '',
+        o.apSup || o.apInf ? 'apiñamiento ' + (o.apSup || '—').toLowerCase() + ' superior y ' + (o.apInf || '—').toLowerCase() + ' inferior' : '',
+        o.vert && o.vert !== 'Normal' ? 'mordida ' + o.vert.toLowerCase() : '', (o.cruz || []).length ? 'mordida cruzada ' + o.cruz.join(', ').toLowerCase() : ''].filter(Boolean).join('; ');
+    const al = pcAlertas(p);
+    return `<h1>CARTA DE CONSENTIMIENTO INFORMADO<br><span style="font-size:11pt;">TRATAMIENTO DE ORTODONCIA</span></h1>
+        <div class="lugar">San Luis Potosí, S.L.P., a ${hoy}</div>
+        <div class="txt">
+        <p>Yo, <b>${quien}</b>${menor && !h.tutor ? ' (menor de edad; firma su padre, madre o tutor)' : ''}, declaro que el <b>${e(PC_DR.nombre)}</b>, ${e(PC_DR.esp.toLowerCase())}, me explicó de forma clara y comprensible lo siguiente, que tuve oportunidad de preguntar todas mis dudas y que fueron resueltas:</p>
+        <h2>1. Diagnóstico y tratamiento propuesto</h2>
+        <p>Tratamiento de ortodoncia con aparatología fija (brackets) para corregir la posición de los dientes y la mordida.${dx ? ' Diagnóstico clínico inicial: ' + e(dx) + '.' : ''} El plan definitivo se confirma con el análisis de los estudios radiográficos.${o.extr === 'si' || o.extr === 'valorar' ? ' <b>Es posible que el plan requiera la extracción de premolares</b>; se me explicará y confirmará antes de realizarla.' : ''} Duración estimada: ________ meses. La colocación inicia con una arcada y la otra se coloca en una cita posterior.</p>
+        <h2>2. Beneficios esperados</h2>
+        <p>Mejor alineación y posición de los dientes, mordida más funcional, facilidad para la higiene y mejora en la estética de la sonrisa. El resultado depende de la respuesta biológica de cada persona, del crecimiento y de mi cooperación, por lo que no puede garantizarse un resultado exacto.</p>
+        <h2>3. Riesgos y molestias posibles</h2>
+        <ol><li>Molestias o dolor leve los primeros días después de la colocación y de cada ajuste; posibles llagas por roce de los aparatos.</li>
+        <li>Manchas blancas (descalcificación) y caries si la higiene es deficiente o se consumen muchos azúcares.</li>
+        <li>Inflamación de encías, sangrado o recesión de encía, sobre todo con mala higiene o antecedentes periodontales.</li>
+        <li>Acortamiento de las raíces (reabsorción radicular), que en la mayoría de los casos es leve.</li>
+        <li>Pérdida de vitalidad del nervio en dientes con golpes previos o caries profundas, que podría requerir endodoncia.</li>
+        <li>Molestias en la articulación de la mandíbula (ATM).</li>
+        <li>Reacciones a materiales como níquel o látex.${al.length ? ' <b>Se me informó de las siguientes alertas en mi caso: ' + al.map(x => e(x)).join('; ') + '.</b>' : ''}</li>
+        <li>Desprendimiento de brackets o ingestión o aspiración accidental de piezas pequeñas.</li>
+        <li>El tiempo de tratamiento puede alargarse por falta de higiene, faltas a citas, aparatos rotos o poca cooperación.</li>
+        <li>Los dientes tienden a regresar a su posición anterior (recidiva) si no se usan los retenedores como se indica.</li>
+        <li>Puede ser necesario un tratamiento adicional: extracciones (incluidos terceros molares), desgastes entre dientes, aparatos auxiliares o valoración por cirugía maxilofacial en problemas de los huesos.</li></ol>
+        <h2>4. Alternativas</h2>
+        <p>No realizar el tratamiento (con la posibilidad de que los problemas actuales se mantengan o aumenten), tratamientos parciales o con otro tipo de aparatos, como alineadores. Se me explicaron sus ventajas y limitaciones.</p>
+        <h2>5. Mis compromisos</h2>
+        <ul><li>Mantener una higiene adecuada y acudir a limpiezas con el odontólogo general.</li>
+        <li>Resolver antes de la colocación los tratamientos generales indicados (caries, limpieza, extracciones u otros).</li>
+        <li>Asistir puntualmente a mis citas de control y avisar si se despega o rompe algún aparato.</li>
+        <li>Seguir las indicaciones de alimentación, ligas, elásticos y aparatos auxiliares.</li>
+        <li>Usar los retenedores al terminar, durante el tiempo que se me indique.</li></ul>
+        <h2>6. Fotografías y estudios</h2>
+        <p>Autorizo la toma de fotografías clínicas, radiografías y modelos para diagnóstico, seguimiento y mi expediente clínico, que se manejará de forma confidencial conforme a la NOM-004-SSA3-2012.</p>
+        <p>Autorizo además su uso con fines académicos o de divulgación, <b>sin mostrar mi rostro completo ni mis datos de identificación</b>: <span class="caja"></span> Sí <span class="caja"></span> No</p>
+        <h2>7. Contingencias y revocación</h2>
+        <p>Autorizo al ${e(PC_DR.nombre)} a atender las contingencias y urgencias que se deriven del tratamiento, conforme a su criterio profesional. Sé que puedo revocar este consentimiento en cualquier momento, y que en ese caso se me informará sobre las consecuencias de suspender el tratamiento.</p>
+        </div>
+        <div class="firmas cuatro"><div>${e(h.tutor || n)}<br>${h.tutor ? 'Nombre y firma del padre, madre o tutor' : 'Nombre y firma del paciente'}</div><div>${e(PC_DR.nombre)}<br>Céd. Prof. ${PC_DR.cedP} · Céd. Esp. ${PC_DR.cedE}</div>
+        <div>Nombre y firma del testigo 1</div><div>Nombre y firma del testigo 2</div></div>`;
+}
+function pcCuerpoAviso(n){
+    const p = pacientes[n], h = pcHC(n), e = escHtml;
+    return `<h1>AVISO DE PRIVACIDAD INTEGRAL</h1>
+        <div class="txt">
+        <h2>Responsable</h2>
+        <p><b>${e(PC_DR.nombre)}</b> (Dentilike), con domicilio en ${e(PC_DR.dir)}, teléfono y WhatsApp ${PC_DR.tel} y correo ${PC_DR.correo}, es responsable del tratamiento de sus datos personales, conforme a la Ley Federal de Protección de Datos Personales en Posesión de los Particulares.</p>
+        <h2>Datos que recabamos</h2>
+        <p><b>De identificación y contacto:</b> nombre, fecha de nacimiento, teléfono, correo electrónico y, en caso de menores, datos del padre, madre o tutor.</p>
+        <p><b>Datos personales sensibles:</b> estado de salud, antecedentes médicos y dentales, alergias, medicamentos, hábitos, historia clínica, odontograma, radiografías, fotografías clínicas y demás información de su expediente.</p>
+        <h2>Finalidades necesarias</h2>
+        <ul><li>Valoración, diagnóstico, plan y tratamiento odontológico y de ortodoncia.</li>
+        <li>Integrar, conservar y resguardar su expediente clínico conforme a la NOM-004-SSA3-2012.</li>
+        <li>Agendar, confirmar y recordarle sus citas por WhatsApp, llamada o notificaciones de nuestra aplicación.</li>
+        <li>Darle acceso a su portal de paciente (Mi Sonrisa / SmileLike) para consultar su plan, estudios y avance.</li>
+        <li>Solicitar estudios a gabinetes radiológicos y trabajos a laboratorios dentales.</li>
+        <li>Coordinar tratamientos complementarios con los odontólogos que colaboran en su atención.</li>
+        <li>Cobranza y, en su caso, facturación.</li></ul>
+        <h2>Finalidades adicionales (puede negarse)</h2>
+        <ul><li>Uso de fotografías clínicas con fines académicos o de divulgación, sin mostrar su rostro completo ni sus datos de identificación.</li>
+        <li>Mensajes de felicitación, avisos del consultorio y encuestas de satisfacción.</li></ul>
+        <p>Si no desea que sus datos se usen para estas finalidades, marque aquí: <span class="caja"></span> No acepto las finalidades adicionales. Negarse no afecta su atención.</p>
+        <h2>Transferencias y proveedores</h2>
+        <p>Sus datos pueden compartirse, solo en lo necesario para su atención, con gabinetes radiológicos, laboratorios dentales y odontólogos que colaboran en su tratamiento, así como con autoridades cuando una ley o una orden judicial lo exija. Para operar nuestra agenda, expediente digital y comunicación usamos proveedores tecnológicos (almacenamiento en la nube y mensajería), que tratan sus datos únicamente por nuestra cuenta y con medidas de confidencialidad.</p>
+        <h2>Derechos ARCO y revocación del consentimiento</h2>
+        <p>Usted puede acceder, rectificar, cancelar u oponerse al tratamiento de sus datos (derechos ARCO), revocar su consentimiento o limitar su uso, enviando su solicitud a <b>${PC_DR.correo}</b> o entregándola en el consultorio, con su nombre, un medio para responderle, copia de una identificación (y la del tutor, en su caso) y la descripción de lo que solicita. Le responderemos en los plazos que establece la ley. Algunos datos deben conservarse por obligación legal: el expediente clínico se resguarda por al menos cinco años a partir del último acto médico.</p>
+        <p>Si considera que su derecho a la protección de datos fue vulnerado, puede acudir a la Secretaría Anticorrupción y Buen Gobierno, autoridad en la materia.</p>
+        <h2>Cambios a este aviso</h2>
+        <p>Cualquier cambio a este aviso se le informará en el consultorio o por WhatsApp. Última actualización: noviembre de 2026.</p>
+        <h2>Consentimiento</h2>
+        <p>He leído este aviso de privacidad y <b>otorgo mi consentimiento expreso</b> para que mis datos personales, incluidos los sensibles${h.tutor ? ' y los de mi hijo(a) o representado(a) ' + e(n) : ''}, sean tratados conforme a lo aquí descrito.</p>
+        </div>
+        <div class="firmas"><div>${e(h.tutor || n)}<br>${h.tutor ? 'Nombre y firma del padre, madre o tutor' : 'Nombre y firma del titular'}</div><div>Fecha: ____ / ____ / ________</div></div>`;
+}
+const PC_DOCS = { hc: ['Historia clínica', pcCuerpoHistoria], ci: ['Consentimiento informado', pcCuerpoConsent], ap: ['Aviso de privacidad', pcCuerpoAviso] };
+function pcImprimirDocs(tipos){
+    const n = pcS.n, h = pcHC(n), e = escHtml;
+    const hojas = tipos.map(t => `<section class="hoja">${pcEnc()}${PC_DOCS[t][1](n)}<div class="pie">Dentilike · ${e(PC_DR.dir)} · ${PC_DR.tel}</div></section>`).join('');
+    const titulo = tipos.length === 1 ? PC_DOCS[tipos[0]][0] : 'Documentos';
+    const html = `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>${titulo} - ${e(n)}</title><style>${PC_HOJA_CSS}</style></head><body>
+        <button class="imp" onclick="window.print()">Imprimir</button>${hojas}
+        <script>window.onload=function(){ setTimeout(function(){ try{ window.print(); }catch(e){} }, 400); };<\/script></body></html>`;
+    h.docs = Object.assign({}, h.docs); tipos.forEach(t => { h.docs[t] = Date.now(); }); pcGuardar(); try{ pcRender(); }catch(x){}
+    const w = window.open('', '_blank');
+    if(w){ w.document.open(); w.document.write(html); w.document.close(); return; }
+    // si el navegador bloquea ventanas nuevas: imprimir desde un marco oculto
+    const f = document.createElement('iframe'); f.style.cssText = 'position:fixed; right:0; bottom:0; width:0; height:0; border:0;'; document.body.appendChild(f);
+    f.contentDocument.open(); f.contentDocument.write(html.replace(/<script>[\s\S]*?<\/script>/, '')); f.contentDocument.close();
+    setTimeout(() => { try{ f.contentWindow.focus(); f.contentWindow.print(); }catch(e){} setTimeout(() => f.remove(), 60000); }, 700);
+}
+function pcImprimir(){ pcImprimirDocs(['hc']); }
+(function(){ const o = window.abrirEditorDirectorio; if(typeof o !== 'function' || o._pc) return;
+    const w = function(){ const r = o.apply(this, arguments); try{ pcBanner(dirNombreActual); renderFotosClinFicha(dirNombreActual); }catch(e){ console.error(e); } return r; };
+    w._pc = 1; window.abrirEditorDirectorio = w; })();
 
 </script>
 </body>
