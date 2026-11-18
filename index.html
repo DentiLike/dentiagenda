@@ -280,6 +280,58 @@
   .dp-ley b.peri{background:#805ad5; border-radius:50%; border:none}
   .trz-t .it-m{display:none}
   @media (max-width: 640px){ .trz-t th:nth-child(5), .trz-t td:nth-child(5){display:none} .trz-t .it-m{display:block; color:var(--text-muted); font-style:italic; font-size:0.74rem; line-height:1.2} .trz-t td, .trz-t th{padding:3px 4px !important} }
+        /* ===== Odontograma clínico (v114) ===== */
+        #odoModal { z-index: 1200; }
+        #odoModal .modal.odo-modal { max-width: 1060px; padding: 1.4rem; }
+        .odo-sub { font-size: .8rem; color: var(--text-muted); }
+        .odo-segs { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; justify-content: space-between; }
+        .odo-seg { display: inline-flex; padding: 4px; border-radius: 12px; box-shadow: inset 3px 3px 6px var(--shadow-dark), inset -3px -3px 6px var(--shadow-light); }
+        .odo-seg span { padding: 7px 12px; border-radius: 9px; font-size: .8rem; font-weight: bold; color: var(--text-muted); cursor: pointer; user-select: none; }
+        .odo-seg span.on { background: var(--bg-color); color: var(--primary); box-shadow: 3px 3px 6px var(--shadow-dark), -3px -3px 6px var(--shadow-light); }
+        .odo-tools { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 10px 0 0; }
+        .odo-lbl { font-size: .72rem; font-weight: bold; min-width: 64px; }
+        .odo-tool { display: flex; align-items: center; gap: 6px; padding: 8px 11px; border-radius: 12px; font-size: .78rem; font-weight: bold; color: var(--primary); background: var(--bg-color); border: none; cursor: pointer; box-shadow: 4px 4px 8px var(--shadow-dark), -4px -4px 8px var(--shadow-light); }
+        .odo-tool.on { box-shadow: inset 3px 3px 6px var(--shadow-dark), inset -3px -3px 6px var(--shadow-light); outline: 2px solid var(--accent); }
+        .odo-tool i { width: 14px; height: 14px; border-radius: 4px; display: inline-block; }
+        .odo-aviso { margin-top: 10px; padding: 8px 10px; border-radius: 10px; background: #fffbea; border: 1px solid #d69e2e; font-size: .8rem; color: #744210; }
+        .odo-board { margin-top: 14px; padding: 14px 10px; border-radius: 16px; box-shadow: inset 4px 4px 10px var(--shadow-dark), inset -4px -4px 10px var(--shadow-light); }
+        .odo-arch { display: grid; grid-template-columns: repeat(8, 1fr) 10px repeat(8, 1fr); gap: 6px; align-items: end; margin-bottom: 8px; }
+        .odo-arch.inf { align-items: start; }
+        .odo-arch.temp { margin: 4px 0 10px; }
+        .odo-mid { border-left: 2px dashed #a3b1c6; margin-left: 4px; align-self: stretch; }
+        .odo-t { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 2px; border-radius: 10px; background: var(--bg-color); cursor: pointer; box-shadow: 3px 3px 6px var(--shadow-dark), -3px -3px 6px var(--shadow-light); -webkit-tap-highlight-color: transparent; }
+        .odo-t.sel { box-shadow: inset 3px 3px 6px var(--shadow-dark), inset -3px -3px 6px var(--shadow-light); outline: 2px solid var(--accent); }
+        .odo-t b { font-size: .72rem; color: var(--primary); }
+        .odo-t svg { width: 100%; max-width: 46px; height: auto; }
+        .odo-lado { display: flex; justify-content: space-between; font-size: .68rem; color: var(--text-muted); margin: 0 4px 8px; font-weight: bold; letter-spacing: .5px; }
+        .odo-lado.abajo { margin: 4px 4px 0; }
+        .odo-row2 { display: grid; grid-template-columns: 1.25fr 1fr; gap: 16px; margin-top: 16px; }
+        .odo-card { padding: 14px; border-radius: 16px; background: var(--bg-color); box-shadow: 5px 5px 10px var(--shadow-dark), -5px -5px 10px var(--shadow-light); min-width: 0; }
+        .odo-card h3 { margin: 0 0 8px; font-size: .95rem; color: var(--primary); }
+        .odo-bigrow { display: flex; gap: 14px; align-items: flex-start; }
+        .odo-bigbox svg.odo-big { width: 130px; height: 130px; }
+        .odo-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+        .odo-chip { font-size: .74rem; padding: 4px 9px; border-radius: 10px; font-weight: bold; }
+        .odo-chip.r { background: #fed7d7; color: #9b2c2c; } .odo-chip.a { background: #bee3f8; color: #2a4365; }
+        .odo-nota { width: 100%; margin-top: 8px; padding: .6rem; border: none; border-radius: 10px; min-height: 60px; resize: vertical; background: var(--bg-color); color: var(--text-main); font-size: .82rem; box-shadow: inset 3px 3px 6px var(--shadow-dark), inset -3px -3px 6px var(--shadow-light); }
+        .odo-ley { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px 14px; font-size: .78rem; }
+        .odo-ley div { display: flex; align-items: center; gap: 8px; }
+        .odo-acc { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; flex-wrap: wrap; }
+        .odo-acc .btn-3d { padding: .7rem 1rem; font-size: .85rem; }
+        .odo-mini { cursor: pointer; padding: 8px 6px; border-radius: 12px; box-shadow: inset 3px 3px 6px var(--shadow-dark), inset -3px -3px 6px var(--shadow-light); }
+        .odo-mini-f { display: flex; gap: 2px; justify-content: center; }
+        .odo-mini-f svg { width: 6%; max-width: 26px; height: auto; }
+        .odo-mini-f .odo-mid { margin: 0 3px; }
+        @media (max-width: 640px){
+            #odoModal { padding: .3rem; }
+            #odoModal .modal.odo-modal { padding: .8rem; max-height: 96vh; }
+            .odo-arch { gap: 2px; grid-template-columns: repeat(8, 1fr) 6px repeat(8, 1fr); }
+            .odo-t { padding: 3px 0; border-radius: 6px; } .odo-t b { font-size: .58rem; }
+            .odo-row2 { grid-template-columns: 1fr; }
+            .odo-tools { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 6px; } .odo-tool { white-space: nowrap; }
+            .odo-board { padding: 8px 4px; } .odo-bigbox svg.odo-big { width: 96px; height: 96px; }
+            .odo-lado { font-size: .58rem; }
+        }
 </style>
 </head>
 <body>
@@ -563,6 +615,11 @@
                     </div>
                 </div>
                 <div class="plan-box">
+                    <h5>🦷 Odontograma (solo tú lo ves)</h5>
+                    <div id="odoMini"></div>
+                    <button type="button" class="plan-add-btn" style="margin-top:8px;" onclick="odoAbrir()">Abrir odontograma</button>
+                </div>
+                <div class="plan-box">
                     <h5>🦷 Plan de tratamiento (lo verá el paciente en Mi Sonrisa)</h5>
                     <div id="planLista"></div>
                     <details class="ft-plegable" style="margin-top:8px;"><summary>+ Agregar tratamiento al plan</summary>
@@ -836,6 +893,7 @@
     </div>
 
     <!-- Modal Materiales por surtir -->
+    <div class="modal-overlay" id="odoModal"><div class="modal odo-modal" id="odoBody"></div></div>
     <div class="modal-overlay" id="materialesModal">
         <div class="modal">
             <div class="modal-header">
@@ -1350,6 +1408,90 @@
             localStorage.setItem('denti_fotos_v16', JSON.stringify(fotosLocales));
             return limpio;
         }
+        // ===== Fusión segura de EXPEDIENTES entre dispositivos (v114) =====
+        // Antes cada guardado reemplazaba la lista completa de pacientes y ganaba el último dispositivo.
+        // Ahora se combina paciente por paciente y campo por campo: si la tablet cambió la historia clínica
+        // y el cel agregó fotos, se quedan las dos cosas. Para saber "quién cambió qué" se guarda una huella
+        // (hash) de cada campo tal como estaba en la nube la última vez que este dispositivo la vio.
+        function _hTxt(str){ let h1 = 0xdeadbeef, h2 = 0x41c6ce57; for(let i = 0; i < str.length; i++){ const ch = str.charCodeAt(i); h1 = Math.imul(h1 ^ ch, 2654435761); h2 = Math.imul(h2 ^ ch, 1597334677); } h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909); h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909); return (h2 >>> 0).toString(36) + (h1 >>> 0).toString(36); }
+        function _hVal(v){ return _hTxt(String(JSON.stringify(v))); }
+        let pacBaseH = null; try{ pacBaseH = JSON.parse(localStorage.getItem('denti_pac_base_v114') || 'null'); }catch(e){ pacBaseH = null; }
+        let pacConflictos = []; try{ pacConflictos = JSON.parse(localStorage.getItem('denti_pac_confl_v114') || '[]'); }catch(e){ pacConflictos = []; }
+        if(!Array.isArray(pacConflictos)) pacConflictos = [];
+        function huellasPacientes(obj){ const H = {}; Object.keys(obj || {}).forEach(n => { const p = obj[n] || {}, h = {}; Object.keys(p).forEach(k => { if(k === 'foto' && String(p.foto || '').indexOf('data:') === 0) return; h[k] = _hVal(p[k]); }); H[n] = h; }); return H; }
+        function guardarPacBase(obj){ pacBaseH = huellasPacientes(obj); try{ localStorage.setItem('denti_pac_base_v114', JSON.stringify(pacBaseH)); }catch(e){} }
+        function _esObj(v){ return v && typeof v === 'object' && !Array.isArray(v); }
+        function _llave(x){ return (x && typeof x === 'object' && x.id != null) ? 'id:' + x.id : 'j:' + JSON.stringify(x); }
+        // Los dos dispositivos cambiaron el mismo campo: se juntan listas y objetos; en texto gana 'gana' y el otro valor se guarda para poder recuperarlo.
+        function _juntar(gana, otro){
+            if(Array.isArray(gana) && Array.isArray(otro)){ const ya = new Set(gana.map(_llave)), out = gana.slice(); otro.forEach(x => { const k = _llave(x); if(!ya.has(k)){ ya.add(k); out.push(x); } }); return { v: out, perdido: false }; }
+            if(_esObj(gana) && _esObj(otro)){ const out = Object.assign({}, otro); let perdido = false; Object.keys(gana).forEach(k => { if(k in otro && JSON.stringify(otro[k]) !== JSON.stringify(gana[k])){ const r = _juntar(gana[k], otro[k]); out[k] = r.v; if(r.perdido) perdido = true; } else out[k] = gana[k]; }); return { v: out, perdido: perdido }; }
+            return { v: gana, perdido: true };
+        }
+        // base = huellas de la nube vista por última vez · L = este dispositivo · R = la nube ahora · modo 'guardar' | 'recibir'
+        function fusionarPacientes(base, L, R, modo){
+            L = L || {}; R = R || {}; const out = {}, confl = [], nombres = new Set(Object.keys(L).concat(Object.keys(R)));
+            if(!base){   // primera vez con esta versión: se comporta como antes, pero sin perder pacientes que solo están de un lado
+                nombres.forEach(n => { out[n] = modo === 'guardar' ? (L[n] || R[n]) : (R[n] || L[n]); });
+                return { pac: out, confl: confl };
+            }
+            const igualABase = (p, b) => { if(!b) return false; const ks = new Set(Object.keys(p).concat(Object.keys(b))); for(const k of ks){ if(k === 'foto' && String(p.foto || '').indexOf('data:') === 0) continue; if((k in p ? _hVal(p[k]) : undefined) !== b[k]) return false; } return true; };
+            nombres.forEach(n => {
+                const l = L[n], r = R[n], b = base[n];
+                if(l && r){
+                    if(JSON.stringify(l) === JSON.stringify(r)){ out[n] = r; return; }
+                    const p = {}, ks = new Set(Object.keys(l).concat(Object.keys(r)));
+                    ks.forEach(k => {
+                        const enL = k in l, enR = k in r, lv = l[k], rv = r[k];
+                        if(JSON.stringify(lv) === JSON.stringify(rv)){ if(enL || enR) p[k] = enL ? lv : rv; return; }
+                        const bh = b ? b[k] : undefined, hl = enL ? _hVal(lv) : undefined, hr = enR ? _hVal(rv) : undefined;
+                        if(b && hl === bh){ if(enR) p[k] = rv; return; }          // yo no lo toqué: vale lo de la nube (incluso si allá se borró)
+                        if(b && hr === bh){ if(enL) p[k] = lv; return; }          // la nube no cambió: vale lo mío
+                        if(!enL){ p[k] = rv; return; } if(!enR){ p[k] = lv; return; }
+                        const gano = lv;   // el cambio de este dispositivo es el más reciente (al guardar) o aún no se sube (al recibir)
+                        const j = _juntar(gano, rv); p[k] = j.v;
+                        if(j.perdido) confl.push({ p: n, c: k, v: JSON.stringify(rv).slice(0, 20000), t: Date.now(), disp: nombreDispositivo() });
+                    });
+                    out[n] = p; return;
+                }
+                if(l && !r){ if(b && igualABase(l, b)) return; out[n] = l; return; }   // lo borraron en otro dispositivo y aquí no se tocó
+                if(!l && r){ if(b && igualABase(r, b)) return; out[n] = r; return; }   // lo borré yo y allá no lo cambiaron
+            });
+            return { pac: out, confl: confl };
+        }
+        // Aplica la lista combinada SIN cambiar la identidad de los objetos (las pantallas abiertas siguen apuntando al mismo paciente)
+        function aplicarPacientes(nuevo){
+            let cambio = false;
+            Object.keys(pacientes).forEach(n => { if(!(n in nuevo)){ delete pacientes[n]; cambio = true; } });
+            Object.keys(nuevo).forEach(n => {
+                const v = nuevo[n] || {};
+                if(!pacientes[n]){ pacientes[n] = JSON.parse(JSON.stringify(v)); cambio = true; return; }
+                const p = pacientes[n];
+                Object.keys(p).forEach(k => { if(!(k in v) && !(k === 'foto' && String(p.foto || '').indexOf('data:') === 0)){ delete p[k]; cambio = true; } });
+                Object.keys(v).forEach(k => { if(JSON.stringify(p[k]) !== JSON.stringify(v[k])){ p[k] = JSON.parse(JSON.stringify(v[k])); cambio = true; } });
+            });
+            return cambio;
+        }
+        function unirConflictos(remotos, nuevos){
+            const lim = Date.now() - 30 * 86400000, vistos = {}, out = [];
+            (remotos || []).concat(nuevos || []).forEach(x => { if(!x || x.t < lim) return; const k = x.p + '|' + x.c + '|' + x.t; if(vistos[k]) return; vistos[k] = 1; out.push(x); });
+            return out.slice(-60);
+        }
+        function avisoConflictos(lista){
+            if(!lista || !lista.length) return;
+            const nom = Array.from(new Set(lista.map(x => x.p))).slice(0, 3).join(', ');
+            try{ daToast('Se juntaron cambios de ' + nom + ' hechos en dos dispositivos. Lo reemplazado quedó en Escritorio > Papelera > Cambios reemplazados.', 'ok'); }catch(e){}
+        }
+        function recuperarConflicto(i){
+            const lista = pacConflictos.slice().sort((a, b) => b.t - a.t), x = lista[i]; if(!x) return;
+            if(!pacientes[x.p]){ alert('Ese paciente ya no está en el directorio.'); return; }
+            let val; try{ val = JSON.parse(x.v); }catch(e){ alert('No pude leer ese valor.'); return; }
+            if(!confirm('¿Volver a poner en ' + x.p + ' el valor anterior de "' + x.c + '"?\n\n' + String(typeof val === 'string' ? val : JSON.stringify(val)).slice(0, 300))) return;
+            pacientes[x.p][x.c] = val; pacConflictos = pacConflictos.filter(y => y !== x);
+            try{ localStorage.setItem('denti_pac_confl_v114', JSON.stringify(pacConflictos)); }catch(e){}
+            localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes)); guardarAgendaEnNube();
+            daToast('Recuperado', 'ok'); try{ renderEscritorio(); }catch(e){}
+        }
         function reinsertarFotos(){
             // Al recibir pacientes de la nube: si ya trae una foto (URL de Storage), se respeta tal cual.
             // Solo si no trae ninguna, se rescata la vieja copia local en base64 (si existe).
@@ -1384,7 +1526,7 @@
                 const sello = Date.now();
                 miUltimaEscritura = sello;
                 const ref = db.collection('agenda').doc('principal');
-                let fus = null, borrLog = citasBorradas;
+                let fus = null, borrLog = citasBorradas, fusP = null, conflLog = pacConflictos;
                 await db.runTransaction(async (t) => {
                     const sn = await t.get(ref);
                     const rem = sn.exists ? (sn.data() || {}) : {};
@@ -1395,10 +1537,15 @@
                     const vistos = {}; borrLog = [];
                     remLog.concat(citasBorradas).concat(fus.borradas.map(c => ({ cita: c, t: ahora, disp: disp }))).forEach(x => { if(!x || !x.cita) return; const k = x.cita.id + '_' + x.t; if(vistos[k] || x.t < lim) return; vistos[k] = 1; borrLog.push(x); });
                     borrLog = borrLog.slice(-300);
+                    const rp = (rem.pacientes && typeof rem.pacientes === 'object') ? rem.pacientes : null;
+                    fusP = rp ? fusionarPacientes(pacBaseH, pacientesSinFoto, rp, 'guardar') : { pac: pacientesSinFoto, confl: [] };
+                    if(rp && Object.keys(fusP.pac).length === 0 && Object.keys(pacientesSinFoto).length > 0) fusP = { pac: pacientesSinFoto, confl: [] };
+                    conflLog = unirConflictos(rem.pacConflictos, fusP.confl);
                     t.set(ref, {
                     citas: fus.citas,
                     citasBorradas: borrLog,
-                    pacientes: pacientesSinFoto,
+                    pacientes: fusP.pac,
+                    pacConflictos: conflLog,
                     motivos: motivos,
                     config: config,
                     potenciales: potenciales,
@@ -1408,6 +1555,11 @@
                     });
                 });
                 citasBorradas = borrLog; guardarBorradasLocal();
+                _snapPend = null;   // la transacción ya leyó lo último de la nube
+                pacConflictos = conflLog; try{ localStorage.setItem('denti_pac_confl_v114', JSON.stringify(pacConflictos)); }catch(e){}
+                guardarPacBase(fusP.pac);
+                if(aplicarPacientes(fusP.pac)){ reinsertarFotos(); localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes)); try{ updateDatalists(); }catch(e){} }
+                avisoConflictos(fusP.confl);
                 const cambio = JSON.stringify(fus.citas) !== JSON.stringify(citas);
                 citas = fus.citas; guardarCitasBase(citas);
                 localStorage.setItem('denti_citas_v16', JSON.stringify(citas));
@@ -1798,11 +1950,20 @@ function perReiniciar(){ if(!confirm('¿Empezar la cuenta de nuevo desde hoy?'))
                     syncGlobalActivo = true;
                     return;
                 }
-                // Si estoy editando un expediente en este momento, NO piso mis cambios locales
+                // Si estoy editando un expediente en este momento, lo aplico en cuanto termine (no se pierde)
                 if(editandoAhora){
                     syncGlobalActivo = true;
+                    _snapPend = data;
                     return;
                 }
+                _snapPend = null;
+                procesarAgendaRemota(data);
+            }, (err)=>{ console.error('snapshot error', err); setSync('err','Error de conexión'); });
+        }
+        let _snapPend = null;
+        setInterval(() => { if(!editandoAhora && _snapPend){ const d = _snapPend; _snapPend = null; try{ procesarAgendaRemota(d); }catch(e){ console.error(e); } } }, 1500);
+        function procesarAgendaRemota(data){
+            {
                 // Cambio legítimo de otro dispositivo: aplícalo (sin perder lo que solo está aquí)
                 const remCitas = Array.isArray(data.citas) ? data.citas : [];
                 if(Array.isArray(data.citasBorradas)){ citasBorradas = data.citasBorradas; guardarBorradasLocal(); }
@@ -1836,12 +1997,17 @@ function perReiniciar(){ if(!confirm('¿Empezar la cuenta de nuevo desde hoy?'))
                 }
                 guardarCitasBase(remCitas);
                 const pacientesEntrantes = data.pacientes || {};
+                if(Array.isArray(data.pacConflictos)){ pacConflictos = data.pacConflictos; try{ localStorage.setItem('denti_pac_confl_v114', JSON.stringify(pacConflictos)); }catch(e){} }
                 if(Object.keys(pacientesEntrantes).length === 0 && Object.keys(pacientes).length > 0){
                     // La nube llegó con el directorio vacío pero localmente sí hay pacientes.
                     // Casi seguro un error pasajero: no lo aplico, para no perder el directorio.
                     console.warn('Se ignoró un directorio de pacientes vacío recibido de la nube.');
                 } else {
-                    pacientes = pacientesEntrantes;
+                    // Se combina con lo que tenga este dispositivo sin subir todavía (no se reemplaza a ciegas)
+                    const fp = fusionarPacientes(pacBaseH, separarFotos(), pacientesEntrantes, 'recibir');
+                    aplicarPacientes(fp.pac);
+                    guardarPacBase(pacientesEntrantes);
+                    if(JSON.stringify(fp.pac) !== JSON.stringify(pacientesEntrantes)) setTimeout(() => guardarAgendaEnNube(), 700);
                     if(Object.keys(pacientes).length > 0) localStorage.setItem('denti_pacientes_backup_v16', JSON.stringify(pacientes));
                 }
                 motivos = data.motivos || [];
@@ -1862,7 +2028,7 @@ function perReiniciar(){ if(!confirm('¿Empezar la cuenta de nuevo desde hoy?'))
                 if(document.getElementById('materialesModal').style.display === 'flex') renderMateriales();
                 setSync('on','Sincronizado');
                 publicarDisponibilidad();   // republica los huecos con los bloqueos ya sincronizados
-            }, (err)=>{ console.error('snapshot error', err); setSync('err','Error de conexión'); });
+            }
         }
 
         // ===== Pacientes Potenciales =====
@@ -2517,7 +2683,7 @@ function perReiniciar(){ if(!confirm('¿Empezar la cuenta de nuevo desde hoy?'))
                 await db.collection('citas_pacientes').doc(llave).set({
                     nombre: nombre,
                     citas: citasParaApp,
-                    plan: pac.plan || [],
+                    plan: (pac.plan || []).map(t => ({ tipo: t.tipo, diente: t.diente || '', prioridad: t.prioridad || 'normal', hecho: !!t.hecho })),   // a Mi Sonrisa solo lo que el paciente debe ver
                     ortodoncia: !!pac.ortodoncia,
                     ortoTipoCaso: pac.ortoTipoCaso || 'sin_extracciones',
                     ortoArcos: pac.ortoArcos || {},
@@ -3216,7 +3382,7 @@ function perReiniciar(){ if(!confirm('¿Empezar la cuenta de nuevo desde hoy?'))
             return d <= 0 ? 'hoy' : (d === 1 ? 'ayer' : 'hace ' + d + ' d');
         }
         function usaSmile(nombre){ const u = usoSmile[nombre]; return !!(u && u.ts); }
-        const DA_VERSION = 'v113';
+        const DA_VERSION = 'v114';
         window.addEventListener('load', () => document.querySelectorAll('.da-ver-txt').forEach(e => e.textContent = 'DentiAgenda ' + DA_VERSION));
         // Texto del estado de SmileLike para un paciente (usa lo guardado; abajo se refresca solo ese paciente)
         function textoEstadoSmile(nombre){
@@ -3806,9 +3972,10 @@ function perReiniciar(){ if(!confirm('¿Empezar la cuenta de nuevo desde hoy?'))
             const pac = pacientes[nombre];
             const plan = (pac && pac.plan) ? pac.plan : [];
             const cont = document.getElementById('planLista');
+            try{ odoMiniRender(nombre); }catch(e){ console.error(e); }
             if(!plan.length){ cont.innerHTML = '<p style="font-size:0.8rem; color:var(--text-muted); text-align:center; margin:6px 0;">Sin tratamientos en el plan aún.</p>'; return; }
             cont.innerHTML = plan.map((t,i)=>{
-                const dienteTxt = t.diente ? ` · Diente/zona: <b>${t.diente}</b>` : '';
+                const dienteTxt = (t.diente ? ` · Diente/zona: <b>${escHtml(t.diente)}</b>` : '') + (t.odo ? ' <span style="font-size:0.7rem; color:var(--text-muted);">· odontograma</span>' : '');
                 return `<div class="plan-item ${t.hecho?'hecho':''}">
                     <div class="pi-check" onclick="togglePlanHecho(${i})">${t.hecho?'✓':''}</div>
                     <div class="pi-prio ${t.prioridad||'normal'}" title="${t.prioridad==='urgente'?'Urgente':'Normal'}"></div>
@@ -3823,7 +3990,9 @@ function perReiniciar(){ if(!confirm('¿Empezar la cuenta de nuevo desde hoy?'))
             const tipo = document.getElementById('planTipo').value;
             const diente = document.getElementById('planDiente').value.trim();
             const prioridad = document.getElementById('planPrioridad').value;
-            pacientes[nombre].plan.push({ tipo, diente, prioridad, hecho:false });
+            const nuevo = { id: 'p' + Date.now().toString(36), tipo, diente, prioridad, hecho:false };
+            pacientes[nombre].plan.push(nuevo);
+            try{ odoDesdePlanManual(nombre, nuevo); }catch(e){ console.error(e); }
             document.getElementById('planDiente').value = '';
             document.getElementById('planPrioridad').value = 'normal';
             guardarPlan(nombre);
@@ -3832,17 +4001,21 @@ function perReiniciar(){ if(!confirm('¿Empezar la cuenta de nuevo desde hoy?'))
         function togglePlanHecho(i){
             const nombre = dirNombreActual; if(!nombre) return;
             pacientes[nombre].plan[i].hecho = !pacientes[nombre].plan[i].hecho;
+            try{ odoPlanHecho(nombre, pacientes[nombre].plan[i]); }catch(e){ console.error(e); }
             guardarPlan(nombre);
             renderPlanTratamiento(nombre);
         }
         function eliminarPlanItem(i){
             const nombre = dirNombreActual; if(!nombre) return;
             if(!confirm('¿Quitar este tratamiento del plan?')) return;
-            pacientes[nombre].plan.splice(i,1);
+            const quitado = pacientes[nombre].plan.splice(i,1)[0];
+            try{ odoPlanQuitado(nombre, quitado); }catch(e){ console.error(e); }
             guardarPlan(nombre);
             renderPlanTratamiento(nombre);
         }
         function guardarPlan(nombre){
+            // cada tratamiento lleva id para que dos dispositivos no lo dupliquen al combinar cambios
+            const pl = (pacientes[nombre] || {}).plan; if(Array.isArray(pl)) pl.forEach((t, k) => { if(t && !t.id) t.id = 'p' + Date.now().toString(36) + k; });
             localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes));
             guardarAgendaEnNube();          // sube pacientes+citas+config (con plan y ortodoncia)
             syncPacienteAFirebase(nombre);  // actualiza el doc que lee Mi Sonrisa
@@ -5273,6 +5446,12 @@ function renderEscritorio(){
                 <div class="esc-ph">📅</div>
                 <div class="esc-info"><div class="esc-nom">${escHtml((x.cita && x.cita.paciente) || '?')}</div><div class="esc-sub">${escHtml(formatearFechaLegible(x.cita.fecha))} · ${escHtml(formatearHoraAmPm(x.cita.horaInicio))}<br>borrada ${escHtml(new Date(x.t).toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }))} desde tu ${escHtml(x.disp || '?')}</div></div>
                 <button class="esc-mini" onclick="restaurarCitaBorrada(${i})">↩ Restaurar</button></div>`).join('') : '<div class="esc-vacio">Ninguna 👌</div>'}
+            <div style="font-weight:bold; font-size:0.85rem; margin:12px 0 4px;">Cambios reemplazados (últimos 30 días)</div>
+            <div class="esc-sub" style="margin-bottom:6px;">Cuando dos dispositivos cambian el mismo dato de un expediente a la vez, se queda el más reciente y el otro se guarda aquí.</div>
+            ${(pacConflictos || []).length ? pacConflictos.slice().sort((a, b) => b.t - a.t).map((x, i) => { let v = ''; try{ const pv = JSON.parse(x.v); v = typeof pv === 'string' ? pv : JSON.stringify(pv); }catch(e){ v = x.v; } return `<div class="esc-card" style="cursor:default;">
+                <div class="esc-ph">📝</div>
+                <div class="esc-info"><div class="esc-nom">${escHtml(x.p)} · ${escHtml(x.c)}</div><div class="esc-sub">${escHtml(String(v).slice(0, 120))}<br>${escHtml(new Date(x.t).toLocaleString('es-MX'))} · ${escHtml(x.disp || '')}</div></div>
+                <button class="esc-mini" onclick="recuperarConflicto(${i})">↩ Recuperar</button></div>`; }).join('') : '<div class="esc-vacio">Ninguno 👌</div>'}
         </div>
         <button class="btn-3d" style="width:100%; margin-bottom:10px; font-size:0.85rem; color:var(--accent);" onclick="abrirIaLab()">🧪 Laboratorio IA · modelos y tablero de aciertos</button>
         <p class="esc-sub" style="text-align:center;">Los potenciales sin estudios siguen en 🎯 Px Potencial. Al subir sus estudios aparecen aquí.</p>`;
@@ -8747,6 +8926,322 @@ function cariesPanel(){
         w._da = 1; window[x[0]] = w;
     });
 })();
+</script>
+<script>
+// ===== ODONTOGRAMA CLÍNICO (v114) =====
+// pacientes[n].odo = { dent:'perm'|'mixta'|'temp', d:{ '36':{ s:{O:'c'|'r'|'a'}, endo:'p'|'h', cor:'p'|'h', ext:1, aus:1, imp:1, ret:1, frac:1, sell:1, nota:'', bot:'texto' } }, ini:{...}, iniDia:'YYYY-MM-DD' }
+// Rojo = por tratar · Azul = ya realizado. Lo rojo se sincroniza con el plan de tratamiento (sin lo que puso el bot hasta que lo confirmes).
+const ODO_R = '#e53e3e', ODO_A = '#2b6cb0', ODO_G = '#718096';
+const ODO_TOOLS = [
+    { k: 'car', t: 'Caries', c: ODO_R, g: 'rojo', sup: 'c' },
+    { k: 'endoP', t: 'Endodoncia', c: ODO_R, g: 'rojo' },
+    { k: 'corP', t: 'Corona', c: ODO_R, g: 'rojo' },
+    { k: 'ext', t: 'Por extraer', c: ODO_R, g: 'rojo' },
+    { k: 'frac', t: 'Fractura', c: ODO_R, g: 'rojo' },
+    { k: 'res', t: 'Resina', c: ODO_A, g: 'azul', sup: 'r' },
+    { k: 'ama', t: 'Amalgama', c: ODO_G, g: 'azul', sup: 'a' },
+    { k: 'sell', t: 'Sellante', c: ODO_A, g: 'azul' },
+    { k: 'endoH', t: 'Endodoncia', c: ODO_A, g: 'azul' },
+    { k: 'corH', t: 'Corona', c: ODO_A, g: 'azul' },
+    { k: 'aus', t: 'Ausente', c: ODO_A, g: 'azul' },
+    { k: 'imp', t: 'Implante', c: ODO_A, g: 'azul' },
+    { k: 'ret', t: 'Retenido', c: ODO_A, g: 'azul' },
+    { k: 'borrar', t: 'Borrar', c: '#a0aec0', g: 'otro' }
+];
+const ODO_SUP_NOM = { O: 'oclusal', M: 'mesial', D: 'distal', V: 'vestibular', L: 'lingual/palatino' };
+const ODO_SUP_TXT = { c: 'Caries', r: 'Resina', a: 'Amalgama' };
+const ODO_PERM_SUP = [18, 17, 16, 15, 14, 13, 12, 11, 21, 22, 23, 24, 25, 26, 27, 28];
+const ODO_PERM_INF = [48, 47, 46, 45, 44, 43, 42, 41, 31, 32, 33, 34, 35, 36, 37, 38];
+const ODO_TEMP_SUP = [55, 54, 53, 52, 51, 61, 62, 63, 64, 65];
+const ODO_TEMP_INF = [85, 84, 83, 82, 81, 71, 72, 73, 74, 75];
+let odoS = { n: null, tool: 'car', sel: null, vista: 'act' };
+let _odoTimer = null;
+
+function odoNombreDiente(n){
+    n = +n; const q = Math.floor(n / 10), k = n % 10, temp = q >= 5;
+    const lado = (q === 1 || q === 4 || q === 5 || q === 8) ? 'derecho' : 'izquierdo', arc = (q === 1 || q === 2 || q === 5 || q === 6) ? 'superior' : 'inferior';
+    const P = ['', 'incisivo central', 'incisivo lateral', 'canino', 'primer premolar', 'segundo premolar', 'primer molar', 'segundo molar', 'tercer molar'];
+    const T = ['', 'incisivo central temporal', 'incisivo lateral temporal', 'canino temporal', 'primer molar temporal', 'segundo molar temporal'];
+    return (temp ? T[k] : P[k]) + ' ' + arc + ' ' + lado;
+}
+function odoDe(nombre){
+    const p = pacientes[nombre]; if(!p) return null;
+    if(!p.odo || typeof p.odo !== 'object') p.odo = { d: {} };
+    if(!p.odo.d) p.odo.d = {};
+    if(!p.odo.dent){ let e = 0; try{ e = iaEdadDe(p); }catch(x){} p.odo.dent = (e > 0 && e < 6) ? 'temp' : (e > 0 && e <= 12) ? 'mixta' : 'perm'; }   // sin fecha de nacimiento: permanente
+    return p.odo;
+}
+function odoVacio(st){ if(!st) return true; return !Object.keys(st).some(k => k !== 'nota' && k !== 's') && !Object.keys(st.s || {}).length; }
+// Dibujo de un diente (5 superficies). En la imagen la mesial siempre mira a la línea media.
+function odoSvg(n, st, o){
+    o = o || {}; st = st || {}; const s = st.s || {}; n = +n;
+    const q = Math.floor(n / 10), sup = [1, 2, 5, 6].includes(q), mesIzq = [2, 3, 6, 7].includes(q);
+    const f = c => c === 'c' ? ODO_R : c === 'r' ? ODO_A : c === 'a' ? ODO_G : '#f7fafc', sw = o.big ? 1.2 : 2, ln = '#4a5568';
+    const top = sup ? 'V' : 'L', bot = sup ? 'L' : 'V', left = mesIzq ? 'M' : 'D', right = mesIzq ? 'D' : 'M';
+    const ck = k => o.clic ? ` data-sup="${k}" style="cursor:pointer"` : '';
+    let g = `<polygon points="10,10 90,10 70,30 30,30" fill="${f(s[top])}" stroke="${ln}" stroke-width="${sw}"${ck(top)}/>
+<polygon points="10,90 90,90 70,70 30,70" fill="${f(s[bot])}" stroke="${ln}" stroke-width="${sw}"${ck(bot)}/>
+<polygon points="10,10 30,30 30,70 10,90" fill="${f(s[left])}" stroke="${ln}" stroke-width="${sw}"${ck(left)}/>
+<polygon points="90,10 70,30 70,70 90,90" fill="${f(s[right])}" stroke="${ln}" stroke-width="${sw}"${ck(right)}/>
+<rect x="30" y="30" width="40" height="40" fill="${f(s.O)}" stroke="${ln}" stroke-width="${sw}"${ck('O')}/>`;
+    const col = v => v === 'p' ? ODO_R : ODO_A;
+    if(st.cor) g += `<circle cx="50" cy="50" r="47" fill="none" stroke="${col(st.cor)}" stroke-width="5" pointer-events="none"/>`;
+    if(st.endo) g += `<line x1="50" y1="${sup ? -2 : 102}" x2="50" y2="${sup ? 20 : 80}" stroke="${col(st.endo)}" stroke-width="7" stroke-linecap="round" pointer-events="none"/>`;
+    if(st.sell) g += `<text x="50" y="62" text-anchor="middle" font-size="34" font-weight="bold" fill="${ODO_A}" pointer-events="none" font-family="Arial">S</text>`;
+    if(st.frac) g += `<polyline points="20,15 45,45 35,55 80,88" fill="none" stroke="${ODO_R}" stroke-width="6" pointer-events="none"/>`;
+    if(st.ext) g += `<g pointer-events="none"><line x1="8" y1="8" x2="92" y2="92" stroke="${ODO_R}" stroke-width="8"/><line x1="92" y1="8" x2="8" y2="92" stroke="${ODO_R}" stroke-width="8"/></g>`;
+    if(st.aus) g = `<rect x="10" y="10" width="80" height="80" fill="#edf2f7" stroke="#a0aec0" stroke-width="2"/><line x1="12" y1="12" x2="88" y2="88" stroke="${ODO_A}" stroke-width="8"/><line x1="88" y1="12" x2="12" y2="88" stroke="${ODO_A}" stroke-width="8"/>`;
+    if(st.imp) g = `<rect x="10" y="10" width="80" height="80" fill="#edf2f7" stroke="#a0aec0" stroke-width="2"/><path d="M38 20 h24 M34 32 h32 M36 44 h28 M38 56 h24 M40 68 h20 M44 80 h12" stroke="${ODO_A}" stroke-width="7" stroke-linecap="round"/>`;
+    if(st.ret) g += `<rect x="4" y="4" width="92" height="92" rx="8" fill="none" stroke="${ODO_A}" stroke-width="4" stroke-dasharray="9 6" pointer-events="none"/>`;
+    if(st.bot && !o.sinBot) g += `<circle cx="88" cy="12" r="13" fill="#d69e2e" pointer-events="none"/><text x="88" y="19" text-anchor="middle" font-size="20" font-weight="bold" fill="#fff" pointer-events="none" font-family="Arial">?</text>`;
+    return `<svg viewBox="-4 -4 108 108"${o.w ? ` width="${o.w}" height="${o.w}"` : ''}${o.big ? ' class="odo-big"' : ''}>${g}</svg>`;
+}
+function odoChips(st){
+    const ch = [], s = (st && st.s) || {};
+    if(!st) return ch;
+    Object.keys(s).forEach(k => ch.push([ODO_SUP_TXT[s[k]] + ' · ' + ODO_SUP_NOM[k], s[k] === 'c' ? 'r' : 'a']));
+    if(st.endo) ch.push([st.endo === 'p' ? 'Endodoncia por hacer' : 'Endodoncia', st.endo === 'p' ? 'r' : 'a']);
+    if(st.cor) ch.push([st.cor === 'p' ? 'Corona por hacer' : 'Corona', st.cor === 'p' ? 'r' : 'a']);
+    if(st.ext) ch.push(['Por extraer', 'r']); if(st.frac) ch.push(['Fractura', 'r']);
+    if(st.sell) ch.push(['Sellante', 'a']); if(st.aus) ch.push(['Ausente', 'a']); if(st.imp) ch.push(['Implante', 'a']); if(st.ret) ch.push(['Retenido', 'a']);
+    return ch;
+}
+function odoFilas(dent){
+    const R = [];
+    if(dent !== 'temp') R.push({ a: ODO_PERM_SUP, sup: true });
+    if(dent !== 'perm') R.push({ a: ODO_TEMP_SUP, sup: true, temp: true });
+    if(dent !== 'perm') R.push({ a: ODO_TEMP_INF, sup: false, temp: true });
+    if(dent !== 'temp') R.push({ a: ODO_PERM_INF, sup: false });
+    return R;
+}
+// ---------- Abrir y dibujar ----------
+function odoAbrir(nombre){
+    nombre = nombre || dirNombreActual; if(!nombre || !pacientes[nombre]) return;
+    odoS.n = nombre; odoS.vista = 'act'; odoS.sel = null; odoDe(nombre);
+    document.getElementById('odoModal').style.display = 'flex';
+    odoRender();
+}
+function odoCerrar(){
+    if(_odoTimer){ clearTimeout(_odoTimer); _odoTimer = null; odoGuardar(true); }
+    document.getElementById('odoModal').style.display = 'none';
+    if(dirNombreActual === odoS.n){ try{ renderPlanTratamiento(odoS.n); }catch(e){} }
+}
+function odoRender(){
+    const nombre = odoS.n, O = odoDe(nombre); if(!O) return;
+    const ini = odoS.vista === 'ini', D = ini ? (O.ini || {}) : O.d, filas = odoFilas(O.dent);
+    const tile = (n, sup) => { const st = D[n]; return `<div class="odo-t${String(odoS.sel) === String(n) ? ' sel' : ''}" data-n="${n}">${sup ? '<b>' + n + '</b>' : ''}${odoSvg(n, st, { clic: !ini })}${sup ? '' : '<b>' + n + '</b>'}</div>`; };
+    const fila = f => { const izq = f.a.slice(0, f.a.length / 2), der = f.a.slice(f.a.length / 2), hueco = f.temp ? '<div></div><div></div><div></div>' : '';
+        return `<div class="odo-arch${f.sup ? '' : ' inf'}${f.temp ? ' temp' : ''}">${hueco}${izq.map(n => tile(n, f.sup)).join('')}<div class="odo-mid"></div>${der.map(n => tile(n, f.sup)).join('')}${hueco}</div>`; };
+    const nBot = Object.keys(O.d).filter(k => O.d[k] && O.d[k].bot).length;
+    const hayBot = !!(((pacientes[nombre] || {}).diag || {}).d && ((pacientes[nombre].diag.d.dientesNum || []).length));
+    const sel = odoS.sel, stSel = sel ? D[sel] : null;
+    const seg = (id, ops, val) => `<div class="odo-seg">${ops.map(o => `<span class="${o[0] === val ? 'on' : ''}" onclick="${id}('${o[0]}')">${o[1]}</span>`).join('')}</div>`;
+    const herr = g => ODO_TOOLS.filter(t => t.g === g).map(t => `<button type="button" class="odo-tool${odoS.tool === t.k ? ' on' : ''}" onclick="odoHerr('${t.k}')"><i style="background:${t.c}"></i>${t.t}</button>`).join('');
+    const fecha = ini ? (O.iniDia ? new Date(O.iniDia + 'T12:00').toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' }) : 'sin registro') : new Date().toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' });
+    const chips = odoChips(stSel).map(c => `<span class="odo-chip ${c[1]}">${escHtml(c[0])}</span>`).join('');
+    document.getElementById('odoBody').innerHTML = `
+        <div class="modal-header" style="margin-bottom:10px;"><div><h2 style="margin:0; color:var(--primary);">🦷 Odontograma</h2><div class="odo-sub">${escHtml(nombre)} · ${fecha} · ${ini ? 'inicial (solo lectura)' : 'actual'}</div></div><button class="close-btn" onclick="odoCerrar()">X</button></div>
+        <div class="odo-segs">${seg('odoDent', [['perm', 'Permanente'], ['mixta', 'Mixta'], ['temp', 'Temporal']], O.dent)}${seg('odoVista', [['act', 'Actual'], ['ini', 'Inicial']], odoS.vista)}</div>
+        ${ini ? `<div class="odo-aviso">Así estaba el paciente en su primera consulta${O.iniDia ? ' (' + fecha + ')' : ''}. Se fija sola al terminar el día en que lo llenaste.${Object.keys(O.d).length ? ' <button type="button" class="esc-mini" onclick="odoFijarInicial()">Usar lo actual como inicial</button>' : ''}</div>` : `
+        <div class="odo-tools"><span class="odo-lbl" style="color:${ODO_R}">Por tratar</span>${herr('rojo')}</div>
+        <div class="odo-tools"><span class="odo-lbl" style="color:${ODO_A}">Ya tiene</span>${herr('azul')}${herr('otro')}</div>
+        ${nBot ? `<div class="odo-aviso">${nBot} diente(s) con <b style="color:#b7791f;">?</b> los llenó el bot y no van al plan hasta que los confirmes. <button type="button" class="esc-mini" onclick="odoBotConfirmarTodos()">Confirmar todos</button></div>` : ''}`}
+        <div class="odo-board" onclick="odoClick(event)">
+            <div class="odo-lado"><span>DERECHO</span><span>SUPERIOR</span><span>IZQUIERDO</span></div>
+            ${filas.map(fila).join('')}
+            <div class="odo-lado abajo"><span>DERECHO</span><span>INFERIOR</span><span>IZQUIERDO</span></div>
+        </div>
+        <div class="odo-row2">
+            <div class="odo-card">${sel ? `<h3>Diente ${sel} · ${odoNombreDiente(sel)}</h3>
+                <div class="odo-bigrow"><div onclick="odoClick(event)" data-n="${sel}" class="odo-bigbox">${odoSvg(sel, stSel, { big: 1, clic: !ini })}</div>
+                <div style="flex:1; min-width:0;"><div class="odo-sub">${ini ? '' : 'Toca una superficie para marcarla con la herramienta elegida.'}</div>
+                <div class="odo-chips">${chips || '<span class="odo-sub">Sin marcas</span>'}</div>
+                ${stSel && stSel.bot ? `<div class="odo-aviso" style="margin-top:6px;">Bot: ${escHtml(stSel.bot)}. ${ini ? '' : `<button type="button" class="esc-mini" onclick="odoBotConfirmar('${sel}')">Confirmar</button> <button type="button" class="esc-mini" onclick="odoBotDescartar('${sel}')">Descartar</button>`}</div>` : ''}
+                ${ini ? (stSel && stSel.nota ? '<div class="odo-sub" style="margin-top:6px;">' + escHtml(stSel.nota) + '</div>' : '') : `<textarea class="odo-nota" placeholder="Nota del diente (solo tú la ves)" oninput="odoNota('${sel}', this.value)">${escHtml((stSel && stSel.nota) || '')}</textarea>`}
+                </div></div>` : '<h3>Detalle</h3><div class="odo-sub">Toca un diente para verlo en grande, marcar sus superficies y escribirle una nota.</div>'}</div>
+            <div class="odo-card"><h3>Simbología</h3><div class="odo-ley">${[['Caries', { s: { O: 'c' } }], ['Resina', { s: { O: 'r' } }], ['Amalgama', { s: { O: 'a' } }], ['Sellante', { sell: 1 }], ['Corona', { cor: 'h' }], ['Endodoncia', { endo: 'h' }], ['Por extraer', { ext: 1 }], ['Ausente', { aus: 1 }], ['Implante', { imp: 1 }], ['Retenido', { ret: 1 }], ['Fractura', { frac: 1 }]].map(l => `<div><span style="width:24px; display:inline-block;">${odoSvg(16, l[1], { sinBot: 1 })}</span>${l[0]}</div>`).join('')}</div>
+                <div class="odo-sub" style="margin-top:8px;"><b style="color:${ODO_R}">Rojo:</b> por tratar (va al plan) · <b style="color:${ODO_A}">Azul:</b> ya realizado. Al palomear un tratamiento en el plan, el diente se pone azul solo.</div></div>
+        </div>
+        <div class="odo-acc">
+            ${!ini && hayBot ? '<button type="button" class="btn-3d" onclick="odoBotLlenar()">Llenar con el bot</button>' : ''}
+            <button type="button" class="btn-3d" onclick="odoImagenPaciente()">Imagen para el paciente</button>
+            <button type="button" class="btn-3d" style="color:#fff; background:var(--primary);" onclick="odoCerrar()">Listo</button>
+        </div>`;
+}
+function odoHerr(k){ odoS.tool = k; odoRender(); }
+function odoVista(v){ odoS.vista = v; odoRender(); }
+function odoDent(v){ const O = odoDe(odoS.n); O.dent = v; odoGuardar(); odoRender(); }
+// ---------- Marcar ----------
+function odoClick(ev){
+    const t = ev.target, sup = t.getAttribute && t.getAttribute('data-sup'), box = t.closest && t.closest('[data-n]');
+    if(!box) return; ev.stopPropagation();
+    const n = box.getAttribute('data-n'); odoS.sel = n;
+    if(odoS.vista === 'ini'){ odoRender(); return; }
+    const tool = ODO_TOOLS.find(x => x.k === odoS.tool) || ODO_TOOLS[0];
+    if(tool.sup && !sup){ odoRender(); return; }   // con herramienta de superficie, tocar el número solo selecciona
+    odoAplicar(n, tool.k, sup);
+}
+function odoAplicar(n, k, sup){
+    const O = odoDe(odoS.n), D = O.d, st = D[n] = D[n] || {};
+    delete st.bot;   // lo que tocas tú ya no es "del bot"
+    const tool = ODO_TOOLS.find(x => x.k === k);
+    const limpiar = () => { ['s', 'endo', 'cor', 'ext', 'aus', 'imp', 'ret', 'frac', 'sell'].forEach(x => delete st[x]); };
+    if(k === 'borrar'){ if(sup && st.s){ delete st.s[sup]; if(!Object.keys(st.s).length) delete st.s; } else limpiar(); }
+    else if(tool && tool.sup){ if(st.aus || st.imp){ delete st.aus; delete st.imp; } st.s = st.s || {}; if(st.s[sup] === tool.sup) delete st.s[sup]; else st.s[sup] = tool.sup; if(!Object.keys(st.s).length) delete st.s; }
+    else if(k === 'endoP' || k === 'endoH'){ const v = k === 'endoP' ? 'p' : 'h'; if(st.endo === v) delete st.endo; else st.endo = v; delete st.aus; delete st.imp; }
+    else if(k === 'corP' || k === 'corH'){ const v = k === 'corP' ? 'p' : 'h'; if(st.cor === v) delete st.cor; else st.cor = v; delete st.aus; delete st.imp; }
+    else if(k === 'aus' || k === 'imp'){ const ya = st[k]; limpiar(); if(!ya) st[k] = 1; }
+    else if(k === 'ext'){ if(st.ext) delete st.ext; else { st.ext = 1; delete st.aus; delete st.imp; if(st.s) Object.keys(st.s).forEach(x => { if(st.s[x] === 'c') delete st.s[x]; }); if(st.s && !Object.keys(st.s).length) delete st.s; if(st.endo === 'p') delete st.endo; if(st.cor === 'p') delete st.cor; } }
+    else { if(st[k]) delete st[k]; else { st[k] = 1; if(k !== 'ret'){ delete st.aus; delete st.imp; } } }
+    if(odoVacio(st) && !st.nota) delete D[n];
+    odoGuardar(); odoRender();
+}
+function odoNota(n, v){ const D = odoDe(odoS.n).d; D[n] = D[n] || {}; if(v) D[n].nota = v; else { delete D[n].nota; if(odoVacio(D[n])) delete D[n]; } odoGuardar(false, true); }
+function odoFijarInicial(){ const O = odoDe(odoS.n); if(!confirm('¿Reemplazar el odontograma inicial con el estado actual?')) return; O.ini = JSON.parse(JSON.stringify(O.d)); O.iniDia = new Date().toISOString().slice(0, 10); O.iniFijo = true; odoGuardar(); odoRender(); }
+// ---------- Guardar (local + nube) y sincronizar con el plan ----------
+function odoGuardar(ya, soloNota){
+    const nombre = odoS.n; if(!nombre || !pacientes[nombre]) return;
+    const O = odoDe(nombre), hoy = new Date().toISOString().slice(0, 10);
+    if(!O.iniFijo && (!O.iniDia || O.iniDia === hoy) && Object.keys(O.d).length){ O.ini = JSON.parse(JSON.stringify(O.d)); O.iniDia = O.iniDia || hoy; }
+    if(!soloNota) odoSyncPlan(nombre);
+    localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes));
+    if(_odoTimer) clearTimeout(_odoTimer);
+    const sube = () => { _odoTimer = null; try{ guardarPlan(nombre); }catch(e){ guardarAgendaEnNube(); } };
+    if(ya) sube(); else _odoTimer = setTimeout(sube, soloNota ? 1500 : 700);
+}
+const ODO_PLAN_TIPO = { car: 'Caries / Resina', endo: 'Endodoncia', cor: 'Corona', ext: 'Extracción', frac: 'Otro' };
+function odoDeseados(D){
+    const out = [];
+    Object.keys(D || {}).forEach(n => { const st = D[n]; if(!st || st.bot) return;
+        const car = Object.keys(st.s || {}).filter(k => st.s[k] === 'c');
+        if(car.length) out.push({ d: n, k: 'car', sup: car });
+        if(st.endo === 'p') out.push({ d: n, k: 'endo' });
+        if(st.cor === 'p') out.push({ d: n, k: 'cor' });
+        if(st.ext) out.push({ d: n, k: 'ext' });
+        if(st.frac) out.push({ d: n, k: 'frac' });
+    });
+    return out;
+}
+function odoTextoDiente(x){ return x.k === 'car' ? x.d + ' (' + x.sup.join(', ') + ')' : x.k === 'frac' ? x.d + ' · fractura' : String(x.d); }
+function odoSyncPlan(nombre){
+    const p = pacientes[nombre], O = p.odo; if(!O) return;
+    p.plan = Array.isArray(p.plan) ? p.plan : [];
+    const ord = ['O', 'M', 'D', 'V', 'L'], des = odoDeseados(O.d);
+    des.forEach(x => { if(x.sup) x.sup.sort((a, b) => ord.indexOf(a) - ord.indexOf(b)); });
+    // quitar pendientes que ya no están marcados
+    p.plan = p.plan.filter(t => !(t.odo && !t.hecho && !des.some(x => x.d === t.odo.d && x.k === t.odo.k)));
+    des.forEach(x => {
+        const t = p.plan.find(t => t.odo && !t.hecho && t.odo.d === x.d && t.odo.k === x.k);
+        if(t){ t.diente = odoTextoDiente(x); t.odo.sup = x.sup || null; return; }
+        p.plan.push({ id: 'o' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), tipo: ODO_PLAN_TIPO[x.k], diente: odoTextoDiente(x), prioridad: 'normal', hecho: false, odo: { d: x.d, k: x.k, sup: x.sup || null } });
+    });
+}
+// Al palomear (o despalomear) en el plan, el diente cambia de rojo a azul (o regresa)
+function odoPlanHecho(nombre, t){
+    if(!t || !t.odo) return; const O = odoDe(nombre), D = O.d, n = t.odo.d, st = D[n] = D[n] || {};
+    if(t.hecho){
+        if(t.odo.k === 'car'){ st.s = st.s || {}; (t.odo.sup || ['O']).forEach(k => { st.s[k] = 'r'; }); }
+        if(t.odo.k === 'endo') st.endo = 'h';
+        if(t.odo.k === 'cor') st.cor = 'h';
+        if(t.odo.k === 'ext'){ delete st.ext; ['s', 'endo', 'cor', 'frac', 'sell', 'imp'].forEach(x => delete st[x]); st.aus = 1; }
+        if(t.odo.k === 'frac') delete st.frac;
+    } else {
+        if(t.odo.k === 'car'){ st.s = st.s || {}; (t.odo.sup || ['O']).forEach(k => { st.s[k] = 'c'; }); }
+        if(t.odo.k === 'endo') st.endo = 'p';
+        if(t.odo.k === 'cor') st.cor = 'p';
+        if(t.odo.k === 'ext'){ delete st.aus; st.ext = 1; }
+        if(t.odo.k === 'frac') st.frac = 1;
+    }
+    odoSyncPlan(nombre);
+}
+// Si borras del plan un pendiente que salió del odontograma, se quita también la marca roja
+function odoPlanQuitado(nombre, t){
+    if(!t || !t.odo || t.hecho) return; const D = odoDe(nombre).d, st = D[t.odo.d]; if(!st) return;
+    if(t.odo.k === 'car' && st.s){ Object.keys(st.s).forEach(k => { if(st.s[k] === 'c') delete st.s[k]; }); if(!Object.keys(st.s).length) delete st.s; }
+    if(t.odo.k === 'endo' && st.endo === 'p') delete st.endo;
+    if(t.odo.k === 'cor' && st.cor === 'p') delete st.cor;
+    if(t.odo.k === 'ext') delete st.ext;
+    if(t.odo.k === 'frac') delete st.frac;
+    if(odoVacio(st) && !st.nota) delete D[t.odo.d];
+}
+// Un tratamiento agregado a mano en el plan con número de diente también se marca en el odontograma
+function odoDesdePlanManual(nombre, t){
+    const n = String(t.diente || '').trim(); if(!/^[1-8][1-8]$/.test(n) || (+n[0] >= 5 && +n[1] > 5)) return;
+    const k = { 'Caries / Resina': 'car', 'Endodoncia': 'endo', 'Corona': 'cor', 'Extracción': 'ext' }[t.tipo]; if(!k) return;
+    const D = odoDe(nombre).d, st = D[n] = D[n] || {}; delete st.bot;
+    if(k === 'car'){ st.s = st.s || {}; if(!Object.values(st.s).includes('c')) st.s.O = 'c'; t.odo = { d: n, k: 'car', sup: Object.keys(st.s).filter(x => st.s[x] === 'c') }; }
+    else { if(k === 'endo') st.endo = 'p'; if(k === 'cor') st.cor = 'p'; if(k === 'ext') st.ext = 1; t.odo = { d: n, k: k, sup: null }; }
+    delete st.aus; delete st.imp;
+    odoSyncPlan(nombre);
+}
+// ---------- Bot ----------
+function odoBotLlenar(){
+    const nombre = odoS.n, p = pacientes[nombre], d = p && p.diag && p.diag.d; if(!d || !(d.dientesNum || []).length){ daToast('Primero analiza la panorámica de este paciente', 'err'); return; }
+    let o = {}; try{ o = dpOdonto(d); }catch(e){ daToast('No pude leer el análisis del bot', 'err'); return; }
+    const D = odoDe(nombre).d, nuevos = [];
+    const M = { c: ['caries', st => { st.s = { O: 'c' }; }], cp: ['caries profunda', st => { st.s = { O: 'c' }; }], r: ['restauración', st => { st.s = { O: 'r' }; }], k: ['corona', st => { st.cor = 'h'; }], e: ['endodoncia', st => { st.endo = 'h'; }], m: ['implante', st => { st.imp = 1; }], rr: ['resto radicular', st => { st.ext = 1; }], i: ['retenido', st => { st.ret = 1; }], a: ['ausente', st => { st.aus = 1; }], x: ['por extraer', st => { st.ext = 1; }] };
+    Object.keys(o).forEach(n => { const c = o[n], m = M[c]; if(!m) return; if(c === 'a' && +n % 10 === 8) return;
+        if(D[n] && !odoVacio(D[n]) && !D[n].bot) return;   // lo que ya marcaste tú no se toca
+        nuevos.push([n, m]); });
+    if(!nuevos.length){ daToast('El bot no encontró nada nuevo que agregar', 'ok'); return; }
+    let edad = 0; try{ edad = iaEdadDe(p); }catch(e){}
+    if(!confirm('El bot marcará ' + nuevos.length + ' diente(s) según la panorámica:\n\n' + nuevos.map(x => x[0] + ' ' + x[1][0]).join(', ') + '\n\nQuedan con "?" y NO pasan al plan del paciente hasta que los confirmes.' + (edad > 0 && edad <= 12 ? '\n\nOjo: en dentición mixta el bot puede equivocarse en los números.' : ''))) return;
+    nuevos.forEach(x => { const n = x[0], nota = D[n] && D[n].nota; const st = D[n] = {}; x[1][1](st); st.bot = x[1][0] + ' (panorámica)'; if(nota) st.nota = nota;
+        // un mismo diente puede tener varios tratamientos previos (p. ej. endodoncia + corona)
+        (d.restDet || []).filter(r => !r.x && String(r.d) === String(n)).forEach(r => { if(st.aus || st.imp || st.ext) return; const t = r.t || [];
+            if(t.includes('corona')) st.cor = 'h'; if(t.includes('endodoncia') || t.includes('poste')) st.endo = 'h'; if(t.includes('resina') && !(st.s && st.s.O)) st.s = Object.assign({}, st.s, { O: 'r' });
+            const extra = t.filter(z => ['corona', 'endodoncia', 'poste', 'resina'].includes(z)); if(extra.length) st.bot = extra.join(' y ') + ' (panorámica)'; }); });
+    odoGuardar(); odoRender(); daToast('Listo: revisa los dientes con ?', 'ok');
+}
+function odoBotConfirmar(n){ const st = odoDe(odoS.n).d[n]; if(st) delete st.bot; odoGuardar(); odoRender(); }
+function odoBotDescartar(n){ const D = odoDe(odoS.n).d, st = D[n]; if(!st) return; const nota = st.nota; D[n] = nota ? { nota: nota } : undefined; if(!nota) delete D[n]; odoGuardar(); odoRender(); }
+function odoBotConfirmarTodos(){ const D = odoDe(odoS.n).d; Object.keys(D).forEach(n => { if(D[n] && D[n].bot) delete D[n].bot; }); odoGuardar(); odoRender(); daToast('Confirmados; lo rojo ya está en el plan', 'ok'); }
+// ---------- Vista previa en la pestaña Tratamiento ----------
+function odoMiniRender(nombre){
+    const box = document.getElementById('odoMini'); if(!box) return;
+    const p = pacientes[nombre]; const O = p && p.odo; const D = (O && O.d) || {};
+    const n = Object.keys(D).filter(k => !odoVacio(D[k])).length, roj = odoDeseados(D).length, bot = Object.keys(D).filter(k => D[k] && D[k].bot).length;
+    const fila = A => `<div class="odo-mini-f">${A.map((x, i) => (i === A.length / 2 ? '<span class="odo-mid"></span>' : '') + odoSvg(x, D[x], { sinBot: 1 })).join('')}</div>`;
+    const dent = (O && O.dent) || 'perm';
+    box.innerHTML = `<div class="odo-mini" onclick="odoAbrir()">${dent === 'temp' ? fila(ODO_TEMP_SUP) + fila(ODO_TEMP_INF) : fila(ODO_PERM_SUP) + fila(ODO_PERM_INF)}</div>
+        <div class="odo-sub" style="text-align:center; margin-top:4px;">${n ? n + ' diente(s) con marcas' + (roj ? ' · ' + roj + ' por tratar' : '') + (bot ? ' · ' + bot + ' del bot por confirmar' : '') : 'Sin llenar todavía'}</div>`;
+}
+// ---------- Imagen para el paciente (sin notas; número solo en los dientes con algo) ----------
+async function odoImagenPaciente(){
+    const nombre = odoS.n, O = odoDe(nombre), D = odoS.vista === 'ini' ? (O.ini || {}) : O.d, filas = odoFilas(O.dent);
+    const W = 1600, cel = 84, gap = 8, x0 = (W - (16 * cel + 15 * gap + 20)) / 2;
+    let y = 190, g = '';
+    const lim = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+    filas.forEach(f => {
+        const off = f.temp ? 3 : 0;
+        f.a.forEach((n, i) => { const col = i + off, x = x0 + col * (cel + gap) + (i >= f.a.length / 2 ? 20 : 0), st = D[n], marca = st && !odoVacio(st) && !st.bot;
+            const svg = odoSvg(n, st && !st.bot ? st : null, { sinBot: 1 }).replace('<svg ', `<svg x="${x}" y="${y + (f.sup ? 30 : 0)}" width="${cel}" height="${cel}" `);
+            g += svg; if(marca) g += `<text x="${x + cel / 2}" y="${f.sup ? y + 22 : y + cel + 30}" text-anchor="middle" font-size="24" font-weight="bold" fill="#124578" font-family="Arial">${n}</text>`; });
+        y += cel + 52 + (f.temp ? 0 : 6);
+    });
+    const midX = x0 + 8 * (cel + gap) + 6;
+    g += `<line x1="${midX}" y1="180" x2="${midX}" y2="${y}" stroke="#a3b1c6" stroke-width="3" stroke-dasharray="10 8"/>`;
+    const usados = [['Caries', { s: { O: 'c' } }, D => Object.values(D).some(s => s && !s.bot && Object.values(s.s || {}).includes('c'))], ['Resina', { s: { O: 'r' } }, D => Object.values(D).some(s => s && !s.bot && Object.values(s.s || {}).includes('r'))], ['Amalgama', { s: { O: 'a' } }, D => Object.values(D).some(s => s && !s.bot && Object.values(s.s || {}).includes('a'))], ['Sellante', { sell: 1 }, 'sell'], ['Corona', { cor: 'h' }, 'cor'], ['Endodoncia', { endo: 'h' }, 'endo'], ['Por extraer', { ext: 1 }, 'ext'], ['Ausente', { aus: 1 }, 'aus'], ['Implante', { imp: 1 }, 'imp'], ['Retenido', { ret: 1 }, 'ret'], ['Fractura', { frac: 1 }, 'frac']]
+        .filter(l => typeof l[2] === 'function' ? l[2](D) : Object.values(D).some(s => s && !s.bot && s[l[2]]));
+    let ly = y + 30; const lx = x0;
+    if(usados.length){ g += `<text x="${lx}" y="${ly}" font-size="26" font-weight="bold" fill="#124578" font-family="Arial">Simbología</text>`; ly += 20;
+        usados.forEach((l, i) => { const cx = lx + (i % 4) * 360, cy = ly + Math.floor(i / 4) * 58; g += odoSvg(16, l[1], { sinBot: 1 }).replace('<svg ', `<svg x="${cx}" y="${cy}" width="44" height="44" `) + `<text x="${cx + 56}" y="${cy + 31}" font-size="24" fill="#2d3748" font-family="Arial">${l[0]}</text>`; });
+        ly += Math.ceil(usados.length / 4) * 58 + 10; }
+    g += `<text x="${lx}" y="${ly + 30}" font-size="24" fill="#2d3748" font-family="Arial"><tspan fill="${ODO_R}" font-weight="bold">Rojo:</tspan> por tratar   <tspan fill="${ODO_A}" font-weight="bold">Azul:</tspan> ya realizado</text>`;
+    const H = ly + 80, fecha = new Date().toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' });
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><rect width="${W}" height="${H}" fill="#ffffff"/>
+        <text x="${x0}" y="70" font-size="44" font-weight="bold" fill="#124578" font-family="Arial">Dentilike · Odontograma</text>
+        <text x="${x0}" y="118" font-size="28" fill="#4a5568" font-family="Arial">${lim(nombre)} · ${fecha}</text>
+        <text x="${x0}" y="168" font-size="20" fill="#718096" font-family="Arial">Derecho del paciente a la izquierda</text>${g}</svg>`;
+    try{
+        const img = new Image(); img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+        await new Promise((ok, mal) => { img.onload = ok; img.onerror = mal; });
+        const cv = document.createElement('canvas'); cv.width = W; cv.height = H; const cx = cv.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, W, H); cx.drawImage(img, 0, 0);
+        const url = cv.toDataURL('image/jpeg', 0.9), blob = await new Promise(r => cv.toBlob(r, 'image/jpeg', 0.9));
+        dpVerImagen(url, 'Dentilike-odontograma.jpg', blob);
+    }catch(e){ console.error(e); daToast('No pude generar la imagen', 'err'); }
+}
+
 </script>
 </body>
 </html>
