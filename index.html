@@ -1414,50 +1414,64 @@
         // y el cel agregó fotos, se quedan las dos cosas. Para saber "quién cambió qué" se guarda una huella
         // (hash) de cada campo tal como estaba en la nube la última vez que este dispositivo la vio.
         function _hTxt(str){ let h1 = 0xdeadbeef, h2 = 0x41c6ce57; for(let i = 0; i < str.length; i++){ const ch = str.charCodeAt(i); h1 = Math.imul(h1 ^ ch, 2654435761); h2 = Math.imul(h2 ^ ch, 1597334677); } h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909); h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909); return (h2 >>> 0).toString(36) + (h1 >>> 0).toString(36); }
-        function _hVal(v){ return _hTxt(String(JSON.stringify(v))); }
-        let pacBaseH = null; try{ pacBaseH = JSON.parse(localStorage.getItem('denti_pac_base_v114') || 'null'); }catch(e){ pacBaseH = null; }
+        // Texto canónico: mismas llaves en el mismo orden (Firestore regresa las llaves ordenadas y aquí se guardan en otro orden;
+        // compararlas tal cual hacía creer que había cambios y los dispositivos se reenviaban la lista sin parar).
+        function _canon(v){
+            if(v === undefined) return 'u';
+            if(v === null || typeof v !== 'object') return JSON.stringify(v);
+            if(Array.isArray(v)) return '[' + v.map(_canon).join(',') + ']';
+            return '{' + Object.keys(v).filter(k => v[k] !== undefined).sort().map(k => JSON.stringify(k) + ':' + _canon(v[k])).join(',') + '}';
+        }
+        function _igual(a, b){ return _canon(a) === _canon(b); }
+        function _hVal(v){ return _hTxt(_canon(v)); }
+        // La "foto de referencia" de la nube vive SOLO en memoria: se arma con lo que llega en esta sesión.
+        // (Guardarla en el teléfono podía quedar desfasada de la lista local y hacer creer que se borraron pacientes.)
+        let pacBaseH = null; try{ localStorage.removeItem('denti_pac_base_v114'); }catch(e){}
         let pacConflictos = []; try{ pacConflictos = JSON.parse(localStorage.getItem('denti_pac_confl_v114') || '[]'); }catch(e){ pacConflictos = []; }
         if(!Array.isArray(pacConflictos)) pacConflictos = [];
+        // Pacientes eliminados a propósito (con "ELIMINAR"). Es la ÚNICA forma en que un paciente se quita de la nube al combinar:
+        // si a un dispositivo simplemente le falta un paciente, NO se borra de la nube; se conserva.
+        let pacBorrados = []; try{ pacBorrados = JSON.parse(localStorage.getItem('denti_pac_borrados_v115') || '[]'); }catch(e){ pacBorrados = []; }
+        if(!Array.isArray(pacBorrados)) pacBorrados = [];
+        function guardarPacBorradosLocal(){ try{ localStorage.setItem('denti_pac_borrados_v115', JSON.stringify(pacBorrados)); }catch(e){} }
+        function unirBorrados(a, b){ const lim = Date.now() - 180 * 86400000, m = {}; (a || []).concat(b || []).forEach(x => { if(x && x.n && x.t > lim && (!m[x.n] || m[x.n].t < x.t)) m[x.n] = x; }); return Object.values(m).sort((x, y) => x.t - y.t).slice(-300); }
         function huellasPacientes(obj){ const H = {}; Object.keys(obj || {}).forEach(n => { const p = obj[n] || {}, h = {}; Object.keys(p).forEach(k => { if(k === 'foto' && String(p.foto || '').indexOf('data:') === 0) return; h[k] = _hVal(p[k]); }); H[n] = h; }); return H; }
-        function guardarPacBase(obj){ pacBaseH = huellasPacientes(obj); try{ localStorage.setItem('denti_pac_base_v114', JSON.stringify(pacBaseH)); }catch(e){} }
+        function guardarPacBase(obj){ pacBaseH = huellasPacientes(obj); }
         function _esObj(v){ return v && typeof v === 'object' && !Array.isArray(v); }
-        function _llave(x){ return (x && typeof x === 'object' && x.id != null) ? 'id:' + x.id : 'j:' + JSON.stringify(x); }
+        function _llave(x){ return (x && typeof x === 'object' && x.id != null) ? 'id:' + x.id : 'j:' + _canon(x); }
         // Los dos dispositivos cambiaron el mismo campo: se juntan listas y objetos; en texto gana 'gana' y el otro valor se guarda para poder recuperarlo.
         function _juntar(gana, otro){
             if(Array.isArray(gana) && Array.isArray(otro)){ const ya = new Set(gana.map(_llave)), out = gana.slice(); otro.forEach(x => { const k = _llave(x); if(!ya.has(k)){ ya.add(k); out.push(x); } }); return { v: out, perdido: false }; }
-            if(_esObj(gana) && _esObj(otro)){ const out = Object.assign({}, otro); let perdido = false; Object.keys(gana).forEach(k => { if(k in otro && JSON.stringify(otro[k]) !== JSON.stringify(gana[k])){ const r = _juntar(gana[k], otro[k]); out[k] = r.v; if(r.perdido) perdido = true; } else out[k] = gana[k]; }); return { v: out, perdido: perdido }; }
+            if(_esObj(gana) && _esObj(otro)){ const out = Object.assign({}, otro); let perdido = false; Object.keys(gana).forEach(k => { if(k in otro && !_igual(otro[k], gana[k])){ const r = _juntar(gana[k], otro[k]); out[k] = r.v; if(r.perdido) perdido = true; } else out[k] = gana[k]; }); return { v: out, perdido: perdido }; }
             return { v: gana, perdido: true };
         }
-        // base = huellas de la nube vista por última vez · L = este dispositivo · R = la nube ahora · modo 'guardar' | 'recibir'
-        function fusionarPacientes(base, L, R, modo){
-            L = L || {}; R = R || {}; const out = {}, confl = [], nombres = new Set(Object.keys(L).concat(Object.keys(R)));
-            if(!base){   // primera vez con esta versión: se comporta como antes, pero sin perder pacientes que solo están de un lado
-                nombres.forEach(n => { out[n] = modo === 'guardar' ? (L[n] || R[n]) : (R[n] || L[n]); });
-                return { pac: out, confl: confl };
-            }
-            const igualABase = (p, b) => { if(!b) return false; const ks = new Set(Object.keys(p).concat(Object.keys(b))); for(const k of ks){ if(k === 'foto' && String(p.foto || '').indexOf('data:') === 0) continue; if((k in p ? _hVal(p[k]) : undefined) !== b[k]) return false; } return true; };
+        // base = huellas de la nube vista por última vez (en esta sesión) · L = este dispositivo · R = la nube ahora · modo 'guardar' | 'recibir'
+        // borr = nombres eliminados a propósito
+        function fusionarPacientes(base, L, R, modo, borr){
+            L = L || {}; R = R || {}; borr = borr || new Set(); const out = {}, confl = [], revividos = [], nombres = new Set(Object.keys(L).concat(Object.keys(R)));
             nombres.forEach(n => {
-                const l = L[n], r = R[n], b = base[n];
-                if(l && r){
-                    if(JSON.stringify(l) === JSON.stringify(r)){ out[n] = r; return; }
-                    const p = {}, ks = new Set(Object.keys(l).concat(Object.keys(r)));
-                    ks.forEach(k => {
-                        const enL = k in l, enR = k in r, lv = l[k], rv = r[k];
-                        if(JSON.stringify(lv) === JSON.stringify(rv)){ if(enL || enR) p[k] = enL ? lv : rv; return; }
-                        const bh = b ? b[k] : undefined, hl = enL ? _hVal(lv) : undefined, hr = enR ? _hVal(rv) : undefined;
-                        if(b && hl === bh){ if(enR) p[k] = rv; return; }          // yo no lo toqué: vale lo de la nube (incluso si allá se borró)
-                        if(b && hr === bh){ if(enL) p[k] = lv; return; }          // la nube no cambió: vale lo mío
-                        if(!enL){ p[k] = rv; return; } if(!enR){ p[k] = lv; return; }
-                        const gano = lv;   // el cambio de este dispositivo es el más reciente (al guardar) o aún no se sube (al recibir)
-                        const j = _juntar(gano, rv); p[k] = j.v;
-                        if(j.perdido) confl.push({ p: n, c: k, v: JSON.stringify(rv).slice(0, 20000), t: Date.now(), disp: nombreDispositivo() });
-                    });
-                    out[n] = p; return;
+                const l = L[n], r = R[n], b = base ? base[n] : null;
+                if(l && !r){
+                    if(borr.has(n)){ if(modo === 'recibir') return; revividos.push(n); }   // al recibir: lo eliminaron en otro lado · al guardar: lo volviste a crear aquí
+                    out[n] = l; return;                                                   // le falta a la nube: se conserva y se sube
                 }
-                if(l && !r){ if(b && igualABase(l, b)) return; out[n] = l; return; }   // lo borraron en otro dispositivo y aquí no se tocó
-                if(!l && r){ if(b && igualABase(r, b)) return; out[n] = r; return; }   // lo borré yo y allá no lo cambiaron
+                if(!l && r){ if(borr.has(n) && modo === 'guardar') return; out[n] = r; return; }   // solo se quita si lo eliminaste tú
+                if(_igual(l, r)){ out[n] = r; return; }
+                if(!base){ out[n] = modo === 'guardar' ? l : r; return; }   // primera sincronización de la sesión: como antes
+                const p = {}, ks = new Set(Object.keys(l).concat(Object.keys(r)));
+                ks.forEach(k => {
+                    const enL = k in l, enR = k in r, lv = l[k], rv = r[k];
+                    if(_igual(lv, rv)){ if(enL || enR) p[k] = enR ? rv : lv; return; }
+                    const bh = b ? b[k] : undefined, hl = enL ? _hVal(lv) : undefined, hr = enR ? _hVal(rv) : undefined;
+                    if(b && hl === bh){ if(enR) p[k] = rv; return; }          // yo no lo toqué: vale lo de la nube
+                    if(b && hr === bh){ if(enL) p[k] = lv; return; }          // la nube no cambió: vale lo mío
+                    if(!enL){ p[k] = rv; return; } if(!enR){ p[k] = lv; return; }
+                    const j = _juntar(lv, rv); p[k] = j.v;                   // el cambio de este dispositivo es el más reciente
+                    if(j.perdido){ const txt = JSON.stringify(rv); confl.push({ p: n, c: k, v: txt.length <= 4000 ? txt : null, t: Date.now(), disp: nombreDispositivo() }); }
+                });
+                out[n] = p;
             });
-            return { pac: out, confl: confl };
+            return { pac: out, confl: confl, revividos: revividos };
         }
         // Aplica la lista combinada SIN cambiar la identidad de los objetos (las pantallas abiertas siguen apuntando al mismo paciente)
         function aplicarPacientes(nuevo){
@@ -1468,14 +1482,14 @@
                 if(!pacientes[n]){ pacientes[n] = JSON.parse(JSON.stringify(v)); cambio = true; return; }
                 const p = pacientes[n];
                 Object.keys(p).forEach(k => { if(!(k in v) && !(k === 'foto' && String(p.foto || '').indexOf('data:') === 0)){ delete p[k]; cambio = true; } });
-                Object.keys(v).forEach(k => { if(JSON.stringify(p[k]) !== JSON.stringify(v[k])){ p[k] = JSON.parse(JSON.stringify(v[k])); cambio = true; } });
+                Object.keys(v).forEach(k => { if(!_igual(p[k], v[k])){ p[k] = JSON.parse(JSON.stringify(v[k])); cambio = true; } });
             });
             return cambio;
         }
         function unirConflictos(remotos, nuevos){
             const lim = Date.now() - 30 * 86400000, vistos = {}, out = [];
-            (remotos || []).concat(nuevos || []).forEach(x => { if(!x || x.t < lim) return; const k = x.p + '|' + x.c + '|' + x.t; if(vistos[k]) return; vistos[k] = 1; out.push(x); });
-            return out.slice(-60);
+            (remotos || []).concat(nuevos || []).forEach(x => { if(!x || x.t < lim || (x.v && x.v.length > 4000)) return; const k = x.p + '|' + x.c + '|' + x.t; if(vistos[k]) return; vistos[k] = 1; out.push(x); });
+            return out.slice(-40);
         }
         function avisoConflictos(lista){
             if(!lista || !lista.length) return;
@@ -1485,6 +1499,7 @@
         function recuperarConflicto(i){
             const lista = pacConflictos.slice().sort((a, b) => b.t - a.t), x = lista[i]; if(!x) return;
             if(!pacientes[x.p]){ alert('Ese paciente ya no está en el directorio.'); return; }
+            if(x.v == null){ alert('Ese dato era muy grande y no se guardó copia.'); return; }
             let val; try{ val = JSON.parse(x.v); }catch(e){ alert('No pude leer ese valor.'); return; }
             if(!confirm('¿Volver a poner en ' + x.p + ' el valor anterior de "' + x.c + '"?\n\n' + String(typeof val === 'string' ? val : JSON.stringify(val)).slice(0, 300))) return;
             pacientes[x.p][x.c] = val; pacConflictos = pacConflictos.filter(y => y !== x);
@@ -1526,7 +1541,7 @@
                 const sello = Date.now();
                 miUltimaEscritura = sello;
                 const ref = db.collection('agenda').doc('principal');
-                let fus = null, borrLog = citasBorradas, fusP = null, conflLog = pacConflictos;
+                let fus = null, borrLog = citasBorradas, fusP = null, conflLog = pacConflictos, borrP = pacBorrados;
                 await db.runTransaction(async (t) => {
                     const sn = await t.get(ref);
                     const rem = sn.exists ? (sn.data() || {}) : {};
@@ -1538,14 +1553,16 @@
                     remLog.concat(citasBorradas).concat(fus.borradas.map(c => ({ cita: c, t: ahora, disp: disp }))).forEach(x => { if(!x || !x.cita) return; const k = x.cita.id + '_' + x.t; if(vistos[k] || x.t < lim) return; vistos[k] = 1; borrLog.push(x); });
                     borrLog = borrLog.slice(-300);
                     const rp = (rem.pacientes && typeof rem.pacientes === 'object') ? rem.pacientes : null;
-                    fusP = rp ? fusionarPacientes(pacBaseH, pacientesSinFoto, rp, 'guardar') : { pac: pacientesSinFoto, confl: [] };
-                    if(rp && Object.keys(fusP.pac).length === 0 && Object.keys(pacientesSinFoto).length > 0) fusP = { pac: pacientesSinFoto, confl: [] };
+                    borrP = unirBorrados(rem.pacBorrados, pacBorrados);
+                    fusP = fusionarPacientes(pacBaseH, pacientesSinFoto, rp || {}, 'guardar', new Set(borrP.map(x => x.n)));
+                    if(fusP.revividos.length) borrP = borrP.filter(x => !fusP.revividos.includes(x.n));
                     conflLog = unirConflictos(rem.pacConflictos, fusP.confl);
                     t.set(ref, {
                     citas: fus.citas,
                     citasBorradas: borrLog,
                     pacientes: fusP.pac,
                     pacConflictos: conflLog,
+                    pacBorrados: borrP,
                     motivos: motivos,
                     config: config,
                     potenciales: potenciales,
@@ -1557,8 +1574,9 @@
                 citasBorradas = borrLog; guardarBorradasLocal();
                 _snapPend = null;   // la transacción ya leyó lo último de la nube
                 pacConflictos = conflLog; try{ localStorage.setItem('denti_pac_confl_v114', JSON.stringify(pacConflictos)); }catch(e){}
+                pacBorrados = borrP; guardarPacBorradosLocal();
                 guardarPacBase(fusP.pac);
-                if(aplicarPacientes(fusP.pac)){ reinsertarFotos(); localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes)); try{ updateDatalists(); }catch(e){} }
+                if(aplicarPacientes(fusP.pac)){ reinsertarFotos(); try{ localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes)); }catch(e){} try{ updateDatalists(); }catch(e){} }
                 avisoConflictos(fusP.confl);
                 const cambio = JSON.stringify(fus.citas) !== JSON.stringify(citas);
                 citas = fus.citas; guardarCitasBase(citas);
@@ -1997,18 +2015,19 @@ function perReiniciar(){ if(!confirm('¿Empezar la cuenta de nuevo desde hoy?'))
                 }
                 guardarCitasBase(remCitas);
                 const pacientesEntrantes = data.pacientes || {};
-                if(Array.isArray(data.pacConflictos)){ pacConflictos = data.pacConflictos; try{ localStorage.setItem('denti_pac_confl_v114', JSON.stringify(pacConflictos)); }catch(e){} }
-                if(Object.keys(pacientesEntrantes).length === 0 && Object.keys(pacientes).length > 0){
-                    // La nube llegó con el directorio vacío pero localmente sí hay pacientes.
-                    // Casi seguro un error pasajero: no lo aplico, para no perder el directorio.
-                    console.warn('Se ignoró un directorio de pacientes vacío recibido de la nube.');
-                } else {
-                    // Se combina con lo que tenga este dispositivo sin subir todavía (no se reemplaza a ciegas)
-                    const fp = fusionarPacientes(pacBaseH, separarFotos(), pacientesEntrantes, 'recibir');
+                if(Array.isArray(data.pacConflictos)){ pacConflictos = data.pacConflictos.filter(x => x && !(x.v && x.v.length > 4000)); try{ localStorage.setItem('denti_pac_confl_v114', JSON.stringify(pacConflictos)); }catch(e){} }
+                if(Array.isArray(data.pacBorrados)){ pacBorrados = unirBorrados(data.pacBorrados, pacBorrados); guardarPacBorradosLocal(); }
+                {
+                    // Se combina con lo que tenga este dispositivo: a la nube nunca se le quita un paciente solo porque aquí falte,
+                    // y si a la nube le faltan pacientes que este dispositivo sí tiene, se vuelven a subir.
+                    const local = separarFotos(), nLoc = Object.keys(local).length, nRem = Object.keys(pacientesEntrantes).length;
+                    const fp = fusionarPacientes(pacBaseH, local, pacientesEntrantes, 'recibir', new Set(pacBorrados.map(x => x.n)));
+                    const faltabanEnNube = Object.keys(fp.pac).filter(n => !(n in pacientesEntrantes));
+                    try{ let nBk = 0; try{ nBk = Object.keys(JSON.parse(localStorage.getItem('denti_pacientes_backup_v16') || '{}')).length; }catch(e){} if(nLoc > 0 && nLoc >= nBk - 2) localStorage.setItem('denti_pacientes_backup_v16', JSON.stringify(pacientes)); }catch(e){}   // copia de seguridad que nunca se encoge de golpe
                     aplicarPacientes(fp.pac);
                     guardarPacBase(pacientesEntrantes);
-                    if(JSON.stringify(fp.pac) !== JSON.stringify(pacientesEntrantes)) setTimeout(() => guardarAgendaEnNube(), 700);
-                    if(Object.keys(pacientes).length > 0) localStorage.setItem('denti_pacientes_backup_v16', JSON.stringify(pacientes));
+                    if(faltabanEnNube.length >= 3){ console.warn('A la nube le faltaban pacientes; se vuelven a subir:', faltabanEnNube.length); daToast('Recuperando ' + faltabanEnNube.length + ' pacientes que faltaban en la nube…', 'ok'); }
+                    if(!_igual(fp.pac, pacientesEntrantes)) setTimeout(() => guardarAgendaEnNube(), 700);
                 }
                 motivos = data.motivos || [];
                 potenciales = data.potenciales || [];
@@ -2018,16 +2037,18 @@ function perReiniciar(){ if(!confirm('¿Empezar la cuenta de nuevo desde hoy?'))
                 if(Array.isArray(data.bloqueos)){ bloqueos = data.bloqueos; localStorage.setItem('denti_bloqueos_v16', JSON.stringify(bloqueos)); try{ if(document.getElementById('bloqueosModal').style.display === 'flex') renderBloqueos(); }catch(e){} }
                 else if(bloqueos.length) setTimeout(() => guardarAgendaEnNube(), 800);   // la nube aún no los tiene: súbelos desde aquí
                 reinsertarFotos();
-                localStorage.setItem('denti_citas_v16', JSON.stringify(citas));
-                localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes));
-                localStorage.setItem('denti_motivos_v16', JSON.stringify(motivos));
-                localStorage.setItem('denti_potenciales_v16', JSON.stringify(potenciales));
-                localStorage.setItem('denti_config_v16', JSON.stringify(config));
+                try{
+                    localStorage.setItem('denti_citas_v16', JSON.stringify(citas));
+                    localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes));
+                    localStorage.setItem('denti_motivos_v16', JSON.stringify(motivos));
+                    localStorage.setItem('denti_potenciales_v16', JSON.stringify(potenciales));
+                    localStorage.setItem('denti_config_v16', JSON.stringify(config));
+                }catch(e){ console.warn('Memoria del navegador llena; la nube sí tiene todo', e); }   // aunque falle la copia local, la pantalla se actualiza
                 syncGlobalActivo = true;
                 loadCalendar(); updateDatalists(); loadConfig(); renderPotenciales(); actualizarBadgeMateriales(); try{ actualizarBadgeEscritorio(); }catch(e){}
                 if(document.getElementById('materialesModal').style.display === 'flex') renderMateriales();
                 setSync('on','Sincronizado');
-                publicarDisponibilidad();   // republica los huecos con los bloqueos ya sincronizados
+                publicarDisponibilidad(true);   // republica los huecos (en silencio: no es algo que tú pediste)
             }
         }
 
@@ -3382,7 +3403,7 @@ function perReiniciar(){ if(!confirm('¿Empezar la cuenta de nuevo desde hoy?'))
             return d <= 0 ? 'hoy' : (d === 1 ? 'ayer' : 'hace ' + d + ' d');
         }
         function usaSmile(nombre){ const u = usoSmile[nombre]; return !!(u && u.ts); }
-        const DA_VERSION = 'v114';
+        const DA_VERSION = 'v115';
         window.addEventListener('load', () => document.querySelectorAll('.da-ver-txt').forEach(e => e.textContent = 'DentiAgenda ' + DA_VERSION));
         // Texto del estado de SmileLike para un paciente (usa lo guardado; abajo se refresca solo ese paciente)
         function textoEstadoSmile(nombre){
@@ -3529,7 +3550,8 @@ function perReiniciar(){ if(!confirm('¿Empezar la cuenta de nuevo desde hoy?'))
             const codigo = pac.codigo || getCodigoPaciente(nombre);
             const estudios = (pac.estudios || []).slice();
             const otrosMismoTel = tel.length === 10 ? otrosConTelefono(tel, nombre).length : 0;
-            // 1) local + agenda en la nube
+            // 1) local + agenda en la nube (queda anotado como eliminado a propósito, para que los demás dispositivos también lo quiten)
+            pacBorrados = unirBorrados(pacBorrados, [{ n: nombre, t: Date.now(), disp: nombreDispositivo() }]); guardarPacBorradosLocal();
             delete pacientes[nombre];
             if(borrarCitas) citas = citas.filter(c => c.paciente !== nombre);
             localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes));
@@ -4094,7 +4116,7 @@ function perReiniciar(){ if(!confirm('¿Empezar la cuenta de nuevo desde hoy?'))
         // Cambia el nombre de un paciente en su expediente Y en todas sus citas
         function renombrarPaciente(viejo, nuevo){
             pacientes[nuevo] = pacientes[viejo];
-            delete pacientes[viejo];
+            pacBorrados = unirBorrados(pacBorrados, [{ n: viejo, t: Date.now(), disp: nombreDispositivo() }]); guardarPacBorradosLocal(); delete pacientes[viejo];
             citas.forEach(c => { if(c.paciente === viejo) c.paciente = nuevo; });
             if(dirNombreActual === viejo) dirNombreActual = nuevo;
             document.getElementById('editDirNombre').value = nuevo;
@@ -5281,7 +5303,7 @@ function moverAPapelera(nombre){
         fecha: Date.now()
     });
     citas = citas.filter(c => c.paciente !== nombre);
-    delete pacientes[nombre];
+    pacBorrados = unirBorrados(pacBorrados, [{ n: nombre, t: Date.now(), disp: nombreDispositivo() }]); guardarPacBorradosLocal(); delete pacientes[nombre];
     potenciales = potenciales.filter(p => p.nombre !== nombre);
     localStorage.setItem('denti_citas_v16', JSON.stringify(citas));
     localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes));
