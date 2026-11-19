@@ -424,7 +424,6 @@
             <button class="btn-3d btn-text-icon" id="btnEscritorio" onclick="abrirEscritorio()">🖥️ Mi consultorio</button>
             <button class="btn-3d btn-text-icon" id="btnSeguimiento" onclick="abrirSeguimiento()">📋 Seguimiento</button>
             <button class="btn-3d btn-text-icon" id="btnMateriales" onclick="abrirMateriales()">🛒 Surtir</button>
-            <button class="btn-3d btn-text-icon" id="btnPersonal" style="display:none;" onclick="perAbrir()">Personal</button>
             <button class="btn-3d btn-text-icon" onclick="openConfig()">Ajustes</button>
         </div>
     </header>
@@ -1756,168 +1755,114 @@
         // Citas de otros doctores como si fueran del sillón (para choques y disponibilidad)
         function citasEquipoDia(fecha){ return citasEquipo.filter(c => c.fecha === fecha).map(c => ({ id: c._id, fecha: c.fecha, horaInicio: c.horaInicio, horaFin: c.horaFin, paciente: equipoNombre(c.doctorUid) + ': ' + c.paciente, motivo: c.motivo || '', equipo: true, doctorUid: c.doctorUid })); }
         // --- administración
-// ============ PERSONAL (solo dr.alvarado.ortodoncia@gmail.com): frase del día por etapa, tareas en casa y recuerdos ============
-// Datos en Firestore personal/{uid}. La cuenta de días es interna: nunca se muestra el número.
+// ============ FRASE DEL DÍA (solo en la cuenta del Dr. Alvarado) ============
+// Una frase distinta cada día: Biblia (Reina-Valera), poesía, sabiduría clásica y consejos prácticos. No guarda nada en la nube.
 const PER_CORREO = 'dr.alvarado.ortodoncia@gmail.com';
-// Etapas de recuperación de estimulantes (modelo Matrix): 0-15, 16-45, 46-120, 121-180, 181+
-const PER_ETAPAS = [
-    { hasta: 15, frases: [
-        'Hoy solo tienes que pasar hoy. Mañana es otro trato.',
-        'El cansancio de estos días es tu cuerpo reparándose, no tu vida rompiéndose.',
-        'Dormir de más, comer, tomar agua: hoy eso cuenta como avanzar.',
-        'Las ganas suben como ola y bajan solas. Aguanta la ola, no la persigas.',
-        'No tienes que sentirte bien para estar haciéndolo bien.',
-        'Lo que sientes hoy es químico y temporal. No le creas todo lo que te dice.',
-        'Un vaso de agua, un bocado, una tarea pequeña. Así se construye un día.',
-        'Ya diste el paso más difícil: decidir. Lo demás es repetirlo hoy.',
-        'Si el día pesa, hazlo más chico: una hora a la vez.',
-        'Tu cerebro está aprendiendo a funcionar sin ayuda. Dale tiempo.',
-        'Estar cansado y aburrido es mejor que estar en peligro.',
-        'Pedir apoyo no es debilidad; es la parte inteligente del plan.'
-    ] },
-    { hasta: 45, frases: [
-        'Te sientes con más energía: úsala para reforzar lo que te está funcionando.',
-        'Sentirse bien no es lo mismo que estar a salvo. Sigue con tu rutina.',
-        '"Ya lo tengo controlado" es la frase más peligrosa de esta etapa.',
-        'Ordena tu semana: los días con estructura son días protegidos.',
-        'Aleja lo que te pone en riesgo aunque hoy no lo sientas cerca.',
-        'Aprovecha esta claridad para arreglar algo que habías dejado.',
-        'Cada día limpio también es un día más de confianza de los tuyos.',
-        'El ejercicio de hoy es inversión para los días difíciles que vienen.',
-        'Disfruta este impulso, pero no bajes la guardia.',
-        'Cumplir lo que te propones hoy es la mejor prueba de que puedes.'
-    ] },
-    { hasta: 120, frases: [
-        'Si hoy todo parece gris, es la etapa, no tu vida. Esto también pasa.',
-        'El aburrimiento es incómodo, no peligroso. Muévete aunque no tengas ganas.',
-        'Tu cerebro está recalibrando el placer. Lo sencillo volverá a sentirse bien.',
-        'Las ganas pueden volver sin aviso. Tenerlas no es fallar; actuar es una decisión.',
-        'Los días planos también suman. No necesitan sentirse bien para valer.',
-        'Habla con alguien hoy, aunque sea de cualquier cosa.',
-        'Haz una cosa que te guste aunque todavía no la disfrutes. La alegría regresa practicándola.',
-        'No negocies contigo mismo: "solo una vez" nunca fue solo una vez.',
-        'Revisa por qué empezaste. Esa razón sigue ahí.',
-        'Esta es la parte más pesada del camino y la estás caminando.',
-        'Cuida el sueño: un día cansado hace más fuertes las ganas.',
-        'Si sientes que te hundes, pide ayuda hoy, no mañana.'
-    ] },
-    { hasta: 180, frases: [
-        'Ya no solo estás dejando algo: estás construyendo otra vida.',
-        'Revisa tus rutinas: lo que te sostuvo al inicio te sigue sosteniendo.',
-        'Los problemas de siempre van a aparecer. Ahora los enfrentas con la mente clara.',
-        'La confianza se recupera igual que se perdió: poco a poco y con hechos.',
-        'Cuidado con la comodidad. Mantén lo que te trajo hasta aquí.',
-        'Ponte una meta nueva que no tenga nada que ver con dejar de consumir.',
-        'Tu consultorio, tu gente, tu salud: todo eso está creciendo contigo.',
-        'Un mal día no borra lo construido. Sigue.'
-    ] },
-    { hasta: 99999, frases: [
-        'Lo que lograste se cuida todos los días, como una ortodoncia en retención.',
-        'Hoy eres alguien que eligió su vida. Sigue eligiéndola.',
-        'Tu historia puede ayudar a alguien más cuando estés listo.',
-        'Mantener es menos ruidoso que empezar, pero igual de importante.',
-        'Celebra las cosas pequeñas: un día tranquilo es un regalo.',
-        'Sigue cuidando el sueño, el cuerpo y a tu gente. Ese es tu escudo.',
-        'Si algún día tambaleas, ya sabes el camino de regreso.'
-    ] }
+const FRASES = [
+    // Biblia (Reina-Valera)
+    ['Todo lo puedo en Cristo que me fortalece.', 'Filipenses 4:13', 'b'],
+    ['Mira que te mando que te esfuerces y seas valiente: no temas ni desmayes, porque Jehová tu Dios será contigo en dondequiera que fueres.', 'Josué 1:9', 'b'],
+    ['Los que esperan a Jehová tendrán nuevas fuerzas; levantarán las alas como águilas, correrán y no se cansarán, caminarán y no se fatigarán.', 'Isaías 40:31', 'b'],
+    ['Nuevas son cada mañana sus misericordias; grande es tu fidelidad.', 'Lamentaciones 3:23', 'b'],
+    ['Dios es nuestro amparo y fortaleza, nuestro pronto auxilio en las tribulaciones.', 'Salmo 46:1', 'b'],
+    ['Este es el día que hizo Jehová; nos gozaremos y alegraremos en él.', 'Salmo 118:24', 'b'],
+    ['No os congojéis por el día de mañana; que el día de mañana traerá su fatiga: basta al día su afán.', 'Mateo 6:34', 'b'],
+    ['Fíate de Jehová de todo tu corazón, y no estribes en tu prudencia. Reconócelo en todos tus caminos, y él enderezará tus veredas.', 'Proverbios 3:5-6', 'b'],
+    ['Por la noche durará el lloro, y a la mañana vendrá la alegría.', 'Salmo 30:5', 'b'],
+    ['No nos ha dado Dios el espíritu de temor, sino el de fortaleza, y de amor, y de templanza.', '2 Timoteo 1:7', 'b'],
+    ['No temas, que yo soy contigo; no desmayes, que yo soy tu Dios que te esfuerzo: siempre te ayudaré.', 'Isaías 41:10', 'b'],
+    ['Venid a mí todos los que estáis trabajados y cargados, que yo os haré descansar.', 'Mateo 11:28', 'b'],
+    ['Gozosos en la esperanza; sufridos en la tribulación; constantes en la oración.', 'Romanos 12:12', 'b'],
+    ['No nos cansemos de hacer bien; que a su tiempo segaremos, si no hubiéremos desmayado.', 'Gálatas 6:9', 'b'],
+    ['Jehová es mi pastor; nada me faltará.', 'Salmo 23:1', 'b'],
+    ['Sobre toda cosa guardada, guarda tu corazón; porque de él mana la vida.', 'Proverbios 4:23', 'b'],
+    ['Todo tiene su tiempo, y todo lo que se quiere debajo del cielo tiene su hora.', 'Eclesiastés 3:1', 'b'],
+    ['Cercano está Jehová a los quebrantados de corazón.', 'Salmo 34:18', 'b'],
+    ['Olvidando lo que queda atrás, y extendiéndome a lo que está delante, prosigo al blanco.', 'Filipenses 3:13-14', 'b'],
+    ['La paz os dejo, mi paz os doy. No se turbe vuestro corazón, ni tenga miedo.', 'Juan 14:27', 'b'],
+    ['Aunque caí, he de levantarme; aunque more en tinieblas, Jehová será mi luz.', 'Miqueas 7:8', 'b'],
+    ['Siete veces cae el justo, y se torna a levantar.', 'Proverbios 24:16', 'b'],
+    ['Encomienda a Jehová tu camino, y espera en él; y él hará.', 'Salmo 37:5', 'b'],
+    ['No os acordéis de las cosas pasadas. He aquí que yo hago cosa nueva.', 'Isaías 43:18-19', 'b'],
+    ['El corazón alegre hermosea el rostro.', 'Proverbios 15:13', 'b'],
+    ['Mejor es el fin del negocio que su principio; mejor es el sufrido de espíritu que el altivo de espíritu.', 'Eclesiastés 7:8', 'b'],
+    ['Esforzaos todos vosotros los que esperáis en Jehová, y tome aliento vuestro corazón.', 'Salmo 31:24', 'b'],
+    ['El amor es sufrido, es benigno; todo lo sufre, todo lo cree, todo lo espera, todo lo soporta.', '1 Corintios 13:4,7', 'b'],
+    ['Pedid, y se os dará; buscad, y hallaréis; llamad, y se os abrirá.', 'Mateo 7:7', 'b'],
+    ['Bástate mi gracia; porque mi potencia en la flaqueza se perfecciona.', '2 Corintios 12:9', 'b'],
+    // Poesía (obras de dominio público)
+    ['Caminante, no hay camino, se hace camino al andar.', 'Antonio Machado, Proverbios y cantares', 'p'],
+    ['Hoy es siempre todavía.', 'Antonio Machado', 'p'],
+    ['Despacito y buena letra: el hacer las cosas bien importa más que el hacerlas.', 'Antonio Machado', 'p'],
+    ['¡Vida, nada me debes! ¡Vida, estamos en paz!', 'Amado Nervo, En paz', 'p'],
+    ['Veo al final de mi rudo camino que yo fui el arquitecto de mi propio destino.', 'Amado Nervo, En paz', 'p'],
+    ['Si una espina me hiere, me aparto de la espina, pero no la aborrezco.', 'Amado Nervo', 'p'],
+    ['Cultivo una rosa blanca, en julio como en enero, para el amigo sincero que me da su mano franca.', 'José Martí, Versos sencillos', 'p'],
+    ['Mientras haya esperanzas y recuerdos, ¡habrá poesía!', 'Gustavo Adolfo Bécquer, Rima IV', 'p'],
+    ['Nada te turbe, nada te espante, todo se pasa, Dios no se muda; la paciencia todo lo alcanza.', 'Santa Teresa de Jesús', 'p'],
+    ['Juventud, divino tesoro, ¡ya te vas para no volver!', 'Rubén Darío', 'p'],
+    // Sabiduría clásica
+    ['No es que tengamos poco tiempo, sino que perdemos mucho.', 'Séneca', 's'],
+    ['Si uno no sabe a qué puerto se dirige, ningún viento le es favorable.', 'Séneca', 's'],
+    ['Mientras se espera vivir, la vida pasa.', 'Séneca', 's'],
+    ['Muy poco se necesita para hacer una vida feliz; todo está dentro de ti, en tu manera de pensar.', 'Marco Aurelio', 's'],
+    ['Lo que estorba la acción la hace avanzar; lo que se interpone en el camino se vuelve el camino.', 'Marco Aurelio', 's'],
+    ['Haz cada cosa de tu vida como si fuera la última.', 'Marco Aurelio', 's'],
+    ['No son las cosas las que nos perturban, sino la opinión que tenemos de ellas.', 'Epicteto', 's'],
+    ['Primero dite a ti mismo qué quieres ser; después haz lo que tengas que hacer.', 'Epicteto', 's'],
+    ['Es imposible aprender lo que uno cree que ya sabe.', 'Epicteto', 's'],
+    ['Un viaje de mil millas comienza con un solo paso.', 'Lao Tse', 's'],
+    ['Bien hecho es mejor que bien dicho.', 'Benjamin Franklin', 's'],
+    ['Paciencia y barajar.', 'Miguel de Cervantes, Don Quijote', 's'],
+    ['El que lee mucho y anda mucho, ve mucho y sabe mucho.', 'Miguel de Cervantes, Don Quijote', 's'],
+    ['Lo bueno, si breve, dos veces bueno.', 'Baltasar Gracián', 's'],
+    ['Nunca perderse el respeto a sí mismo.', 'Baltasar Gracián', 's'],
+    // Consejos
+    ['Haz primero lo que más te cuesta. El resto del día se siente más ligero.', 'Consejo', 'c'],
+    ['Una sola tarea a la vez. Terminar algo pequeño vale más que empezar tres cosas.', 'Consejo', 'c'],
+    ['Antes de dormir, piensa en tres cosas buenas del día, aunque sean pequeñas.', 'Consejo', 'c'],
+    ['Diez minutos de caminar al sol cambian el ánimo de toda la mañana.', 'Consejo', 'c'],
+    ['Un vaso de agua al despertar, antes que cualquier otra cosa.', 'Consejo', 'c'],
+    ['Respira profundo cuatro veces antes de responder algo que te molestó.', 'Consejo', 'c'],
+    ['Deja lista la mochila y la ropa en la noche: la mañana empieza sin prisa.', 'Consejo', 'c'],
+    ['No te compares con nadie: compárate con quien eras hace un mes.', 'Consejo', 'c'],
+    ['Pide ayuda a tiempo. Hacerlo es de fuertes, no de débiles.', 'Consejo', 'c'],
+    ['Cuida el sueño: dormir a tu hora es la mitad de un buen día.', 'Consejo', 'c'],
+    ['Llama o escribe hoy a alguien que te quiere bien.', 'Consejo', 'c'],
+    ['Si el día se pone pesado, divídelo en la siguiente hora y nada más.', 'Consejo', 'c'],
+    ['Agradece a tu equipo algo concreto que hizo bien hoy.', 'Consejo', 'c'],
+    ['Come sentado y sin pantalla al menos una vez al día.', 'Consejo', 'c'],
+    ['Lo que hagas todos los días pesa más que lo que hagas de vez en cuando.', 'Consejo', 'c'],
+    ['Un buen día no se encuentra: se construye desde la primera hora.', 'Consejo', 'c'],
+    ['Escribe en una línea qué quieres lograr hoy. Al final del día, revísala.', 'Consejo', 'c'],
+    ['Ordena tu espacio cinco minutos: un lugar en orden aclara la cabeza.', 'Consejo', 'c'],
+    ['Mueve el cuerpo: estírate entre paciente y paciente.', 'Consejo', 'c'],
+    ['Sé amable contigo cuando te equivoques; corrige y sigue.', 'Consejo', 'c']
 ];
-// Para estar listo antes de cada etapa (se muestran en los últimos días de la anterior)
-const PER_PREPARA = [
-    'Lo pesado de los primeros días está por aflojar. Vendrá energía: úsala con cabeza y sin confiarte.',
-    'Se acerca una etapa donde puedes sentirte plano o aburrido. Es normal y pasa. Ten listo un plan para esos días.',
-    'Viene una etapa de reconstrucción. Piensa qué quieres en tu vida además de mantenerte limpio.',
-    'Entras a una etapa de mantener. Lo que ya funciona, no lo sueltes.'
-];
-// Momentos para felicitar (sin decir el número)
-const PER_HITOS = { 1: 'Primer día completo. Ese es el más difícil y ya lo hiciste.', 3: 'Lo estás logrando. Estos primeros días son los más duros y aquí sigues.', 7: 'Hoy alcanzas una meta importante. Reconócetelo.', 14: 'Llevas más tiempo del que imaginabas al empezar. Estás saliendo de lo más pesado.', 21: 'Tus hábitos nuevos ya están echando raíz.', 30: 'Hoy es un día para celebrar en serio. Mira hasta dónde llegaste.', 45: 'Ya cruzaste la etapa de la euforia sin confiarte. Muy bien hecho.', 60: 'Lo estás sosteniendo incluso en días grises. Eso es fuerza real.', 90: 'Hoy cumples una meta grande. Tu cerebro y tu vida lo notan.', 120: 'Pasaste la parte más pesada del camino. Felicidades de verdad.', 180: 'Medio camino hacia algo que hace meses parecía imposible. Reconócetelo.', 270: 'Esto ya es tu forma de vivir. Sigue cuidándola.', 365: 'Hoy se cumple algo enorme. Tómate un momento para sentirlo.' };
-let perDoc = null, perUid = null, _perEsc = null;
-function perEsDueno(){ const u = firebase.auth().currentUser; return !!(u && u.email && u.email.toLowerCase() === PER_CORREO); }
+const FRASE_TIPO = { b: 'Palabra para hoy', p: 'Poesía', s: 'Sabiduría', c: 'Consejo del día' };
+function perEsDueno(){ try{ const u = firebase.auth().currentUser; return !!(u && u.email && u.email.toLowerCase() === PER_CORREO); }catch(e){ return false; } }
 function perHoy(){ return fechaAISO(new Date()); }
-function perDias(){ if(!perDoc || !perDoc.inicio) return 0; return Math.max(0, Math.round((new Date(perHoy() + 'T12:00:00') - new Date(perDoc.inicio + 'T12:00:00')) / 864e5)); }
-function perEtapa(n){ let i = 0; while(n > PER_ETAPAS[i].hasta) i++; return i; }
-function perSemilla(s){ let h = 0; for(const c of s) h = (h * 31 + c.charCodeAt(0)) | 0; return Math.abs(h); }
-function perFraseHoy(){
-    const n = perDias(), et = perEtapa(n), hoy = perHoy(), sem = perSemilla(hoy), recs = (perDoc && perDoc.recuerdos) || [];
-    if(PER_HITOS[n] || (n > 365 && n % 365 === 0)) return { tipo: 'hito', txt: PER_HITOS[n] || PER_HITOS[365] };
-    const ayer = fechaAISO(new Date(Date.now() - 864e5)), ganasAyer = (((perDoc || {}).dias || {})[ayer] || {}).ganas >= 2;
-    const cada = et === 0 ? 3 : (et <= 2 ? 2 : 4);   // en las etapas de más riesgo, más seguido
-    if(recs.length && (ganasAyer || n % cada === 1)) return { tipo: 'recuerdo', txt: recs[sem % recs.length].txt };
-    if(et < PER_ETAPAS.length - 1 && PER_ETAPAS[et].hasta - n < 3) return { tipo: 'prepara', txt: PER_PREPARA[et] };
-    const L = PER_ETAPAS[et].frases; return { tipo: 'frase', txt: L[sem % L.length] };
+// Orden barajado fijo: recorre todas las frases antes de repetir y alterna los tipos
+function fraseHoy(){
+    const n = FRASES.length, dia = Math.floor(new Date(perHoy() + 'T12:00:00').getTime() / 864e5);
+    const mcd = (a, b) => b ? mcd(b, a % b) : a; let paso = 37; while(mcd(paso, n) !== 1) paso++;   // primo con el total: visita todas sin repetir
+    return FRASES[((dia * paso) % n + n) % n];
 }
 function perTarjeta(){
     const el = document.getElementById('perTarjeta'); if(!el) return;
-    if(!perEsDueno() || !perDoc){ el.style.display = 'none'; return; }
-    const f = perFraseHoy(), cerrada = (() => { try{ return localStorage.getItem('da_per_cerrada') === perHoy(); }catch(e){ return false; } })();
+    if(!perEsDueno()){ el.style.display = 'none'; return; }
+    const f = fraseHoy(), cerrada = (() => { try{ return localStorage.getItem('da_per_cerrada') === perHoy(); }catch(e){ return false; } })();
     el.style.display = 'block';
     if(cerrada){ el.innerHTML = `<button class="esc-mini" onclick="perAbrirTarjeta()">💬 Frase del día</button>`; return; }
-    const ico = { hito: '🎉', recuerdo: '🧠', prepara: '🧭', frase: '💬' }[f.tipo], tit = { hito: 'Felicidades', recuerdo: 'Recuerda lo que viviste', prepara: 'Prepárate', frase: 'Para hoy' }[f.tipo];
     el.innerHTML = `<div style="position:relative; padding:12px 38px 12px 14px; border-radius:14px; background:linear-gradient(135deg, var(--primary), #2b6cb0); color:#fff; box-shadow:0 4px 14px rgba(0,0,0,.15);">
-        <div style="font-size:0.72rem; opacity:0.85; font-weight:bold; text-transform:uppercase; letter-spacing:0.5px;">${ico} ${tit}</div>
-        <div style="font-size:0.95rem; margin-top:4px; line-height:1.35;">${escHtml(f.txt)}</div>
+        <div style="font-size:0.72rem; opacity:0.85; font-weight:bold; text-transform:uppercase; letter-spacing:0.5px;">💬 ${FRASE_TIPO[f[2]]}</div>
+        <div style="font-size:0.95rem; margin-top:4px; line-height:1.35;">${escHtml(f[0])}</div>
+        ${f[2] !== 'c' ? `<div style="font-size:0.75rem; margin-top:4px; opacity:0.85;">${escHtml(f[1])}</div>` : ''}
         <button onclick="perCerrarTarjeta()" style="position:absolute; top:6px; right:8px; background:none; border:none; color:#fff; font-size:1.1rem; cursor:pointer; opacity:0.8;" title="Ocultar por hoy">✕</button></div>`;
 }
 function perCerrarTarjeta(){ try{ localStorage.setItem('da_per_cerrada', perHoy()); }catch(e){} perTarjeta(); }
 function perAbrirTarjeta(){ try{ localStorage.removeItem('da_per_cerrada'); }catch(e){} perTarjeta(); }
-function perIniciar(user){
-    if(!user || !user.email || user.email.toLowerCase() !== PER_CORREO) return;
-    perUid = user.uid; const b = document.getElementById('btnPersonal'); if(b) b.style.display = '';
-    if(_perEsc) _perEsc();
-    _perEsc = db.collection('personal').doc(perUid).onSnapshot(sn => {
-        perDoc = sn.exists ? sn.data() : null;
-        if(!perDoc){ perDoc = { inicio: perHoy(), tareas: [], dias: {}, recuerdos: [] }; perGuardar({ inicio: perDoc.inicio, tareas: [], dias: {}, recuerdos: [] }); }
-        perTarjeta(); perRender();
-    }, e => { console.warn('personal', e); const el = document.getElementById('perTarjeta'); if(el){ el.style.display = 'block'; el.innerHTML = '<div class="esc-sub">Personal: falta actualizar las reglas de Firebase (sección personal).</div>'; } });
-}
-async function perGuardar(cambio){ try{ await db.collection('personal').doc(perUid).set(cambio, { merge: true }); }catch(e){ daToast('No se pudo guardar: ' + (e.code || e.message), 'err'); } }
-function perAbrir(){
-    if(!perEsDueno()) return;
-    let m = document.getElementById('perModal'); if(m) m.remove();
-    m = document.createElement('div'); m.id = 'perModal'; m.className = 'modal-overlay'; m.style.display = 'flex';
-    m.onclick = e => { if(e.target === m) m.remove(); };
-    m.innerHTML = '<div class="modal"><div class="modal-header"><h2 style="margin:0; color:var(--primary);">Personal</h2><button class="close-btn" onclick="document.getElementById(\'perModal\').remove()">X</button></div><div id="perBody"></div></div>';
-    document.body.appendChild(m); perRender();
-}
-function perRender(){
-    const el = document.getElementById('perBody'); if(!el || !perDoc) return;
-    const hoy = perHoy(), dia = (perDoc.dias || {})[hoy] || {}, hechas = dia.hechas || [], T = perDoc.tareas || [], R = perDoc.recuerdos || [];
-    const ganasTxt = ['Nada', 'Leves', 'Fuertes', 'Muy fuertes'];
-    const hist = [...Array(14)].map((_, i) => { const f = fechaAISO(new Date(Date.now() - (13 - i) * 864e5)), x = (perDoc.dias || {})[f] || {}, pc = T.length ? Math.round((x.hechas || []).filter(id => T.some(t => t.id === id)).length / T.length * 100) : 0;
-        return `<div title="${f}: ${pc}% tareas${x.ganas != null ? ', ganas ' + ganasTxt[x.ganas].toLowerCase() : ''}" style="flex:1; text-align:center;"><div style="height:46px; display:flex; align-items:flex-end; justify-content:center;"><div style="width:70%; height:${Math.max(3, pc * 0.46)}px; border-radius:3px; background:${pc >= 80 ? '#38a169' : pc >= 40 ? '#d69e2e' : '#a0aec0'};"></div></div>
-            <div style="height:6px; margin-top:2px; border-radius:3px; background:${x.ganas >= 2 ? '#e53e3e' : x.ganas === 1 ? '#f6ad55' : 'transparent'};"></div><div style="font-size:0.6rem; color:var(--text-muted);">${f.slice(8)}</div></div>`; }).join('');
-    el.innerHTML = `
-        <h4 style="color:var(--primary); margin:0 0 6px;">Hoy</h4>
-        ${T.length ? T.map(t => `<label style="display:flex; align-items:center; gap:10px; padding:8px 4px; font-size:0.95rem; cursor:pointer;"><input type="checkbox" style="width:22px; height:22px;" ${hechas.includes(t.id) ? 'checked' : ''} onchange="perMarcar('${t.id}', this.checked)"><span style="${hechas.includes(t.id) ? 'text-decoration:line-through; opacity:0.6;' : ''}">${escHtml(t.txt)}</span></label>`).join('') : '<div class="esc-sub">Agrega abajo tus tareas de casa de cada día.</div>'}
-        <div style="margin-top:10px; font-size:0.85rem; font-weight:bold;">Ganas de consumir hoy</div>
-        <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:4px;">${ganasTxt.map((g, i) => `<button class="esc-mini${dia.ganas === i ? ' on' : ''}" style="${dia.ganas === i ? 'background:var(--primary); color:#fff;' : ''}" onclick="perGanas(${i})">${g}</button>`).join('')}</div>
-        ${dia.ganas >= 2 ? '<div style="font-size:0.82rem; margin-top:6px; padding:8px; border-radius:10px; background:#fff5f5; border:1px solid #fc8181;">Las ganas suben y bajan solas, en minutos. Sal de donde estás, toma agua, llama a alguien. Si sientes que no puedes solo: Línea de la Vida 800 911 2000.</div>' : ''}
-        <div style="margin-top:10px; font-size:0.85rem; font-weight:bold;">¿Cómo estuvo el día?</div>
-        <textarea id="perNota" class="inset-3d" rows="3" style="width:100%; margin-top:4px;" placeholder="Lo que quieras anotar" onchange="perNota(this.value)">${escHtml(dia.nota || '')}</textarea>
-        <h4 style="color:var(--primary); margin:16px 0 6px;">Últimos 14 días</h4>
-        <div style="display:flex; gap:2px;">${hist}</div>
-        <div class="esc-sub">Barra: tareas cumplidas · línea roja: días con ganas fuertes.</div>
-        <details class="ft-plegable" style="margin-top:14px;"><summary>Mis tareas de casa (${T.length})</summary>
-            ${T.map(t => `<div style="display:flex; gap:6px; align-items:center; margin:4px 0;"><span style="flex:1; font-size:0.88rem;">${escHtml(t.txt)}</span><button class="esc-mini" onclick="perQuitarTarea('${t.id}')">✕</button></div>`).join('')}
-            <div style="display:flex; gap:6px; margin-top:6px;"><input id="perNuevaTarea" class="inset-3d" style="flex:1;" placeholder="Ej. Tender la cama, caminar 20 min, cenar…" onkeydown="if(event.key==='Enter') perAgregarTarea()"><button class="esc-mini" onclick="perAgregarTarea()">Agregar</button></div></details>
-        <details class="ft-plegable" style="margin-top:10px;"><summary>Lo que no quiero repetir (${R.length})</summary>
-            <div class="esc-sub" style="margin-bottom:6px;">Tus experiencias negativas. La frase del día te las recuerda de vez en cuando, más seguido en las etapas difíciles y al día siguiente de tener ganas fuertes.</div>
-            ${R.map(r => `<div style="display:flex; gap:6px; align-items:flex-start; margin:6px 0; padding:6px 8px; border-left:3px solid #e53e3e;"><span style="flex:1; font-size:0.88rem;">${escHtml(r.txt)}</span><button class="esc-mini" onclick="perQuitarRecuerdo('${r.id}')">✕</button></div>`).join('')}
-            <textarea id="perNuevoRec" class="inset-3d" rows="2" style="width:100%; margin-top:6px;" placeholder="Algo que viviste y no quieres volver a vivir"></textarea>
-            <button class="esc-mini" style="margin-top:4px;" onclick="perAgregarRecuerdo()">Guardar</button></details>
-        <details class="ft-plegable" style="margin-top:10px;"><summary>Volver a empezar</summary>
-            <div class="esc-sub">Si un día tropiezas, reinicia la cuenta desde hoy. Lo aprendido no se borra.</div>
-            <button class="esc-mini" style="margin-top:6px;" onclick="perReiniciar()">Empezar de nuevo desde hoy</button></details>
-        <div class="esc-sub" style="margin-top:12px;">Solo tu cuenta puede ver esta sección.</div>`;
-}
-function perDia(){ const hoy = perHoy(); perDoc.dias = perDoc.dias || {}; return perDoc.dias[hoy] = perDoc.dias[hoy] || {}; }
-function perMarcar(id, si){ const d = perDia(); d.hechas = (d.hechas || []).filter(x => x !== id).concat(si ? [id] : []); perGuardar({ dias: { [perHoy()]: d } }); perRender(); }
-function perGanas(i){ const d = perDia(); d.ganas = i; perGuardar({ dias: { [perHoy()]: d } }); perRender(); }
-function perNota(v){ const d = perDia(); d.nota = v; perGuardar({ dias: { [perHoy()]: d } }); }
-function perAgregarTarea(){ const i = document.getElementById('perNuevaTarea'), t = (i.value || '').trim(); if(!t) return; perDoc.tareas = (perDoc.tareas || []).concat([{ id: 't' + Date.now(), txt: t }]); perGuardar({ tareas: perDoc.tareas }); perRender(); setTimeout(() => { const x = document.getElementById('perNuevaTarea'); if(x) x.focus(); }, 50); }
-function perQuitarTarea(id){ perDoc.tareas = (perDoc.tareas || []).filter(t => t.id !== id); perGuardar({ tareas: perDoc.tareas }); perRender(); }
-function perAgregarRecuerdo(){ const i = document.getElementById('perNuevoRec'), t = (i.value || '').trim(); if(!t) return; perDoc.recuerdos = (perDoc.recuerdos || []).concat([{ id: 'r' + Date.now(), txt: t }]); perGuardar({ recuerdos: perDoc.recuerdos }); perRender(); }
-function perQuitarRecuerdo(id){ if(!confirm('¿Borrar este recuerdo?')) return; perDoc.recuerdos = (perDoc.recuerdos || []).filter(r => r.id !== id); perGuardar({ recuerdos: perDoc.recuerdos }); perRender(); }
-function perReiniciar(){ if(!confirm('¿Empezar la cuenta de nuevo desde hoy?')) return; perDoc.inicio = perHoy(); perGuardar({ inicio: perDoc.inicio }); perTarjeta(); daToast('Hoy empieza de nuevo. Bien por volver.', 'ok'); }
+function perIniciar(user){ perTarjeta(); }
 
         document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible') try{ perTarjeta(); }catch(e){} });
         // ===== Google Calendar: conecta DentiAgenda con el calendario compartido del consultorio (funciones gcal* en la nube) =====
@@ -3461,7 +3406,7 @@ function perReiniciar(){ if(!confirm('¿Empezar la cuenta de nuevo desde hoy?'))
             return d <= 0 ? 'hoy' : (d === 1 ? 'ayer' : 'hace ' + d + ' d');
         }
         function usaSmile(nombre){ const u = usoSmile[nombre]; return !!(u && u.ts); }
-        const DA_VERSION = 'v118';
+        const DA_VERSION = 'v119';
         window.addEventListener('load', () => document.querySelectorAll('.da-ver-txt').forEach(e => e.textContent = 'DentiAgenda ' + DA_VERSION));
         // Texto del estado de SmileLike para un paciente (usa lo guardado; abajo se refresca solo ese paciente)
         function textoEstadoSmile(nombre){
