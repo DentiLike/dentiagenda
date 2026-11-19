@@ -3406,7 +3406,7 @@ function perIniciar(user){ perTarjeta(); }
             return d <= 0 ? 'hoy' : (d === 1 ? 'ayer' : 'hace ' + d + ' d');
         }
         function usaSmile(nombre){ const u = usoSmile[nombre]; return !!(u && u.ts); }
-        const DA_VERSION = 'v119';
+        const DA_VERSION = 'v120';
         window.addEventListener('load', () => document.querySelectorAll('.da-ver-txt').forEach(e => e.textContent = 'DentiAgenda ' + DA_VERSION));
         // Texto del estado de SmileLike para un paciente (usa lo guardado; abajo se refresca solo ese paciente)
         function textoEstadoSmile(nombre){
@@ -9685,6 +9685,29 @@ function pcBanner(n){
         `<button type="button" class="btn-3d" style="width:100%; margin-bottom:10px; ${p.hc ? '' : 'background:var(--primary); color:#fff;'}" onclick="pcAbrir()">🩺 ${p.hc ? 'Primera cita · ' + hechos + ' de 6' : 'Primera cita: historia clínica, fotos y estudios'}</button>` +
         (falt.length && p.hc ? `<div class="odo-sub" style="margin:-4px 0 10px;">Falta: ${escHtml(falt.join(' · '))}</div>` : '');
 }
+
+// Odontograma para la historia clínica impresa: todos los números, según la dentición, con simbología de lo que aparece
+function odoSvgImpresion(p){
+    const O = (p && p.odo) || {}, D = O.d || {}, ed = pcEdad(p), dent = O.dent || ((ed > 0 && ed < 6) ? 'temp' : (ed > 0 && ed <= 12) ? 'mixta' : 'perm'), filas = odoFilas(dent), cel = 34, gap = 4, med = 12;
+    const W = 16 * cel + 15 * gap + med; let y = 0, svg = '';
+    filas.forEach(f => {
+        const off = f.temp ? 3 : 0, numArriba = f.sup;
+        if(numArriba) y += 13;
+        f.a.forEach((t, i) => { const col = i + off, x = col * (cel + gap) + (i >= f.a.length / 2 ? med : 0), st = D[t] && !D[t].bot ? D[t] : null;
+            svg += odoSvg(t, st, { sinBot: 1 }).replace('<svg ', `<svg x="${x}" y="${y}" width="${cel}" height="${cel}" `);
+            svg += `<text x="${x + cel / 2}" y="${numArriba ? y - 3 : y + cel + 11}" font-size="10" text-anchor="middle" fill="${st && !odoVacio(st) ? '#124578' : '#718096'}" font-weight="${st && !odoVacio(st) ? 'bold' : 'normal'}" font-family="Arial">${t}</text>`; });
+        y += cel + (numArriba ? 6 : 16);
+    });
+    const mx = 8 * (cel + gap) - gap / 2 + med / 2;
+    svg = `<line x1="${mx}" y1="0" x2="${mx}" y2="${y}" stroke="#a0aec0" stroke-width="1" stroke-dasharray="4 3"/>` + svg;
+    const L = [['Caries', { s: { O: 'c' } }, s => Object.values(s.s || {}).includes('c')], ['Resina', { s: { O: 'r' } }, s => Object.values(s.s || {}).includes('r')], ['Amalgama', { s: { O: 'a' } }, s => Object.values(s.s || {}).includes('a')],
+        ['Sellante', { sell: 1 }, s => s.sell], ['Corona', { cor: 'h' }, s => s.cor], ['Endodoncia', { endo: 'h' }, s => s.endo], ['Por extraer', { ext: 1 }, s => s.ext], ['Ausente', { aus: 1 }, s => s.aus],
+        ['Implante', { imp: 1 }, s => s.imp], ['Retenido', { ret: 1 }, s => s.ret], ['Fractura', { frac: 1 }, s => s.frac]];
+    const vals = Object.values(D).filter(s => s && !s.bot), usados = L.filter(l => vals.some(s => l[2](s)));
+    const ley = usados.length ? `<div class="odo-ley-imp">${usados.map(l => `<span>${odoSvg(16, l[1], { sinBot: 1 }).replace('<svg ', '<svg width="14" height="14" ')} ${l[0]}</span>`).join('')}<span><b style="color:${ODO_R}">Rojo:</b> por tratar · <b style="color:${ODO_A}">Azul:</b> realizado</span></div>`
+        : `<div class="odo-ley-imp"><span>Sin hallazgos registrados.</span></div>`;
+    return `<svg width="${W}" height="${y}" viewBox="0 0 ${W} ${y}" style="max-width:100%; height:auto;">${svg}</svg>${ley}`;
+}
 // ---------- Documentos imprimibles: historia clínica, consentimiento informado y aviso de privacidad ----------
 const PC_HOJA_CSS = `
         @page{ size: letter; margin: 14mm 14mm 16mm; } *{ box-sizing:border-box; } body{ font-family: Arial, Helvetica, sans-serif; color:#1a202c; font-size:10.5pt; line-height:1.35; margin:0; }
@@ -9698,7 +9721,7 @@ const PC_HOJA_CSS = `
         @media print{ .imp{ display:none; } }
         .hoja + .hoja{ break-before: page; } h2{ break-after: avoid; page-break-after: avoid; } .txt p{ margin:4px 0 6px; text-align:justify; } .txt ol, .txt ul{ margin:2px 0 6px 20px; } .txt li{ margin:2px 0; }
         .caja{ display:inline-block; width:12px; height:12px; border:1.3px solid #1a202c; vertical-align:-2px; margin:0 4px 0 10px; }
-        .firmas.cuatro{ grid-template-columns:1fr 1fr; row-gap:46px; } .lugar{ text-align:right; margin:8px 0 2px; font-size:10pt; }`;
+        .firmas.cuatro{ grid-template-columns:1fr 1fr; row-gap:46px; } .odo-imp{ text-align:center; margin:6px 0 4px; break-inside: avoid; } .odo-ley-imp{ display:flex; flex-wrap:wrap; justify-content:center; gap:4px 14px; font-size:8.5pt; color:#4a5568; margin-top:4px; } .odo-ley-imp span{ display:inline-flex; align-items:center; gap:4px; } .lugar{ text-align:right; margin:8px 0 2px; font-size:10pt; }`;
 function pcEnc(){ const e = escHtml; return `<div class="enc"><img src="${PC_LOGO}" alt="Dentilike"><div class="dr"><b>${e(PC_DR.nombre)}</b><br>${e(PC_DR.esp)}<br>Céd. Prof. ${PC_DR.cedP} (${PC_DR.cedPU}) · Céd. Esp. ${PC_DR.cedE} (${PC_DR.cedEU})<br>${e(PC_DR.dir)}<br>WhatsApp ${PC_DR.tel} · ${PC_DR.correo}</div></div>`; }
 function pcCuerpoHistoria(n){
     const p = pacientes[n], h = pcHC(n), edad = pcEdad(p), e = escHtml, hoy = new Date().toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' });
@@ -9710,10 +9733,7 @@ function pcCuerpoHistoria(n){
     const cl = v => v === 'nv' ? 'No valorable' : v ? 'Clase ' + v : '—';
     const fila = (a, b) => `<tr><th>${a}</th><td>${b || '—'}</td></tr>`;
     let odoImg = '';
-    try{ const O = p.odo; if(O && O.d && Object.keys(O.d).length){ const D = O.d, cel = 30, gap = 3; let svg = ''; const rows = [ODO_PERM_SUP, ODO_PERM_INF];
-        rows.forEach((r, ri) => r.forEach((t, i) => { const x = i * (cel + gap) + (i >= 8 ? 8 : 0), y = ri * (cel + 22) + (ri === 0 ? 14 : 0); const st = D[t] && !D[t].bot ? D[t] : null;
-            svg += odoSvg(t, st, { sinBot: 1 }).replace('<svg ', `<svg x="${x}" y="${y}" width="${cel}" height="${cel}" `) + `<text x="${x + cel / 2}" y="${ri === 0 ? y - 3 : y + cel + 11}" font-size="9" text-anchor="middle" fill="#124578" font-family="Arial">${t}</text>`; }));
-        odoImg = `<svg width="${16 * (cel + gap) + 8}" height="${2 * (cel + 22) + 14}" viewBox="0 0 ${16 * (cel + gap) + 8} ${2 * (cel + 22) + 14}">${svg}</svg>`; } }catch(x){}
+    try{ odoImg = odoSvgImpresion(p); }catch(x){ console.error(x); }
     const plan = (p.plan || []).filter(t => !t.hecho).map(t => e(t.tipo) + (t.diente ? ' (' + e(t.diente) + ')' : '')).join(' · ');
     return `        <h1>HISTORIA CLÍNICA DE ORTODONCIA</h1>
         <div class="sec"><h2>Ficha de identificación</h2><table>${fila('Paciente', e(n))}${fila('Fecha de nacimiento / edad', (p.nacimiento ? new Date(p.nacimiento + 'T12:00').toLocaleDateString('es-MX') : '—') + (edad ? ' · ' + edad + ' años' : ''))}${fila('Teléfono', e(p.telefono || ''))}${h.tutor ? fila('Padre, madre o tutor', e(h.tutor)) : ''}${fila('Fecha de elaboración', hoy)}</table></div>
@@ -9722,7 +9742,7 @@ function pcCuerpoHistoria(n){
         <div class="sec"><h2>Antecedentes médicos</h2>${medSi ? '<ul>' + medSi + '</ul>' : ''}${medNo.length ? `<div class="niega">Niega: ${e(medNo.join(', '))}.</div>` : ''}${sinResp(PC_MED, h.med) ? `<div class="niega">Sin respuesta: ${sinResp(PC_MED, h.med)} pregunta(s).</div>` : ''}</div>
         <div class="sec"><h2>Antecedentes dentales, hábitos y ATM</h2>${dentSi ? '<ul>' + dentSi + '</ul>' : ''}${dentNo.length ? `<div class="niega">Niega: ${e(dentNo.join(', '))}.</div>` : ''}
             <table>${fila('Última visita al dentista', e(h.dent.ultima || ''))}${fila('Hábitos', e(h.hab.join(', ') || 'Ninguno referido'))}${fila('ATM', e(h.atm.join(', ')))}${fila('Higiene', [h.hig.cep ? h.hig.cep + ' cepillado(s) al día' : '', h.hig.hilo ? 'hilo dental: ' + ({ si: 'sí', no: 'no', aveces: 'a veces' })[h.hig.hilo] : '', h.hig.sangra ? 'sangrado: ' + (h.hig.sangra === 'si' ? 'sí' : 'no') : ''].filter(Boolean).join(' · '))}</table></div>
-        <div class="sec"><h2>Exploración intraoral</h2>${odoImg ? '<div style="text-align:center; margin:4px 0;">' + odoImg + '<div class="niega">Rojo: por tratar · Azul: realizado</div></div>' : ''}<table>${fila('Encía', e(h.rev.encia || ''))}${fila('Higiene observada', e(h.rev.hig || ''))}${h.rev.nota ? fila('Notas', e(h.rev.nota)) : ''}${plan ? fila('Tratamientos pendientes', plan) : ''}</table></div>
+        <div class="sec"><h2>Exploración intraoral</h2>${odoImg ? '<div class="odo-imp">' + odoImg + '</div>' : ''}<table>${fila('Encía', e(h.rev.encia || ''))}${fila('Higiene observada', e(h.rev.hig || ''))}${h.rev.nota ? fila('Notas', e(h.rev.nota)) : ''}${plan ? fila('Tratamientos pendientes', plan) : ''}</table></div>
         <div class="sec"><h2>Exploración de ortodoncia</h2><div class="dos"><table>${fila('Perfil', e(o.perfil || ''))}${fila('Simetría facial', e(o.simetria || ''))}${fila('Sonrisa gingival', o.ging === 'si' ? 'Sí' : o.ging === 'no' ? 'No' : '')}${fila('Línea media superior', lmT(o.lmSup, o.lmSupMm))}${fila('Línea media inferior', lmT(o.lmInf, o.lmInfMm))}${fila('Mordida vertical', e(o.vert || ''))}${fila('Overjet / overbite', (o.oj !== undefined ? o.oj + ' mm' : '—') + ' / ' + (o.ob !== undefined ? o.ob + ' mm' : '—'))}</table>
             <table>${fila('Clase molar der. / izq.', cl(o.molD) + ' / ' + cl(o.molI))}${fila('Clase canina der. / izq.', cl(o.canD) + ' / ' + cl(o.canI))}${fila('Mordida cruzada', e((o.cruz || []).join(', ') || 'No'))}${fila('Apiñamiento sup. / inf.', e((o.apSup || '—') + ' / ' + (o.apInf || '—')))}${fila('Diastemas', o.diast === 'si' ? 'Sí' + (o.diastTxt ? ': ' + e(o.diastTxt) : '') : o.diast === 'no' ? 'No' : '')}${fila('Extracción de premolares', ({ no: 'No', valorar: 'Valorar con estudios', si: 'Sí' })[o.extr] || '')}</table></div>${o.nota ? '<table>' + fila('Notas', e(o.nota)) + '</table>' : ''}</div>
         <div class="leyenda">Declaro que la información proporcionada es verdadera y completa, y que se me explicó en términos comprensibles el motivo de la valoración. Autorizo la toma de fotografías clínicas y estudios radiográficos para fines de diagnóstico y de mi expediente clínico, el cual se manejará de forma confidencial conforme a la NOM-004-SSA3-2012.</div>
