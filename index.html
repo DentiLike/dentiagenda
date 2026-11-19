@@ -3406,7 +3406,7 @@ function perIniciar(user){ perTarjeta(); }
             return d <= 0 ? 'hoy' : (d === 1 ? 'ayer' : 'hace ' + d + ' d');
         }
         function usaSmile(nombre){ const u = usoSmile[nombre]; return !!(u && u.ts); }
-        const DA_VERSION = 'v120';
+        const DA_VERSION = 'v122';
         window.addEventListener('load', () => document.querySelectorAll('.da-ver-txt').forEach(e => e.textContent = 'DentiAgenda ' + DA_VERSION));
         // Texto del estado de SmileLike para un paciente (usa lo guardado; abajo se refresca solo ese paciente)
         function textoEstadoSmile(nombre){
@@ -9232,33 +9232,93 @@ function odoMiniRender(nombre, boxEl){
     box.innerHTML = `<div class="odo-mini" onclick="odoAbrir()">${dent === 'temp' ? fila(ODO_TEMP_SUP) + fila(ODO_TEMP_INF) : fila(ODO_PERM_SUP) + fila(ODO_PERM_INF)}</div>
         <div class="odo-sub" style="text-align:center; margin-top:4px;">${n ? n + ' diente(s) con marcas' + (roj ? ' · ' + roj + ' por tratar' : '') + (bot ? ' · ' + bot + ' del bot por confirmar' : '') : 'Sin llenar todavía'}</div>`;
 }
-// ---------- Imagen para el paciente (sin notas; número solo en los dientes con algo) ----------
+// ---------- Imagen para el paciente: dientes de frente con raíz (sin notas; número solo en los dientes con algo) ----------
+const ODO_ESM = '#FFFDF7', ODO_EST = '#C9BFA8';
+function odoAnchoDiente(t, temp){ if(temp) return t >= 4 ? 1.05 : t === 3 ? 0.85 : t === 2 ? 0.72 : 0.8; return t >= 6 ? 1.35 : t >= 4 ? 0.92 : t === 3 ? 0.95 : t === 2 ? 0.82 : 1; }
+// x = borde izquierdo, base = línea de mordida, ww = ancho, U = unidad, sup = arriba, t = tipo (1-8), st = estado, mesIzq = la mesial mira a la izquierda
+function odoDienteFrontal(x, base, ww, U, sup, t, st, mesIzq, temp){
+    st = st || {}; const dir = sup ? -1 : 1, ch = U * (temp ? 0.7 : 0.95), rh = U * (temp ? 0.75 : (t >= 6 ? 1.2 : t === 3 ? 1.65 : 1.35)), sw = Math.max(1.2, U * 0.025);
+    const c0 = base, c1 = base + dir * ch, top = Math.min(c0, c1), r0 = c1, r1 = c1 + dir * rh, rad = t <= 3 ? U * 0.16 : U * 0.12;
+    const s = st.s || {}, col = v => v === 'c' ? ODO_R : v === 'r' ? ODO_A : v === 'a' ? '#888780' : null;
+    if(st.aus) return `<rect x="${x + ww * 0.06}" y="${top}" width="${ww * 0.88}" height="${ch}" rx="${rad}" fill="none" stroke="#B4B2A9" stroke-width="${sw}" stroke-dasharray="${U * 0.08} ${U * 0.06}"/>`;
+    let g = '';
+    const dy = 0, dash = st.ret ? ` stroke-dasharray="${U * 0.08} ${U * 0.05}"` : '';   // retenido: contorno punteado
+    // raíz (o implante)
+    if(st.imp){
+        const a = x + ww * 0.32, b = x + ww * 0.68, n = 6; g += `<path d="M${a} ${r0} L${b} ${r0} L${x + ww * 0.6} ${r1} L${x + ww * 0.4} ${r1} Z" fill="#D3D1C7" stroke="#888780" stroke-width="${sw}"/>`;
+        for(let i = 1; i < n; i++){ const yy = r0 + dir * rh * i / n, sh = (1 - i / n) * ww * 0.05; g += `<line x1="${a - U * 0.04 + sh}" y1="${yy}" x2="${b + U * 0.04 - sh}" y2="${yy}" stroke="#888780" stroke-width="${sw}"/>`; }
+    } else if(t >= 6 && !temp){
+        const a = x + ww * 0.16, b = x + ww * 0.45, c = x + ww * 0.55, d = x + ww * 0.84, mid = r0 + dir * rh * 0.35;
+        g += `<path d="M${a} ${r0 + dy} Q${a + 2} ${r1 + dy} ${a + ww * 0.13} ${r1 + dy} Q${b} ${r1 + dy} ${b} ${mid + dy} L${c} ${mid + dy} Q${c} ${r1 + dy} ${d - ww * 0.13} ${r1 + dy} Q${d - 2} ${r1 + dy} ${d} ${r0 + dy} Z" fill="${ODO_ESM}" stroke="${st.ret ? '#888780' : ODO_EST}" stroke-width="${sw}"${dash}/>`;
+    } else {
+        const a = x + ww * 0.22, d = x + ww * 0.78;
+        g += `<path d="M${a} ${r0 + dy} Q${x + ww * 0.3} ${r1 + dy} ${x + ww / 2} ${r1 + dir * 2 + dy} Q${x + ww * 0.7} ${r1 + dy} ${d} ${r0 + dy} Z" fill="${ODO_ESM}" stroke="${st.ret ? '#888780' : ODO_EST}" stroke-width="${sw}"${dash}/>`;
+    }
+    if(st.endo && !st.imp){ const ce = st.endo === 'p' ? ODO_R : ODO_A, lw = Math.max(2.5, U * 0.06);
+        if(t >= 6 && !temp) g += `<path d="M${x + ww * 0.3} ${r0 + dy} L${x + ww * 0.28} ${r1 - dir * U * 0.12 + dy} M${x + ww * 0.7} ${r0 + dy} L${x + ww * 0.72} ${r1 - dir * U * 0.12 + dy}" stroke="${ce}" stroke-width="${lw}" stroke-linecap="round" fill="none"/>`;
+        else g += `<line x1="${x + ww / 2}" y1="${r0 + dy}" x2="${x + ww / 2}" y2="${r1 - dir * U * 0.12 + dy}" stroke="${ce}" stroke-width="${lw}" stroke-linecap="round"/>`; }
+    // corona
+    const cf = st.cor ? (st.cor === 'p' ? '#FCEBEB' : '#B5D4F4') : ODO_ESM, cs = st.cor ? (st.cor === 'p' ? ODO_R : ODO_A) : ODO_EST;
+    g += `<rect x="${x + ww * 0.03}" y="${top + dy}" width="${ww * 0.94}" height="${ch}" rx="${rad}" fill="${cf}" stroke="${st.ret && !st.cor ? '#888780' : cs}" stroke-width="${st.cor ? sw * 1.8 : sw}"${dash}/>`;
+    // superficies: O en el borde de mordida, M/D a los lados, V al centro, L un poco más adentro
+    const occ = base + dir * ch * 0.2 + dy, cen = base + dir * ch * 0.55 + dy, lin = base + dir * ch * 0.78 + dy;
+    const pos = { O: [x + ww / 2, occ], V: [x + ww / 2, cen], L: [x + ww / 2, lin], M: [x + (mesIzq ? ww * 0.22 : ww * 0.78), cen], D: [x + (mesIzq ? ww * 0.78 : ww * 0.22), cen] };
+    Object.keys(s).forEach(k => { const c = col(s[k]), p = pos[k]; if(!c || !p) return;
+        if(s[k] === 'c') g += `<circle cx="${p[0]}" cy="${p[1]}" r="${U * 0.12}" fill="${c}"/>`;
+        else g += `<ellipse cx="${p[0]}" cy="${p[1]}" rx="${k === 'M' || k === 'D' ? U * 0.1 : ww * 0.26}" ry="${U * 0.1}" fill="${c}"/>`; });
+    if(st.sell) g += `<line x1="${x + ww * 0.22}" y1="${base + dir * ch * 0.12 + dy}" x2="${x + ww * 0.78}" y2="${base + dir * ch * 0.12 + dy}" stroke="${ODO_A}" stroke-width="${U * 0.07}" stroke-linecap="round"/>`;
+    if(st.frac) g += `<polyline points="${x + ww * 0.25},${top + dy + ch * 0.1} ${x + ww * 0.55},${top + dy + ch * 0.45} ${x + ww * 0.4},${top + dy + ch * 0.55} ${x + ww * 0.75},${top + dy + ch * 0.92}" fill="none" stroke="${ODO_R}" stroke-width="${U * 0.06}" stroke-linejoin="round"/>`;
+    if(st.ext){ const yA = Math.min(top, r1) - U * 0.05, yB = Math.max(top + ch, r1) + U * 0.05, lw = U * 0.08;
+        g += `<g stroke="${ODO_R}" stroke-width="${lw}" stroke-linecap="round"><line x1="${x + ww * 0.08}" y1="${yA}" x2="${x + ww * 0.92}" y2="${yB}"/><line x1="${x + ww * 0.92}" y1="${yA}" x2="${x + ww * 0.08}" y2="${yB}"/></g>`; }
+    return g;
+}
 async function odoImagenPaciente(){
-    const nombre = odoS.n, O = odoDe(nombre), D = odoS.vista === 'ini' ? (O.ini || {}) : O.d, filas = odoFilas(O.dent);
-    const W = 1600, cel = 84, gap = 8, x0 = (W - (16 * cel + 15 * gap + 20)) / 2;
-    let y = 190, g = '';
-    const lim = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+    const nombre = odoS.n, O = odoDe(nombre), Dall = odoS.vista === 'ini' ? (O.ini || {}) : O.d, filas = odoFilas(O.dent);
+    const D = {}; Object.keys(Dall).forEach(k => { if(Dall[k] && !Dall[k].bot && !odoVacio(Dall[k])) D[k] = Dall[k]; });
+    const W = 1600, med = 14, gap = 5;
+    const sumW = ODO_PERM_SUP.reduce((a, n) => a + odoAnchoDiente(n % 10, false), 0), U = Math.min(88, (W - 200 - 16 * gap - med) / sumW);
+    let y = 230, g = '';
     filas.forEach(f => {
-        const off = f.temp ? 3 : 0;
-        f.a.forEach((n, i) => { const col = i + off, x = x0 + col * (cel + gap) + (i >= f.a.length / 2 ? 20 : 0), st = D[n], marca = st && !odoVacio(st) && !st.bot;
-            const svg = odoSvg(n, st && !st.bot ? st : null, { sinBot: 1 }).replace('<svg ', `<svg x="${x}" y="${y + (f.sup ? 30 : 0)}" width="${cel}" height="${cel}" `);
-            g += svg; if(marca) g += `<text x="${x + cel / 2}" y="${f.sup ? y + 22 : y + cel + 30}" text-anchor="middle" font-size="24" font-weight="bold" fill="#124578" font-family="Arial">${n}</text>`; });
-        y += cel + 52 + (f.temp ? 0 : 6);
+        const temp = !!f.temp, ch = U * (temp ? 0.7 : 0.95), rh = U * (temp ? 0.75 : 1.65), alto = ch + rh;
+        const base = f.sup ? y + alto + 6 : y + 6;   // línea de mordida
+        const mitad = f.a.length / 2, izq = f.a.slice(0, mitad), der = f.a.slice(mitad);
+        let cx = W / 2 - med / 2;
+        izq.slice().reverse().forEach(n => { const t = +n % 10, ww = U * odoAnchoDiente(t, temp); cx -= ww + gap;
+            g += odoDienteFrontal(cx, base, ww, U, f.sup, t, D[n], false, temp);
+            if(D[n]) g += `<text x="${cx + ww / 2}" y="${f.sup ? y - 10 : y + alto + 44}" text-anchor="middle" font-size="${temp ? 22 : 26}" font-weight="bold" fill="#124578" font-family="Arial">${n}</text>`; });
+        cx = W / 2 + med / 2;
+        der.forEach(n => { const t = +n % 10, ww = U * odoAnchoDiente(t, temp);
+            g += odoDienteFrontal(cx, base, ww, U, f.sup, t, D[n], true, temp);
+            if(D[n]) g += `<text x="${cx + ww / 2}" y="${f.sup ? y - 10 : y + alto + 44}" text-anchor="middle" font-size="${temp ? 22 : 26}" font-weight="bold" fill="#124578" font-family="Arial">${n}</text>`; cx += ww + gap; });
+        y += alto + (f.sup && !temp && filas.length > 2 ? 40 : 60) + (f.sup ? 0 : 20);
     });
-    const midX = x0 + 8 * (cel + gap) + 6;
-    g += `<line x1="${midX}" y1="180" x2="${midX}" y2="${y}" stroke="#a3b1c6" stroke-width="3" stroke-dasharray="10 8"/>`;
-    const usados = [['Caries', { s: { O: 'c' } }, D => Object.values(D).some(s => s && !s.bot && Object.values(s.s || {}).includes('c'))], ['Resina', { s: { O: 'r' } }, D => Object.values(D).some(s => s && !s.bot && Object.values(s.s || {}).includes('r'))], ['Amalgama', { s: { O: 'a' } }, D => Object.values(D).some(s => s && !s.bot && Object.values(s.s || {}).includes('a'))], ['Sellante', { sell: 1 }, 'sell'], ['Corona', { cor: 'h' }, 'cor'], ['Endodoncia', { endo: 'h' }, 'endo'], ['Por extraer', { ext: 1 }, 'ext'], ['Ausente', { aus: 1 }, 'aus'], ['Implante', { imp: 1 }, 'imp'], ['Retenido', { ret: 1 }, 'ret'], ['Fractura', { frac: 1 }, 'frac']]
-        .filter(l => typeof l[2] === 'function' ? l[2](D) : Object.values(D).some(s => s && !s.bot && s[l[2]]));
-    let ly = y + 30; const lx = x0;
-    if(usados.length){ g += `<text x="${lx}" y="${ly}" font-size="26" font-weight="bold" fill="#124578" font-family="Arial">Simbología</text>`; ly += 20;
-        usados.forEach((l, i) => { const cx = lx + (i % 4) * 360, cy = ly + Math.floor(i / 4) * 58; g += odoSvg(16, l[1], { sinBot: 1 }).replace('<svg ', `<svg x="${cx}" y="${cy}" width="44" height="44" `) + `<text x="${cx + 56}" y="${cy + 31}" font-size="24" fill="#2d3748" font-family="Arial">${l[0]}</text>`; });
-        ly += Math.ceil(usados.length / 4) * 58 + 10; }
-    g += `<text x="${lx}" y="${ly + 30}" font-size="24" fill="#2d3748" font-family="Arial"><tspan fill="${ODO_R}" font-weight="bold">Rojo:</tspan> por tratar   <tspan fill="${ODO_A}" font-weight="bold">Azul:</tspan> ya realizado</text>`;
-    const H = ly + 80, fecha = new Date().toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' });
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><rect width="${W}" height="${H}" fill="#ffffff"/>
-        <text x="${x0}" y="70" font-size="44" font-weight="bold" fill="#124578" font-family="Arial">Dentilike · Odontograma</text>
-        <text x="${x0}" y="118" font-size="28" fill="#4a5568" font-family="Arial">${lim(nombre)} · ${fecha}</text>
-        <text x="${x0}" y="168" font-size="20" fill="#718096" font-family="Arial">Derecho del paciente a la izquierda</text>${g}</svg>`;
+    g = `<line x1="${W / 2}" y1="200" x2="${W / 2}" y2="${y - 20}" stroke="#D3D1C7" stroke-width="2" stroke-dasharray="10 8"/>` + g;
+    // simbología solo de lo que aparece, con palabras sencillas
+    const vals = Object.values(D), hay = f => vals.some(f);
+    const L = [['Caries: por atender', { s: { V: 'c' } }, hay(s => Object.values(s.s || {}).includes('c'))], ['Resina: ya tratado', { s: { V: 'r' } }, hay(s => Object.values(s.s || {}).includes('r'))],
+        ['Amalgama', { s: { V: 'a' } }, hay(s => Object.values(s.s || {}).includes('a'))], ['Sellante', { sell: 1 }, hay(s => s.sell)],
+        ['Endodoncia por hacer', { endo: 'p' }, hay(s => s.endo === 'p')], ['Endodoncia hecha', { endo: 'h' }, hay(s => s.endo === 'h')],
+        ['Corona por hacer', { cor: 'p' }, hay(s => s.cor === 'p')], ['Corona (funda)', { cor: 'h' }, hay(s => s.cor === 'h')],
+        ['Por extraer', { ext: 1 }, hay(s => s.ext)], ['Falta el diente', { aus: 1 }, hay(s => s.aus)], ['Implante', { imp: 1 }, hay(s => s.imp)],
+        ['Diente retenido', { ret: 1 }, hay(s => s.ret)], ['Fractura', { frac: 1 }, hay(s => s.frac)]].filter(l => l[2]);
+    let ly = y + 10;
+    if(L.length){
+        g += `<text x="100" y="${ly}" font-size="28" font-weight="bold" fill="#124578" font-family="Arial">¿Qué significa cada marca?</text>`; ly += 24;
+        L.forEach((l, i) => { const cx = 100 + (i % 3) * 470, cy = ly + Math.floor(i / 3) * 120, u = 46;
+            g += odoDienteFrontal(cx, cy, u, u, false, 1, l[1], true, false);
+            g += `<text x="${cx + 68}" y="${cy + 52}" font-size="26" fill="#2d3748" font-family="Arial">${l[0]}</text>`; });
+        ly += Math.ceil(L.length / 3) * 120 + 10;
+    } else { g += `<text x="${W / 2}" y="${ly + 20}" text-anchor="middle" font-size="28" fill="#2d3748" font-family="Arial">Sin hallazgos: ¡tus dientes se ven sanos!</text>`; ly += 50; }
+    g += `<text x="100" y="${ly + 26}" font-size="24" fill="#4a5568" font-family="Arial"><tspan fill="${ODO_R}" font-weight="bold">Rojo:</tspan> por atender<tspan dx="36" fill="${ODO_A}" font-weight="bold">Azul:</tspan> ya tratado</text>`;
+    const H = ly + 70, fecha = new Date().toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' });
+    let logo = ''; try{ logo = PC_LOGO; }catch(e){}
+    const lim = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><rect width="${W}" height="${H}" fill="#ffffff"/>
+        ${logo ? `<image href="${logo}" xlink:href="${logo}" x="100" y="40" height="96" width="400" preserveAspectRatio="xMinYMid meet"/>` : `<text x="100" y="100" font-size="44" font-weight="bold" fill="#124578" font-family="Arial">Dentilike</text>`}
+        <text x="${W - 100}" y="80" text-anchor="end" font-size="34" font-weight="bold" fill="#124578" font-family="Arial">Tu odontograma</text>
+        <text x="${W - 100}" y="122" text-anchor="end" font-size="26" fill="#4a5568" font-family="Arial">${lim(nombre)} · ${fecha}</text>
+        <line x1="100" y1="160" x2="${W - 100}" y2="160" stroke="#124578" stroke-width="3"/>
+        <text x="100" y="196" font-size="20" fill="#718096" font-family="Arial">Tu lado derecho</text><text x="${W - 100}" y="196" text-anchor="end" font-size="20" fill="#718096" font-family="Arial">Tu lado izquierdo</text>${g}</svg>`;
     try{
         const img = new Image(); img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
         await new Promise((ok, mal) => { img.onload = ok; img.onerror = mal; });
