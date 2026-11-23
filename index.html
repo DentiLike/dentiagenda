@@ -383,6 +383,14 @@
             .pc-fotos { grid-template-columns: repeat(3, 1fr); } .pc-fotos.ext { grid-template-columns: repeat(2, 1fr); }
             .pc-seg span { padding: 8px 10px; font-size: .8rem; } .pc-pie { bottom: -.9rem; }
         }
+        /* ===== Trazados (v123) ===== */
+        #trModal { z-index: 1050; } #trModal .modal { max-width: 820px; padding: 1.3rem; }
+        .tr-card { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 14px; margin-bottom: 10px; cursor: pointer; background: var(--bg-color); box-shadow: 3px 3px 6px var(--shadow-dark), -3px -3px 6px var(--shadow-light); }
+        .tr-est { font-size: .72rem; font-weight: bold; padding: 5px 10px; border-radius: 10px; white-space: nowrap; }
+        .tr-est.recibido { background: #fefcbf; color: #975a16; } .tr-est.analisis { background: #bee3f8; color: #2a4365; } .tr-est.enviado { background: #c6f6d5; color: #22543d; }
+        .tr-h { font-size: .95rem; color: var(--primary); margin: 16px 0 6px; }
+        .tr-rx { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: .68rem; color: var(--text-muted); max-width: 90px; text-align: center; }
+        .tr-rx img { width: 84px; height: 64px; } .tr-rx b { position: absolute; top: -6px; right: -6px; background: #e53e3e; color: #fff; border-radius: 50%; width: 20px; height: 20px; font-size: .7rem; display: flex; align-items: center; justify-content: center; cursor: pointer; }
 </style>
 </head>
 <body>
@@ -422,6 +430,7 @@
             <button class="btn-3d btn-text-icon" onclick="abrirDirectorio()">Pacientes</button>
             <button class="btn-3d btn-text-icon" onclick="abrirPotenciales()">🎯 Px Potencial<span id="btnPotencialesBadge"></span></button>
             <button class="btn-3d btn-text-icon" id="btnEscritorio" onclick="abrirEscritorio()">🖥️ Mi consultorio</button>
+            <button class="btn-3d btn-text-icon" onclick="trAbrirLista()">🦴 Trazados</button>
             <button class="btn-3d btn-text-icon" id="btnSeguimiento" onclick="abrirSeguimiento()">📋 Seguimiento</button>
             <button class="btn-3d btn-text-icon" id="btnMateriales" onclick="abrirMateriales()">🛒 Surtir</button>
             <button class="btn-3d btn-text-icon" onclick="openConfig()">Ajustes</button>
@@ -949,6 +958,7 @@
     </div>
 
     <!-- Modal Materiales por surtir -->
+    <div class="modal-overlay" id="trModal"><div class="modal" id="trBody"></div></div>
     <div class="modal-overlay" id="pcModal"><div class="modal pc-modal" id="pcBody"></div></div>
     <div class="modal-overlay" id="odoModal"><div class="modal odo-modal" id="odoBody"></div></div>
     <div class="modal-overlay" id="materialesModal">
@@ -3406,7 +3416,7 @@ function perIniciar(user){ perTarjeta(); }
             return d <= 0 ? 'hoy' : (d === 1 ? 'ayer' : 'hace ' + d + ' d');
         }
         function usaSmile(nombre){ const u = usoSmile[nombre]; return !!(u && u.ts); }
-        const DA_VERSION = 'v122';
+        const DA_VERSION = 'v123';
         window.addEventListener('load', () => document.querySelectorAll('.da-ver-txt').forEach(e => e.textContent = 'DentiAgenda ' + DA_VERSION));
         // Texto del estado de SmileLike para un paciente (usa lo guardado; abajo se refresca solo ese paciente)
         function textoEstadoSmile(nombre){
@@ -9907,6 +9917,228 @@ function pcImprimir(){ pcImprimirDocs(['hc']); }
 (function(){ const o = window.abrirEditorDirectorio; if(typeof o !== 'function' || o._pc) return;
     const w = function(){ const r = o.apply(this, arguments); try{ pcBanner(dirNombreActual); renderFotosClinFicha(dirNombreActual); }catch(e){ console.error(e); } return r; };
     w._pc = 1; window.abrirEditorDirectorio = w; })();
+
+</script>
+<script>
+// ===== TRAZADOS PARA OTROS DOCTORES (v123) =====
+// Cada caso vive en su propio documento agenda/tr_<id> (nunca en agenda/principal): no entra al directorio, ni a la agenda, ni a Mi Sonrisa.
+// Para usar el mismo asistente (trazado, panorámica, mesa) el caso se "presta" a `pacientes` como propiedad NO enumerable:
+// las herramientas lo encuentran por su nombre, pero las listas, los guardados y la sincronización lo ignoran.
+const TR_PREF = '🦴 ';
+let trCasos = {}, trCargado = false, trActual = null, _trTimer = null;
+const TR_ESTADOS = [['recibido', 'Recibido'], ['analisis', 'En análisis'], ['enviado', 'Enviado']];
+function trEsCaso(n){ return typeof n === 'string' && n.indexOf(TR_PREF) === 0; }
+function trPrestar(c){ try{ Object.defineProperty(pacientes, c.key, { value: c.p, enumerable: false, configurable: true, writable: true }); }catch(e){ console.error(e); } }
+function trDevolver(c){ try{ if(c && Object.getOwnPropertyDescriptor(pacientes, c.key) && !Object.getOwnPropertyDescriptor(pacientes, c.key).enumerable) delete pacientes[c.key]; }catch(e){} }
+async function trCargar(){
+    if(!fbOK || !db){ trCargado = true; return; }
+    try{
+        const qs = await db.collection('agenda').where('tipo', '==', 'trazado').get();
+        const out = {}; qs.forEach(d => { const x = d.data(); if(x && x.id) out[x.id] = x; });
+        trCasos = out; trCargado = true;
+    }catch(e){ console.error('trazados', e); daToast('No pude cargar los trazados. Revisa tu conexión.', 'err'); }
+}
+function trGuardar(id, ya){
+    const c = trCasos[id]; if(!c) return;
+    c.t = Date.now();
+    if(_trTimer) clearTimeout(_trTimer);
+    const sube = async () => { _trTimer = null; if(!fbOK || !db) return;
+        try{ await db.collection('agenda').doc('tr_' + id).set(JSON.parse(JSON.stringify(c))); }catch(e){ console.error(e); daToast('No se guardó el caso. Revisa tu conexión.', 'err'); } };
+    if(ya) return sube(); _trTimer = setTimeout(sube, 800);
+}
+// Las herramientas guardan con guardarAgendaEnNube(): si hay un caso abierto, también se guarda su documento
+(function(){ const o = guardarAgendaEnNube; guardarAgendaEnNube = function(){ const r = o.apply(this, arguments); try{ if(trActual && trCasos[trActual]){ trEstadoAuto(trCasos[trActual]); trGuardar(trActual); } }catch(e){} return r; }; })();
+// Un caso de trazado nunca se publica a Mi Sonrisa ni se manda al paciente
+(function(){ const o = syncPacienteAFirebase; syncPacienteAFirebase = function(n){ if(trEsCaso(n)) return; return o.apply(this, arguments); }; })();
+(function(){ const o = mesaEnviar; mesaEnviar = function(){ if(mesa && trEsCaso(mesa.nombre)){ alert('Este es un trazado para otro doctor: el informe se envía desde la ficha del caso (Trazados).'); return; } return o.apply(this, arguments); }; })();
+function trEstadoAuto(c){ if(c.estado === 'enviado') return; const p = c.p || {}; if(p.trazadoPuntos || (p.diag && p.diag.d)) c.estado = 'analisis'; }
+// ---------- Lista ----------
+async function trAbrirLista(){
+    document.getElementById('trModal').style.display = 'flex';
+    document.getElementById('trBody').innerHTML = '<div class="odo-sub" style="padding:30px; text-align:center;">Cargando trazados…</div>';
+    await trCargar(); trActual = null; trRenderLista();
+}
+function trCerrar(){ if(trActual){ trDevolver(trCasos[trActual]); trActual = null; } if(_trTimer){ clearTimeout(_trTimer); } document.getElementById('trModal').style.display = 'none'; }
+function trRenderLista(filtro){
+    const L = Object.values(trCasos).sort((a, b) => (b.recibido || 0) - (a.recibido || 0));
+    const docs = Array.from(new Set(L.map(c => c.doctor).filter(Boolean)));
+    const f = filtro || window._trFiltro || '';
+    const vis = L.filter(c => !f || c.doctor === f);
+    const est = k => (TR_ESTADOS.find(x => x[0] === k) || TR_ESTADOS[0])[1];
+    document.getElementById('trBody').innerHTML = `
+        <div class="modal-header" style="margin-bottom:8px;"><div><h2 style="margin:0; color:var(--primary);">🦴 Trazados</h2><div class="odo-sub">Casos que te mandan otros doctores. No se mezclan con tus pacientes.</div></div><button class="close-btn" onclick="trCerrar()">X</button></div>
+        <button type="button" class="btn-3d pc-prim" style="width:100%; margin-bottom:12px;" onclick="trNuevo()">+ Nuevo caso</button>
+        ${docs.length > 1 ? `<div class="pc-chips" style="margin-bottom:10px;"><span class="pc-chip${!f ? ' on' : ''}" onclick="window._trFiltro=''; trRenderLista()">Todos</span>${docs.map(d => `<span class="pc-chip${f === d ? ' on' : ''}" onclick="window._trFiltro=${JSON.stringify(d).replace(/"/g, '&quot;')}; trRenderLista()">${escHtml(d)}</span>`).join('')}</div>` : ''}
+        ${vis.length ? vis.map(c => `<div class="tr-card" onclick="trAbrirCaso('${c.id}')">
+            <div style="flex:1; min-width:0;"><div style="font-weight:bold; color:var(--primary);">${escHtml(c.paciente || 'Sin nombre')}${c.edad ? ' · ' + c.edad + ' años' : ''}</div>
+            <div class="odo-sub">${escHtml(c.doctor || 'Sin doctor')} · ${new Date(c.recibido || Date.now()).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })} · ${((c.p || {}).estudios || []).length} radiografía(s)</div></div>
+            <span class="tr-est ${c.estado || 'recibido'}">${est(c.estado)}</span></div>`).join('') : '<div class="odo-sub" style="text-align:center; padding:20px;">Aún no hay casos. Cuando un doctor te mande radiografías, créalo con "+ Nuevo caso".</div>'}`;
+}
+function trNuevo(){
+    const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+    trCasos[id] = { id: id, tipo: 'trazado', paciente: '', edad: null, doctor: '', tel: '', motivo: '', obs: '', estado: 'recibido', recibido: Date.now(), key: TR_PREF + 'caso ' + id, p: { estudios: [] } };
+    trAbrirCaso(id, true);
+}
+function trClave(c){ return TR_PREF + (c.paciente || 'Paciente') + ' · ' + (c.doctor || 'Doctor') + ' (' + c.id.slice(-4) + ')'; }
+// ---------- Ficha del caso ----------
+function trAbrirCaso(id, nuevo){
+    if(trActual && trActual !== id) trDevolver(trCasos[trActual]);
+    const c = trCasos[id]; if(!c) return; trActual = id;
+    if(!c.p) c.p = { estudios: [] };
+    const k = trClave(c); if(c.key !== k){ trDevolver(c); c.key = k; }
+    trPrestar(c); trRenderCaso(nuevo);
+}
+function trRenderCaso(nuevo){
+    const c = trCasos[trActual]; if(!c) return; const p = c.p, ests = p.estudios || [];
+    const docs = Array.from(new Map(Object.values(trCasos).filter(x => x.doctor).map(x => [x.doctor, x.tel || ''])).entries());
+    const tieneLat = ests.some(e => /later|tele|ceph|cefal/i.test(e.nombre || '')), tienePano = ests.some(e => /panor/i.test(e.nombre || ''));
+    document.getElementById('trBody').innerHTML = `
+        <div class="modal-header" style="margin-bottom:8px;"><div><h2 style="margin:0; color:var(--primary);">🦴 ${escHtml(c.paciente || 'Nuevo caso')}</h2><div class="odo-sub">${escHtml(c.doctor || 'Doctor sin capturar')}</div></div><button class="close-btn" onclick="trVolver()">←</button></div>
+        <div class="pc-tabs" style="padding-bottom:6px;">${TR_ESTADOS.map(e => `<span class="pc-tab${(c.estado || 'recibido') === e[0] ? ' on' : ''}" onclick="trSet('estado', '${e[0]}', true)">${e[1]}</span>`).join('')}</div>
+        <h3 class="tr-h">Doctor que lo envía</h3>
+        ${docs.length ? `<div class="pc-chips" style="margin-bottom:8px;">${docs.map(d => `<span class="pc-chip${c.doctor === d[0] ? ' on' : ''}" onclick="trDoctor(${JSON.stringify(d[0]).replace(/"/g, '&quot;')}, ${JSON.stringify(d[1]).replace(/"/g, '&quot;')})">${escHtml(d[0])}</span>`).join('')}</div>` : ''}
+        <div class="pc-grid"><div><label class="pc-lbl">Nombre</label><input class="pc-in" value="${escHtml(c.doctor || '')}" placeholder="Dr. Juan Pérez" oninput="trSet('doctor', this.value)" onchange="trAbrirCaso(trActual)"></div>
+            <div><label class="pc-lbl">WhatsApp</label><input class="pc-in" inputmode="tel" value="${escHtml(c.tel || '')}" placeholder="444 123 4567" oninput="trSet('tel', this.value)"></div></div>
+        <h3 class="tr-h">Paciente</h3>
+        <div class="pc-grid"><div><label class="pc-lbl">Nombre o iniciales</label><input class="pc-in" value="${escHtml(c.paciente || '')}" placeholder="Ana López o A. L." oninput="trSet('paciente', this.value)" onchange="trAbrirCaso(trActual)"></div>
+            <div><label class="pc-lbl">Edad (años)</label><input class="pc-in" type="number" min="3" max="90" value="${c.edad || ''}" placeholder="14" oninput="trEdad(this.value)"></div></div>
+        <label class="pc-lbl">¿Qué te pregunta el doctor?</label><textarea class="pc-in" rows="2" placeholder="Ej. ¿Es caso de extracciones? ¿Clase II esquelética?" oninput="trSet('motivo', this.value)">${escHtml(c.motivo || '')}</textarea>
+        <h3 class="tr-h">Radiografías</h3>
+        <div class="pc-mini-fotos" style="margin-bottom:8px;">${ests.length ? ests.map(e => `<div class="tr-rx"><img src="${escAttr(e.url)}" onclick="dpVerImagen('${escAttr(e.url)}', ${JSON.stringify((e.nombre || 'radiografia') + '.jpg').replace(/"/g, '&quot;')})"><span>${escHtml(e.nombre || '')}</span><b onclick="trQuitarRx('${e.id}')">✕</b></div>`).join('') : '<span class="odo-sub">Sube la lateral de cráneo y/o la panorámica. Si te llegaron por WhatsApp, primero guárdalas en tu galería.</span>'}</div>
+        <div class="pc-docs"><button type="button" class="btn-3d" onclick="trSubir('Lateral de cráneo')">${tieneLat ? '✓ ' : ''}Lateral de cráneo</button><button type="button" class="btn-3d" onclick="trSubir('Radiografía panorámica')">${tienePano ? '✓ ' : ''}Panorámica</button><button type="button" class="btn-3d" onclick="trSubirOtra()">Otra</button></div>
+        <h3 class="tr-h">Asistente</h3>
+        <div class="pc-docs"><button type="button" class="btn-3d" onclick="trHerr('trazo')" ${tieneLat ? '' : 'style="opacity:.55"'}>${p.trazadoPuntos ? '✓ ' : ''}Trazado cefalométrico</button>
+            <button type="button" class="btn-3d" onclick="trHerr('mesa')" ${ests.length ? '' : 'style="opacity:.55"'}>${p.diag && p.diag.d ? '✓ ' : ''}Diagnóstico con el asistente</button></div>
+        ${p.trazadoValores ? `<div class="odo-sub" style="margin-top:6px;">${escHtml(String(p.trazadoValores).replace(/^Trazado Steiner \(DentiAgenda\):\s*/, ''))}</div>` : ''}
+        <h3 class="tr-h">Observaciones para el doctor</h3>
+        <textarea class="pc-in" rows="4" placeholder="Tu opinión, lo que recomiendas revisar, dudas…" oninput="trSet('obs', this.value)">${escHtml(c.obs || '')}</textarea>
+        <h3 class="tr-h">Informe</h3>
+        <div class="pc-prev" style="white-space:pre-wrap; background:var(--bg-color); border-color:var(--shadow-dark);" id="trPrev">${escHtml(trInformeTexto(c))}</div>
+        <div class="pc-docs"><button type="button" class="btn-3d" onclick="trImprimir()">PDF / imprimir</button><button type="button" class="btn-3d" onclick="trImagen()">Imagen para compartir</button></div>
+        <button type="button" class="btn-3d pc-prim" style="width:100%; margin-top:8px;" onclick="trEnviarWa()">Enviar informe por WhatsApp${c.tel ? ' a ' + escHtml(c.doctor || c.tel) : ''}</button>
+        <div class="pc-docs" style="margin-top:14px;"><button type="button" class="btn-3d" onclick="trPasarAPaciente()">Pasar a mis pacientes</button><button type="button" class="btn-3d" style="color:#e53e3e;" onclick="trEliminar()">Eliminar caso</button></div>`;
+    if(nuevo){ const i = document.querySelector('#trBody input.pc-in'); if(i) setTimeout(() => i.focus(), 100); }
+}
+function trVolver(){ if(trActual){ trGuardar(trActual, true); trDevolver(trCasos[trActual]); trActual = null; } trRenderLista(); }
+function trSet(k, v, rer){ const c = trCasos[trActual]; if(!c) return; c[k] = v; trGuardar(trActual); const pv = document.getElementById('trPrev'); if(pv) pv.textContent = trInformeTexto(c); if(rer) trRenderCaso(); }
+function trDoctor(nom, tel){ const c = trCasos[trActual]; c.doctor = nom; if(tel) c.tel = tel; trGuardar(trActual); trAbrirCaso(trActual); }
+function trEdad(v){ const c = trCasos[trActual]; const e = parseInt(v, 10); c.edad = e > 0 ? e : null;
+    if(c.edad){ const d = new Date(); d.setFullYear(d.getFullYear() - c.edad); d.setMonth(d.getMonth() - 6); c.p.nacimiento = d.toISOString().slice(0, 10); } else delete c.p.nacimiento;   // el asistente calcula la edad con la fecha
+    trSet('edad', c.edad); }
+function trSubir(nombreRx){
+    const c = trCasos[trActual]; if(!c) return;
+    const i = document.createElement('input'); i.type = 'file'; i.accept = 'image/*';
+    i.onchange = async () => { const file = i.files && i.files[0]; if(!file) return;
+        try{
+            daToast('Subiendo ' + nombreRx.toLowerCase() + '…', 'ok');
+            const dataUrl = await comprimirImagen(file, 2000, 0.85);
+            if(!storage){ await cargarExtrasFirebase(); if(!storage) throw new Error('Storage no disponible'); }
+            const idE = 'e' + Date.now(), ref = storage.ref().child(`estudios_pacientes/${encodeURIComponent('trazados_' + c.id)}/${idE}.jpg`);
+            await ref.putString(dataUrl, 'data_url'); const url = await ref.getDownloadURL();
+            c.p.estudios = c.p.estudios || []; c.p.estudios.push({ id: idE, nombre: nombreRx, url: url, fecha: Date.now() });
+            await trGuardar(trActual, true); trRenderCaso(); daToast('Listo', 'ok');
+        }catch(e){ console.error(e); alert('No se pudo subir la radiografía. Revisa tu conexión.'); } };
+    i.click();
+}
+function trSubirOtra(){ const n = prompt('¿Qué estudio es? (ej. PA de cráneo, periapical, foto)'); if(n && n.trim()) trSubir(n.trim()); }
+function trQuitarRx(idE){ const c = trCasos[trActual]; if(!confirm('¿Quitar esta radiografía del caso?')) return; const e = (c.p.estudios || []).find(x => x.id === idE);
+    c.p.estudios = (c.p.estudios || []).filter(x => x.id !== idE); if(e && e.url && storage){ try{ storage.refFromURL(e.url).delete().catch(() => {}); }catch(x){} } trGuardar(trActual, true); trRenderCaso(); }
+function trHerr(cual){
+    const c = trCasos[trActual]; if(!c) return; const ests = c.p.estudios || [];
+    if(!c.paciente){ alert('Escribe primero el nombre o las iniciales del paciente.'); return; }
+    if(cual === 'trazo' && !ests.some(e => /later|tele|ceph|cefal/i.test(e.nombre || ''))){ alert('Sube primero la lateral de cráneo.'); return; }
+    if(cual === 'mesa' && !ests.length){ alert('Sube primero las radiografías.'); return; }
+    trPrestar(c);
+    if(cual === 'trazo') trazoAbrir(c.key); else escAbrirMesa(c.key);
+}
+// Al cerrar el trazado o la mesa se refresca la ficha
+(function(){ const o1 = trazoCerrar; trazoCerrar = function(){ const r = o1.apply(this, arguments); try{ if(trActual && document.getElementById('trModal').style.display === 'flex'){ trEstadoAuto(trCasos[trActual]); trGuardar(trActual); trRenderCaso(); } }catch(e){} return r; };
+    const o2 = cerrarMesa; cerrarMesa = function(){ const r = o2.apply(this, arguments); try{ if(trActual && document.getElementById('trModal').style.display === 'flex'){ trPrestar(trCasos[trActual]); trEstadoAuto(trCasos[trActual]); trGuardar(trActual); trRenderCaso(); } }catch(e){} return r; }; })();
+// ---------- Informe: trazado, diagnóstico y observaciones (sin plan de tratamiento) ----------
+function trInformeTexto(c){
+    const p = c.p || {}, d = Object.assign({ rel: '', incSup: '', incInf: '', hall: [], otro: '', extr: '', dientes: [], aparatos: [], aparatoOtro: '', nota: '', hallDientes: {} }, (p.diag && p.diag.d) || {});
+    let t = '';
+    try{ trPrestar(c); t = mesaArmarInforme(c.key, d); }catch(e){ console.error(e); t = ''; }
+    let L = t.split('\n');
+    // quitar plan de tratamiento y la firma genérica: este informe es para otro doctor
+    const iP = L.indexOf('PLAN DE TRATAMIENTO'); if(iP >= 0){ let j = iP + 1; while(j < L.length && !/^(OBSERVACIONES|Valoración preliminar)/.test(L[j])) j++; L.splice(iP > 0 && L[iP - 1] === '' ? iP - 1 : iP, j - (iP > 0 && L[iP - 1] === '' ? iP - 1 : iP)); }
+    const iF = L.findIndex(x => /^Valoración preliminar/.test(x)); if(iF >= 0) L = L.slice(0, iF);
+    while(L.length && L[L.length - 1] === '') L.pop();
+    L = L.map(x => x.indexOf('Paciente: ') === 0 ? 'Paciente: ' + (c.paciente || '') : x);
+    if(L[0] === 'INFORME DE VALORACIÓN ORTODÓNCICA') L[0] = 'ANÁLISIS CEFALOMÉTRICO Y RADIOGRÁFICO';
+    const iPac = L.findIndex(x => x.indexOf('Paciente: ') === 0); if(iPac >= 0 && c.doctor) L.splice(iPac, 0, 'Solicitado por: ' + c.doctor);
+    if(c.motivo && c.motivo.trim()){ const iD = L.indexOf('DIAGNÓSTICO'); const bloque = ['', 'CONSULTA', c.motivo.trim()]; if(iD > 0) L.splice(iD - 1, 0, ...bloque); else L.push(...bloque); }
+    const obs = [c.obs, d.nota].filter(x => x && x.trim()).map(x => x.trim());
+    const iO = L.indexOf('OBSERVACIONES'); if(iO >= 0) L = L.slice(0, iO > 0 && L[iO - 1] === '' ? iO - 1 : iO);
+    if(obs.length){ L.push('', 'OBSERVACIONES'); obs.forEach(x => L.push(x)); }
+    L.push('', 'Valoración basada en estudios radiográficos; se sugiere correlacionar con la exploración clínica.', '', PC_DR.nombre + ' · ' + PC_DR.esp, 'Céd. Prof. ' + PC_DR.cedP + ' · Céd. Esp. ' + PC_DR.cedE);
+    return L.join('\n');
+}
+function trEnviarWa(){
+    const c = trCasos[trActual]; if(!c) return; const tel = limpiarTel(c.tel || '');
+    if(tel.length < 10){ alert('Captura el WhatsApp del doctor (10 dígitos).'); return; }
+    abrirWa(c.tel, trInformeTexto(c) + ((c.p || {}).trazado ? '\n\nTe comparto también la imagen del trazado y el PDF.' : ''));
+    c.estado = 'enviado'; c.enviado = Date.now(); trGuardar(trActual, true); trRenderCaso();
+}
+function trImprimir(){
+    const c = trCasos[trActual]; if(!c) return; const p = c.p || {}, e = escHtml;
+    const secs = trInformeTexto(c).split('\n'), titulo = secs.shift();
+    const cuerpo = secs.map(x => /^[A-ZÁÉÍÓÚÑ ()]{6,}$/.test(x.trim()) && x.trim() ? `<h2>${e(x)}</h2>` : x ? `<p>${e(x)}</p>` : '').join('');
+    const img = p.trazado && p.trazado.url ? `<div style="text-align:center; margin:8px 0;"><img src="${escAttr(p.trazado.url)}" style="max-width:100%; max-height:430px; border-radius:6px;"></div>` : '';
+    const html = `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>Trazado - ${e(c.paciente || '')}</title><style>${PC_HOJA_CSS}</style></head><body><button class="imp" onclick="window.print()">Imprimir</button>
+        <section class="hoja">${pcEnc()}<h1>${e(titulo)}</h1>${img}<div class="txt">${cuerpo}</div><div class="pie">Dentilike · ${e(PC_DR.dir)} · ${PC_DR.tel}</div></section>
+        <script>window.onload=function(){ setTimeout(function(){ try{ window.print(); }catch(e){} }, 600); };<\/script></body></html>`;
+    const w = window.open('', '_blank'); if(w){ w.document.open(); w.document.write(html); w.document.close(); return; }
+    alert('Tu navegador bloqueó la ventana. Usa "Imagen para compartir".');
+}
+async function trImagen(){
+    const c = trCasos[trActual]; if(!c) return; const p = c.p || {};
+    const W = 1240, M = 70, cv = document.createElement('canvas'), x = cv.getContext('2d');
+    let trz = null; if(p.trazado && p.trazado.url){ try{ const r = await fetch(p.trazado.url); trz = await createImageBitmap(await r.blob()); }catch(e){ trz = null; } }
+    let logo = null; try{ logo = await new Promise((ok, mal) => { const i = new Image(); i.onload = () => ok(i); i.onerror = mal; i.src = PC_LOGO; }); }catch(e){}
+    const lineas = trInformeTexto(c).split('\n');
+    const envolver = (t, max, font) => { x.font = font; const pal = t.split(' '), out = []; let cur = ''; pal.forEach(w => { const prueba = cur ? cur + ' ' + w : w; if(x.measureText(prueba).width > max && cur){ out.push(cur); cur = w; } else cur = prueba; }); if(cur) out.push(cur); return out; };
+    const bloques = []; lineas.slice(1).forEach(l => { const tit = /^[A-ZÁÉÍÓÚÑ ()]{6,}$/.test(l.trim()) && l.trim(); if(!l){ bloques.push({ t: '', h: 14 }); return; } const f = tit ? 'bold 26px Arial' : '24px Arial'; envolver(l, W - 2 * M, f).forEach(s => bloques.push({ t: s, f: f, c: tit ? '#124578' : '#2d3748', h: 34 })); });
+    const trH = trz ? Math.min(620, (W - 2 * M) * trz.height / trz.width) : 0;
+    const H = 200 + 60 + (trz ? trH + 30 : 0) + bloques.reduce((a, b) => a + b.h, 0) + 60;
+    cv.width = W; cv.height = H; x.fillStyle = '#fff'; x.fillRect(0, 0, W, H);
+    if(logo){ const lh = 80, lw = logo.width * lh / logo.height; x.drawImage(logo, M, 40, lw, lh); }
+    x.textAlign = 'right'; x.fillStyle = '#124578'; x.font = 'bold 26px Arial'; x.fillText(PC_DR.nombre, W - M, 70); x.font = '20px Arial'; x.fillStyle = '#4a5568'; x.fillText(PC_DR.esp + ' · Céd. Esp. ' + PC_DR.cedE, W - M, 100); x.fillText('WhatsApp ' + PC_DR.tel, W - M, 128); x.textAlign = 'left';
+    x.fillStyle = '#124578'; x.fillRect(M, 150, W - 2 * M, 3);
+    x.font = 'bold 30px Arial'; x.fillText(lineas[0], M, 205);
+    let y = 240;
+    if(trz){ const tw = trH * trz.width / trz.height; x.drawImage(trz, (W - tw) / 2, y, tw, trH); y += trH + 30; }
+    bloques.forEach(b => { if(b.t){ x.font = b.f; x.fillStyle = b.c; x.fillText(b.t, M, y + 24); } y += b.h; });
+    const url = cv.toDataURL('image/jpeg', 0.9), blob = await new Promise(r => cv.toBlob(r, 'image/jpeg', 0.9));
+    dpVerImagen(url, 'Trazado-' + (c.paciente || 'caso').replace(/[^\w]+/g, '-') + '.jpg', blob);
+}
+function trPasarAPaciente(){
+    const c = trCasos[trActual]; if(!c) return;
+    const nom = prompt('Nombre completo del paciente para tu directorio:', c.paciente && c.paciente.length > 5 ? c.paciente : ''); if(!nom || !nom.trim()) return;
+    const n = nom.trim(); if(pacientes[n] && !confirm('Ya existe "' + n + '" en tus pacientes. ¿Agregarle las radiografías y el trazado de este caso?')) return;
+    const dst = pacientes[n] || { telefono: '' }, src = JSON.parse(JSON.stringify(c.p || {}));
+    dst.estudios = (dst.estudios || []).concat(src.estudios || []);
+    ['trazadoPuntos', 'trazadoValores', 'trazado', 'diag', 'nacimiento'].forEach(k => { if(src[k] && !dst[k]) dst[k] = src[k]; });
+    pacientes[n] = dst; localStorage.setItem('denti_pacientes_v16', JSON.stringify(pacientes)); guardarAgendaEnNube(); try{ updateDatalists(); }catch(e){}
+    c.pasadoA = n; trGuardar(trActual, true); daToast('Listo: ' + n + ' ya está en tus pacientes', 'ok');
+}
+async function trEliminar(){
+    const c = trCasos[trActual]; if(!c || !confirm('¿Eliminar este caso y sus radiografías? No se puede deshacer.')) return;
+    (c.p.estudios || []).concat(c.p.trazado ? [c.p.trazado] : []).forEach(e => { if(e && e.url && storage){ try{ storage.refFromURL(e.url).delete().catch(() => {}); }catch(x){} } });
+    try{ await db.collection('agenda').doc('tr_' + c.id).delete(); }catch(e){ console.error(e); }
+    trDevolver(c); delete trCasos[c.id]; trActual = null; trRenderLista();
+}
+// ---------- Accesos directos del ícono (manifest "shortcuts": ?ir=hoy | nueva | consultorio | trazados) ----------
+function irDesdeAcceso(){
+    let ir = ''; try{ ir = new URLSearchParams(location.search).get('ir') || ''; }catch(e){} if(!ir) return;
+    try{ history.replaceState(null, '', location.pathname); }catch(e){}
+    const hoy = fechaAISO(new Date());
+    if(ir === 'hoy'){ try{ openDay(hoy); const el = document.getElementById('dayView') || document.querySelector('.day-panel'); if(el && el.scrollIntoView) el.scrollIntoView({ behavior: 'smooth' }); }catch(e){} }
+    else if(ir === 'nueva'){ try{ openDay(hoy); toggleFormulario(true); }catch(e){} }
+    else if(ir === 'consultorio'){ try{ abrirEscritorio(); }catch(e){} }
+    else if(ir === 'trazados'){ trAbrirLista(); }
+}
+(function(){ let hecho = false; const intento = () => { if(hecho) return; if(typeof authListo !== 'undefined' && authListo){ hecho = true; setTimeout(irDesdeAcceso, 900); } else setTimeout(intento, 500); }; setTimeout(intento, 800); })();
 
 </script>
 </body>
