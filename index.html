@@ -3416,7 +3416,7 @@ function perIniciar(user){ perTarjeta(); }
             return d <= 0 ? 'hoy' : (d === 1 ? 'ayer' : 'hace ' + d + ' d');
         }
         function usaSmile(nombre){ const u = usoSmile[nombre]; return !!(u && u.ts); }
-        const DA_VERSION = 'v123';
+        const DA_VERSION = 'v124';
         window.addEventListener('load', () => document.querySelectorAll('.da-ver-txt').forEach(e => e.textContent = 'DentiAgenda ' + DA_VERSION));
         // Texto del estado de SmileLike para un paciente (usa lo guardado; abajo se refresca solo ese paciente)
         function textoEstadoSmile(nombre){
@@ -3938,15 +3938,19 @@ function perIniciar(user){ perTarjeta(); }
             if(!file) return;
             const nombrePac = dirNombreActual;
             if(!nombrePac) return;
+            let paso = 'leer la imagen';
             try{
                 // comprimir a 1200px, calidad 75%
                 const dataUrl = await comprimirImagen(file, 2000, 0.85);   // más resolución: la IA y tú ven mejor los detalles
+                paso = 'conectar con la nube';
                 // subir a Storage (carpeta estudios)
                 if(!storage){ await cargarExtrasFirebase(); if(!storage) throw new Error('Storage no disponible'); }
                 const idEstudio = 'e' + Date.now();
                 const ref = storage.ref().child(`estudios_pacientes/${encodeURIComponent(nombrePac)}/${idEstudio}.jpg`);
+                paso = 'subir el archivo';
                 await ref.putString(dataUrl, 'data_url');
                 const url = await ref.getDownloadURL();
+                paso = 'guardar en el expediente';
                 // guardar en el paciente
                 if(!pacientes[nombrePac].estudios) pacientes[nombrePac].estudios = [];
                 pacientes[nombrePac].estudios.push({ id:idEstudio, nombre:estudioNombreActual, url:url, fecha:Date.now() });
@@ -3958,7 +3962,8 @@ function perIniciar(user){ perTarjeta(); }
                 alert('✅ Estudio subido.');
             }catch(err){
                 console.error('subir estudio', err);
-                alert('No se pudo subir el estudio. Revisa tu conexión.');
+                const det = String((err && (err.code || err.name)) || '') + (err && err.message ? ' · ' + String(err.message).slice(0, 140) : '');
+                alert('No se pudo ' + paso + '.' + (paso === 'leer la imagen' ? ' Ese archivo no parece una imagen válida (usa JPG o PNG).' : paso === 'guardar en el expediente' ? ' La radiografía sí se subió; intenta de nuevo o recarga la app.' : ' Revisa tu conexión e intenta de nuevo.') + (det ? '\n\nDetalle técnico: ' + det : ''));
             }
         }
         function renderEstudios(nombre){
@@ -4072,6 +4077,24 @@ function perIniciar(user){ perTarjeta(); }
             document.getElementById('editDirFotoPreview').style.display = 'none';
             document.getElementById('editDirFile').value = '';
         }
+
+        // ===== La memoria del navegador llena no debe romper nada (v124) =====
+        // Si al guardar la copia local no cabe, se libera la copia de respaldo y se reintenta; si aun así no cabe,
+        // se avisa una vez y se sigue: la nube (Firebase) tiene todo.
+        (function(){
+            try{
+                const orig = Storage.prototype.setItem; let avisado = false;
+                Storage.prototype.setItem = function(k, v){
+                    try{ return orig.call(this, k, v); }
+                    catch(e){
+                        const lleno = e && (e.name === 'QuotaExceededError' || e.code === 22 || e.code === 1014);
+                        if(!lleno) throw e;
+                        try{ if(k !== 'denti_pacientes_backup_v16') this.removeItem('denti_pacientes_backup_v16'); this.removeItem('denti_pac_confl_v114'); return orig.call(this, k, v); }
+                        catch(e2){ console.warn('Memoria local llena; se omite la copia local de', k); if(!avisado){ avisado = true; setTimeout(() => { try{ daToast('La memoria del navegador está llena: la copia local se omitió, pero todo está guardado en la nube.', 'ok'); }catch(x){} }, 300); } }
+                    }
+                };
+            }catch(e){}
+        })();
         function comprimirImagen(file, maxLado, calidad) {
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
