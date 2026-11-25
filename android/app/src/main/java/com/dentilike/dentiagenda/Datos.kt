@@ -52,6 +52,9 @@ object Datos {
         }
     }
 
+    fun mostrarDinero(ctx: Context, hasta: Long) { prefs(ctx).edit().putLong("dinero_hasta", hasta).apply() }
+    fun verDineroHasta(ctx: Context): Long = prefs(ctx).getLong("dinero_hasta", 0L)
+
     fun guardarLayout(ctx: Context, id: Int, layout: Int) { prefs(ctx).edit().putInt("layout_$id", layout).apply() }
     fun layoutDe(ctx: Context, id: Int): Int = prefs(ctx).getInt("layout_$id", 0)
 }

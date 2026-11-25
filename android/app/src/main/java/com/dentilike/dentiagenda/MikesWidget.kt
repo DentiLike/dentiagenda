@@ -9,7 +9,6 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
-import android.os.SystemClock
 import android.view.View
 import android.widget.RemoteViews
 import androidx.work.Constraints
@@ -53,6 +52,13 @@ class MikesWidget : AppWidgetProvider() {
                 } else redibujarTodos(ctx)
             }
             ACCION_REDIBUJAR -> redibujarTodos(ctx)
+            ACCION_DINERO -> {
+                val hasta = System.currentTimeMillis() + 15000L
+                Datos.mostrarDinero(ctx, hasta)
+                redibujarTodos(ctx)
+                val am = ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+                am.set(AlarmManager.RTC, hasta + 500L, aviso(ctx, ACCION_REDIBUJAR, 0, 9998))
+            }
             ACCION_ACTUALIZAR -> { redibujarTodos(ctx); pedirDescarga(ctx) }
         }
     }
@@ -61,6 +67,9 @@ class MikesWidget : AppWidgetProvider() {
         const val ACCION_SIGUIENTE = "com.dentilike.dentiagenda.SIGUIENTE"
         const val ACCION_REDIBUJAR = "com.dentilike.dentiagenda.REDIBUJAR"
         const val ACCION_ACTUALIZAR = "com.dentilike.dentiagenda.ACTUALIZAR"
+        const val ACCION_DINERO = "com.dentilike.dentiagenda.DINERO"
+
+        private fun dinero(n: Long): String = "$" + String.format(java.util.Locale.US, "%,d", n)
         private const val TRABAJO_PERIODICO = "mikes_periodico"
         private const val TRABAJO_YA = "mikes_ya"
         private const val BASE = "https://dentilike.github.io/dentiagenda/index.html"
@@ -143,19 +152,24 @@ class MikesWidget : AppWidgetProvider() {
             v.setOnClickPendingIntent(R.id.avatarBox, aviso(ctx, ACCION_SIGUIENTE, id, id * 10 + 3))
             v.setOnClickPendingIntent(R.id.flipper, aviso(ctx, ACCION_SIGUIENTE, id, id * 10 + 3))
 
-            // Cuenta regresiva en vivo (Android la mueve sola, sin gastar batería)
+            // Siguiente cita y qué le toca (arco actual y siguiente, o el tratamiento pendiente)
             v.setTextViewText(R.id.cdTxt, vista.cdTexto)
             v.setInt(R.id.cdBox, "setBackgroundResource", if (vista.cdGris) R.drawable.cd_gris else R.drawable.cd_azul)
-            val obj = vista.cdObjetivo
-            if (obj != null) {
-                val base = SystemClock.elapsedRealtime() + (obj - System.currentTimeMillis())
-                v.setChronometer(R.id.cd, base, null, true)
-                v.setChronometerCountDown(R.id.cd, vista.cdCuentaAtras)
-                v.setViewVisibility(R.id.cd, View.VISIBLE)
-            } else {
-                v.setChronometer(R.id.cd, SystemClock.elapsedRealtime(), null, false)
-                v.setViewVisibility(R.id.cd, View.GONE)
-            }
+            if (vista.cdDetalle.isNotBlank()) {
+                v.setTextViewText(R.id.cdDet, vista.cdDetalle)
+                v.setViewVisibility(R.id.cdDet, View.VISIBLE)
+            } else v.setViewVisibility(R.id.cdDet, View.GONE)
+
+            // Dinero del mes: oculto; al tocarlo se muestra 15 segundos
+            if (vista.mesIngresos >= 0) {
+                val ver = System.currentTimeMillis() < Datos.verDineroHasta(ctx)
+                val mesTxt = vista.mesNombre.replaceFirstChar { it.uppercase() }
+                val txt = if (ver) "$mesTxt: ingresos ${dinero(vista.mesIngresos)} · gastos ${dinero(vista.mesGastos)}"
+                    else "$mesTxt: ingresos •••• · gastos ••••   (toca para ver)"
+                v.setTextViewText(R.id.dinTxt, txt)
+                v.setViewVisibility(R.id.dinTxt, View.VISIBLE)
+                v.setOnClickPendingIntent(R.id.dinTxt, aviso(ctx, ACCION_DINERO, id, id * 10 + 9))
+            } else v.setViewVisibility(R.id.dinTxt, View.GONE)
             v.setOnClickPendingIntent(R.id.cdBox, abrir(ctx, if (vinculado) "$BASE?ir=hoy" else "$BASE?ir=widget", id * 10 + 4))
             v.setTextViewText(R.id.barTxt, vista.progresoTxt)
             v.setProgressBar(R.id.bar, 100, vista.progreso, false)
@@ -166,7 +180,7 @@ class MikesWidget : AppWidgetProvider() {
                     ?: op.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 360)
                 val maxRec = if (alto >= 420) 3 else 2
                 val recs = vista.recordatorios.take(maxRec)
-                val maxFilas = ((alto - 255 - recs.size * 20) / 30).coerceIn(1, 5)
+                val maxFilas = ((alto - 290 - recs.size * 20) / 30).coerceIn(1, 5)
                 val filas = vista.filas.take(maxFilas)
                 val idsFila = intArrayOf(R.id.fila1, R.id.fila2, R.id.fila3, R.id.fila4, R.id.fila5)
                 val idsHora = intArrayOf(R.id.hora1, R.id.hora2, R.id.hora3, R.id.hora4, R.id.hora5)

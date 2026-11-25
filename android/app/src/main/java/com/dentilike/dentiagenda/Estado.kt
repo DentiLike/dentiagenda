@@ -4,7 +4,7 @@ import org.json.JSONObject
 import java.util.Calendar
 
 /** Una cita tal como la manda DentiAgenda: fecha, hora de inicio y fin, iniciales, motivo, estado y asistencia. */
-data class Cita(val d: String, val h: String, val f: String, val p: String, val m: String, val e: String, val a: String) {
+data class Cita(val d: String, val h: String, val f: String, val p: String, val m: String, val e: String, val a: String, val x: String = "") {
     fun inicio(): Long = epoch(d, h)
     fun fin(): Long { val x = epoch(d, f); return if (x > inicio()) x else inicio() + 30 * 60000L }
     fun corto(): String = if (m.isNotBlank()) "$p · $m" else p
@@ -30,8 +30,7 @@ data class Vista(
     val emoji: String,
     val mensajes: List<String>,
     val cdTexto: String,
-    val cdObjetivo: Long?,      // hora a la que cuenta (null = sin reloj)
-    val cdCuentaAtras: Boolean,
+    val cdDetalle: String,      // en qué arco va o qué tratamiento le toca
     val cdGris: Boolean,
     val progreso: Int,
     val progresoTxt: String,
@@ -42,7 +41,10 @@ data class Vista(
     val chicoNombre: String,
     val noche: Boolean,
     val avatar: Int,
-    val siguienteCambio: Long?
+    val siguienteCambio: Long?,
+    val mesNombre: String = "",
+    val mesIngresos: Long = -1,
+    val mesGastos: Long = -1
 )
 
 object Estado {
@@ -77,11 +79,11 @@ object Estado {
 
         if (!vinculado) {
             return Vista("👋", listOf("Hola, soy Mikes Molares.", "Para mostrarle su agenda, abra DentiAgenda → Ajustes → Widget Mikes Molares → Vincular."),
-                "Toque aquí para abrir DentiAgenda", null, true, true, 0, "", emptyList(), emptyList(), 0, "Sin vincular", "Abra DentiAgenda", false, av, null)
+                "Toque aquí para abrir DentiAgenda", "", true, 0, "", emptyList(), emptyList(), 0, "Sin vincular", "Abra DentiAgenda", false, av, null)
         }
         if (r == null) {
             return Vista("⏳", listOf("Conectando con DentiAgenda…", "Si tarda, abra DentiAgenda una vez para que me mande su agenda."),
-                "Cargando su agenda", null, true, true, 0, "", emptyList(), emptyList(), 0, "Cargando…", "", false, av, null)
+                "Cargando su agenda", "", true, 0, "", emptyList(), emptyList(), 0, "Cargando…", "", false, av, null)
         }
 
         val nombre = r.optString("nombre", "Dr. Miguel").ifBlank { "Dr. Miguel" }
@@ -89,7 +91,7 @@ object Estado {
         r.optJSONArray("citas")?.let { arr ->
             for (i in 0 until arr.length()) {
                 val o = arr.optJSONObject(i) ?: continue
-                todas.add(Cita(o.optString("d"), o.optString("h"), o.optString("f"), o.optString("p"), o.optString("m"), o.optString("e"), o.optString("a")))
+                todas.add(Cita(o.optString("d"), o.optString("h"), o.optString("f"), o.optString("p"), o.optString("m"), o.optString("e"), o.optString("a"), o.optString("x")))
             }
         }
         val hoy = hoyIso(cal)
@@ -107,6 +109,11 @@ object Estado {
             else "Mañana tiene ${deManana.size} cita" + (if (deManana.size > 1) "s" else "") + "; empieza a las ${deManana[0].h} con ${deManana[0].p}." +
                 (if (sinConfManana > 0) " $sinConfManana sin confirmar." else "")
         val cdManana = if (deManana.isEmpty()) "Mañana: sin citas" else "Mañana: ${deManana[0].h} · ${deManana[0].corto()}"
+        val detManana = deManana.firstOrNull()?.x ?: ""
+        val mes = r.optJSONObject("mes")
+        val mesN = mes?.optString("n", "") ?: ""
+        val mesI = mes?.optLong("i", -1L) ?: -1L
+        val mesG = mes?.optLong("g", -1L) ?: -1L
 
         // Cambios de estado: inicio/fin de cada cita de hoy, 21:00 (noche) y 6:00 del día siguiente
         val cambios = mutableListOf<Long>()
@@ -139,20 +146,20 @@ object Estado {
             if (frase != null) msgs.add(frase)
             msgs.addAll(recs.take(2))
             if (viejo) msgs.add("Abra DentiAgenda para que me actualice.")
-            return Vista("🌙", msgs, cdManana, null, true, true, if (deHoy.isEmpty()) 0 else 100, if (deHoy.isEmpty()) "Día terminado" else "Día terminado · $atendidas de ${deHoy.size}",
-                filasOrden, recs, 0, if (deManana.isEmpty()) "Mañana libre" else "Mañana ${deManana[0].h}", if (deManana.isEmpty()) "" else deManana[0].corto(), true, av, sig)
+            return Vista("🌙", msgs, cdManana, detManana, true, if (deHoy.isEmpty()) 0 else 100, if (deHoy.isEmpty()) "Día terminado" else "Día terminado · $atendidas de ${deHoy.size}",
+                filasOrden, recs, 0, if (deManana.isEmpty()) "Mañana libre" else "Mañana ${deManana[0].h}", if (deManana.isEmpty()) "" else deManana[0].corto(), true, av, sig, mesN, mesI, mesG)
         }
         if (deHoy.isEmpty()) {
             msgs.add("$saludo, $nombre. Hoy no tiene citas.")
             msgs.add(txtManana); msgs.addAll(recs); if (frase != null) msgs.add(frase)
             if (viejo) msgs.add("Abra DentiAgenda para que me actualice.")
-            return Vista("☀️", msgs, cdManana, null, true, true, 0, progTxt, emptyList(), recs, 0, "Hoy libre", "", false, av, sig)
+            return Vista("☀️", msgs, cdManana, detManana, true, 0, progTxt, emptyList(), recs, 0, "Hoy libre", "", false, av, sig, mesN, mesI, mesG)
         }
         if (actual == null) {
             msgs.add("¡Listo por hoy, $nombre! Atendió $atendidas de ${deHoy.size}.")
             msgs.add(txtManana); if (frase != null) msgs.add(frase); msgs.addAll(recs)
             if (viejo) msgs.add("Abra DentiAgenda para que me actualice.")
-            return Vista("✅", msgs, cdManana, null, true, true, 100, progTxt, filasOrden, recs, 0, "¡Listo!", "${deHoy.size} citas hoy", false, av, sig)
+            return Vista("✅", msgs, cdManana, detManana, true, 100, progTxt, filasOrden, recs, 0, "¡Listo!", "${deHoy.size} citas hoy", false, av, sig, mesN, mesI, mesG)
         }
         val enCurso = actual.inicio() <= ahora
         val quedan = restantes.size
@@ -163,13 +170,14 @@ object Estado {
         } else {
             msgs.add("La siguiente es ${actual.p} a las ${actual.h}: ${actual.m.ifBlank { "consulta" }}.")
         }
+        if (actual.x.isNotBlank()) msgs.add("Con ${actual.p}: ${actual.x}.")
         val sinConfHoy = restantes.count { it.e != "g" }
         if (sinConfHoy > 0) msgs.add("$sinConfHoy cita" + (if (sinConfHoy > 1) "s" else "") + " de hoy sin confirmar.")
         msgs.addAll(recs)
         if (viejo) msgs.add("Abra DentiAgenda para que me actualice.")
         val emoji = if (enCurso) "🦷" else if (hora < 12) "☀️" else "🌤️"
         val cdTxt = if (enCurso) "Ahora: ${actual.corto()}" else "Próxima: ${actual.h} · ${actual.corto()}"
-        return Vista(emoji, msgs, cdTxt, if (enCurso) actual.fin() else actual.inicio(), true, false, prog, progTxt,
-            filasOrden, recs, quedan, (if (enCurso) "Ahora " else "Próxima ") + actual.h, actual.corto(), false, av, sig)
+        return Vista(emoji, msgs, cdTxt, actual.x, false, prog, progTxt,
+            filasOrden, recs, quedan, (if (enCurso) "Ahora " else "Próxima ") + actual.h, actual.corto(), false, av, sig, mesN, mesI, mesG)
     }
 }
