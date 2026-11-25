@@ -55,6 +55,9 @@ object Datos {
     fun mostrarDinero(ctx: Context, hasta: Long) { prefs(ctx).edit().putLong("dinero_hasta", hasta).apply() }
     fun verDineroHasta(ctx: Context): Long = prefs(ctx).getLong("dinero_hasta", 0L)
 
+    fun verMes(ctx: Context, id: Int): Boolean = prefs(ctx).getBoolean("mes_$id", false)
+    fun alternarMes(ctx: Context, id: Int) { prefs(ctx).edit().putBoolean("mes_$id", !verMes(ctx, id)).apply() }
+
     fun guardarLayout(ctx: Context, id: Int, layout: Int) { prefs(ctx).edit().putInt("layout_$id", layout).apply() }
     fun layoutDe(ctx: Context, id: Int): Int = prefs(ctx).getInt("layout_$id", 0)
 }

@@ -9,7 +9,7 @@
     </LinearLayout>
     <LinearLayout android:id="@+id/cdBox" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="10dp" android:orientation="vertical" android:background="@drawable/cd_azul" android:paddingStart="12dp" android:paddingEnd="12dp" android:paddingTop="8dp" android:paddingBottom="8dp">
         <TextView android:id="@+id/cdTxt" android:layout_width="match_parent" android:layout_height="wrap_content" android:textColor="#FFFFFF" android:textSize="13sp" android:textStyle="bold" android:maxLines="1" android:ellipsize="end" />
-        <TextView android:id="@+id/cdDet" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:textColor="#D6E4F5" android:textSize="12sp" android:maxLines="2" android:ellipsize="end" android:visibility="gone" />
+        <TextView android:id="@+id/cdDet" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:textColor="#D6E4F5" android:textSize="12sp" android:maxLines="3" android:ellipsize="end" android:visibility="gone" />
     </LinearLayout>
     <TextView android:id="@+id/dinTxt" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:background="@drawable/fila" android:paddingStart="10dp" android:paddingEnd="10dp" android:paddingTop="6dp" android:paddingBottom="6dp" android:textColor="#124578" android:textSize="12sp" android:maxLines="1" android:ellipsize="end" android:visibility="gone" />
     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:orientation="horizontal">
@@ -17,4 +17,41 @@
         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="#5A6B85" android:textSize="11sp" android:text="Hoy" />
     </LinearLayout>
     <ProgressBar android:id="@+id/bar" style="?android:attr/progressBarStyleHorizontal" android:layout_width="match_parent" android:layout_height="8dp" android:layout_marginTop="4dp" android:max="100" android:progress="0" android:progressDrawable="@drawable/barra" />
+    <LinearLayout android:id="@+id/semana" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:orientation="horizontal" android:visibility="gone">
+        <LinearLayout android:id="@+id/sem0" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical" android:gravity="center_horizontal" android:paddingTop="3dp" android:paddingBottom="3dp" android:background="@drawable/dia_nada">
+            <TextView android:id="@+id/semL0" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="#5A6B85" android:textSize="10sp" android:text="L" />
+            <TextView android:id="@+id/semN0" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="#1E2B3C" android:textSize="13sp" android:textStyle="bold" />
+            <TextView android:id="@+id/semC0" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="#124578" android:textSize="10sp" android:textStyle="bold" />
+        </LinearLayout>
+        <LinearLayout android:id="@+id/sem1" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:layout_marginStart="3dp" android:orientation="vertical" android:gravity="center_horizontal" android:paddingTop="3dp" android:paddingBottom="3dp" android:background="@drawable/dia_nada">
+            <TextView android:id="@+id/semL1" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="#5A6B85" android:textSize="10sp" android:text="M" />
+            <TextView android:id="@+id/semN1" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="#1E2B3C" android:textSize="13sp" android:textStyle="bold" />
+            <TextView android:id="@+id/semC1" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="#124578" android:textSize="10sp" android:textStyle="bold" />
+        </LinearLayout>
+        <LinearLayout android:id="@+id/sem2" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:layout_marginStart="3dp" android:orientation="vertical" android:gravity="center_horizontal" android:paddingTop="3dp" android:paddingBottom="3dp" android:background="@drawable/dia_nada">
+            <TextView android:id="@+id/semL2" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="#5A6B85" android:textSize="10sp" android:text="M" />
+            <TextView android:id="@+id/semN2" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="#1E2B3C" android:textSize="13sp" android:textStyle="bold" />
+            <TextView android:id="@+id/semC2" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="#124578" android:textSize="10sp" android:textStyle="bold" />
+        </LinearLayout>
+        <LinearLayout android:id="@+id/sem3" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:layout_marginStart="3dp" android:orientation="vertical" android:gravity="center_horizontal" android:paddingTop="3dp" android:paddingBottom="3dp" android:background="@drawable/dia_nada">
+            <TextView android:id="@+id/semL3" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="#5A6B85" android:textSize="10sp" android:text="J" />
+            <TextView android:id="@+id/semN3" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="#1E2B3C" android:textSize="13sp" android:textStyle="bold" />
+            <TextView android:id="@+id/semC3" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="#124578" android:textSize="10sp" android:textStyle="bold" />
+        </LinearLayout>
+        <LinearLayout android:id="@+id/sem4" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:layout_marginStart="3dp" android:orientation="vertical" android:gravity="center_horizontal" android:paddingTop="3dp" android:paddingBottom="3dp" android:background="@drawable/dia_nada">
+            <TextView android:id="@+id/semL4" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="#5A6B85" android:textSize="10sp" android:text="V" />
+            <TextView android:id="@+id/semN4" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="#1E2B3C" android:textSize="13sp" android:textStyle="bold" />
+            <TextView android:id="@+id/semC4" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="#124578" android:textSize="10sp" android:textStyle="bold" />
+        </LinearLayout>
+        <LinearLayout android:id="@+id/sem5" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:layout_marginStart="3dp" android:orientation="vertical" android:gravity="center_horizontal" android:paddingTop="3dp" android:paddingBottom="3dp" android:background="@drawable/dia_nada">
+            <TextView android:id="@+id/semL5" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="#5A6B85" android:textSize="10sp" android:text="S" />
+            <TextView android:id="@+id/semN5" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="#1E2B3C" android:textSize="13sp" android:textStyle="bold" />
+            <TextView android:id="@+id/semC5" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="#124578" android:textSize="10sp" android:textStyle="bold" />
+        </LinearLayout>
+        <LinearLayout android:id="@+id/sem6" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:layout_marginStart="3dp" android:orientation="vertical" android:gravity="center_horizontal" android:paddingTop="3dp" android:paddingBottom="3dp" android:background="@drawable/dia_nada">
+            <TextView android:id="@+id/semL6" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="#5A6B85" android:textSize="10sp" android:text="D" />
+            <TextView android:id="@+id/semN6" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="#1E2B3C" android:textSize="13sp" android:textStyle="bold" />
+            <TextView android:id="@+id/semC6" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="#124578" android:textSize="10sp" android:textStyle="bold" />
+        </LinearLayout>
+    </LinearLayout>
 </LinearLayout>

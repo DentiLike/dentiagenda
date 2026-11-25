@@ -3,7 +3,7 @@ package com.dentilike.dentiagenda
 import org.json.JSONObject
 import java.util.Calendar
 
-/** Una cita tal como la manda DentiAgenda: fecha, hora de inicio y fin, iniciales, motivo, estado y asistencia. */
+/** Una cita tal como la manda DentiAgenda: fecha, hora de inicio y fin, nombre del paciente, motivo, estado y asistencia. */
 data class Cita(val d: String, val h: String, val f: String, val p: String, val m: String, val e: String, val a: String, val x: String = "") {
     fun inicio(): Long = epoch(d, h)
     fun fin(): Long { val x = epoch(d, f); return if (x > inicio()) x else inicio() + 30 * 60000L }
@@ -44,12 +44,16 @@ data class Vista(
     val siguienteCambio: Long?,
     val mesNombre: String = "",
     val mesIngresos: Long = -1,
-    val mesGastos: Long = -1
+    val mesGastos: Long = -1,
+    val cal: Map<String, Int> = emptyMap()   // citas por día (AAAA-MM-DD → número) para el mini calendario
 )
 
 object Estado {
 
-    private fun hoyIso(c: Calendar): String =
+    /** Motivo y, si hay, lo que le toca (arco o tratamiento), cada uno en su renglón. */
+    private fun detalle(c: Cita?): String = if (c == null) "" else listOf(c.m, c.x).filter { it.isNotBlank() }.joinToString("\n")
+
+    fun hoyIso(c: Calendar): String =
         String.format("%04d-%02d-%02d", c.get(Calendar.YEAR), c.get(Calendar.MONTH) + 1, c.get(Calendar.DAY_OF_MONTH))
 
     /** Avatar de temporada, con las mismas fechas que DentiAgenda. */
@@ -94,6 +98,9 @@ object Estado {
                 todas.add(Cita(o.optString("d"), o.optString("h"), o.optString("f"), o.optString("p"), o.optString("m"), o.optString("e"), o.optString("a"), o.optString("x")))
             }
         }
+        val calMap = mutableMapOf<String, Int>()
+        r.optJSONObject("cal")?.let { o -> o.keys().forEach { k -> calMap[k] = o.optInt(k, 0) } }
+        if (calMap.isEmpty()) todas.forEach { calMap[it.d] = (calMap[it.d] ?: 0) + 1 }
         val hoy = hoyIso(cal)
         val manCal = (cal.clone() as Calendar).apply { add(Calendar.DAY_OF_MONTH, 1) }
         val manana = hoyIso(manCal)
@@ -108,8 +115,8 @@ object Estado {
         val txtManana = if (deManana.isEmpty()) "Mañana no tiene citas."
             else "Mañana tiene ${deManana.size} cita" + (if (deManana.size > 1) "s" else "") + "; empieza a las ${deManana[0].h} con ${deManana[0].p}." +
                 (if (sinConfManana > 0) " $sinConfManana sin confirmar." else "")
-        val cdManana = if (deManana.isEmpty()) "Mañana: sin citas" else "Mañana: ${deManana[0].h} · ${deManana[0].corto()}"
-        val detManana = deManana.firstOrNull()?.x ?: ""
+        val cdManana = if (deManana.isEmpty()) "Mañana: sin citas" else "Mañana ${deManana[0].h} · ${deManana[0].p}"
+        val detManana = detalle(deManana.firstOrNull())
         val mes = r.optJSONObject("mes")
         val mesN = mes?.optString("n", "") ?: ""
         val mesI = mes?.optLong("i", -1L) ?: -1L
@@ -147,19 +154,19 @@ object Estado {
             msgs.addAll(recs.take(2))
             if (viejo) msgs.add("Abra DentiAgenda para que me actualice.")
             return Vista("🌙", msgs, cdManana, detManana, true, if (deHoy.isEmpty()) 0 else 100, if (deHoy.isEmpty()) "Día terminado" else "Día terminado · $atendidas de ${deHoy.size}",
-                filasOrden, recs, 0, if (deManana.isEmpty()) "Mañana libre" else "Mañana ${deManana[0].h}", if (deManana.isEmpty()) "" else deManana[0].corto(), true, av, sig, mesN, mesI, mesG)
+                filasOrden, recs, 0, if (deManana.isEmpty()) "Mañana libre" else "Mañana ${deManana[0].h}", if (deManana.isEmpty()) "" else deManana[0].p, true, av, sig, mesN, mesI, mesG, calMap)
         }
         if (deHoy.isEmpty()) {
             msgs.add("$saludo, $nombre. Hoy no tiene citas.")
             msgs.add(txtManana); msgs.addAll(recs); if (frase != null) msgs.add(frase)
             if (viejo) msgs.add("Abra DentiAgenda para que me actualice.")
-            return Vista("☀️", msgs, cdManana, detManana, true, 0, progTxt, emptyList(), recs, 0, "Hoy libre", "", false, av, sig, mesN, mesI, mesG)
+            return Vista("☀️", msgs, cdManana, detManana, true, 0, progTxt, emptyList(), recs, 0, "Hoy libre", "", false, av, sig, mesN, mesI, mesG, calMap)
         }
         if (actual == null) {
             msgs.add("¡Listo por hoy, $nombre! Atendió $atendidas de ${deHoy.size}.")
             msgs.add(txtManana); if (frase != null) msgs.add(frase); msgs.addAll(recs)
             if (viejo) msgs.add("Abra DentiAgenda para que me actualice.")
-            return Vista("✅", msgs, cdManana, detManana, true, 100, progTxt, filasOrden, recs, 0, "¡Listo!", "${deHoy.size} citas hoy", false, av, sig, mesN, mesI, mesG)
+            return Vista("✅", msgs, cdManana, detManana, true, 100, progTxt, filasOrden, recs, 0, "¡Listo!", "${deHoy.size} citas hoy", false, av, sig, mesN, mesI, mesG, calMap)
         }
         val enCurso = actual.inicio() <= ahora
         val quedan = restantes.size
@@ -176,8 +183,8 @@ object Estado {
         msgs.addAll(recs)
         if (viejo) msgs.add("Abra DentiAgenda para que me actualice.")
         val emoji = if (enCurso) "🦷" else if (hora < 12) "☀️" else "🌤️"
-        val cdTxt = if (enCurso) "Ahora: ${actual.corto()}" else "Próxima: ${actual.h} · ${actual.corto()}"
-        return Vista(emoji, msgs, cdTxt, actual.x, false, prog, progTxt,
-            filasOrden, recs, quedan, (if (enCurso) "Ahora " else "Próxima ") + actual.h, actual.corto(), false, av, sig, mesN, mesI, mesG)
+        val cdTxt = if (enCurso) "Ahora · ${actual.p}" else "Próxima ${actual.h} · ${actual.p}"
+        return Vista(emoji, msgs, cdTxt, detalle(actual), false, prog, progTxt,
+            filasOrden, recs, quedan, (if (enCurso) "Ahora " else "Próxima ") + actual.h, actual.p, false, av, sig, mesN, mesI, mesG, calMap)
     }
 }
