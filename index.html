@@ -939,6 +939,13 @@
                 <button class="btn-3d btn-submit" style="margin-top:8px; color:var(--accent);" onclick="exportarMesCalendar()">📅 Mes a Google Calendar</button>
             </div>
             </div></details>
+            <details class="aj-sec" id="ajWidget"><summary>🦷 Widget Mikes Molares (Android)</summary><div class="aj-body">
+                <div style="font-size:0.85rem; line-height:1.5; margin:8px 0;">Tu agenda de hoy, la cuenta regresiva a la siguiente cita y tus recordatorios en la pantalla de inicio de Android. Los pacientes salen con iniciales.</div>
+                <div style="font-size:0.82rem; color:var(--text-muted); margin-bottom:10px;">1) Instala la app de Android (una vez). 2) Toca <b>Vincular</b> en ese mismo dispositivo. 3) Pon el widget en tu pantalla.</div>
+                <a class="btn-3d btn-submit" style="display:block; text-align:center; text-decoration:none; color:var(--accent); margin-bottom:8px;" href="https://github.com/DentiLike/dentiagenda/raw/android/apk/DentiAgenda.apk">⬇️ Descargar la app de Android (APK)</a>
+                <button class="btn-3d btn-submit" style="background:var(--primary); color:#fff; margin-bottom:8px;" onclick="widgetVincular()">🔗 Vincular el widget en este dispositivo</button>
+                <button class="btn-3d btn-submit" style="font-size:0.8rem;" onclick="widgetNuevoCodigo()">Cambiar código (desvincula los widgets)</button>
+            </div></details>
             <details class="aj-sec"><summary>📲 App y WhatsApp</summary><div class="aj-body">
             <div style="margin:16px 0 4px;">
                 <button class="btn-3d btn-submit" style="color:var(--accent);" onclick="instalarDentiAgenda()">📲 Instalar en este dispositivo</button><div class="odo-sub" style="margin-top:4px;">Si ya está instalada, el botón te lo dice.</div>
@@ -3422,7 +3429,7 @@ function perIniciar(user){ perTarjeta(); }
             return d <= 0 ? 'hoy' : (d === 1 ? 'ayer' : 'hace ' + d + ' d');
         }
         function usaSmile(nombre){ const u = usoSmile[nombre]; return !!(u && u.ts); }
-        const DA_VERSION = 'v125';
+        const DA_VERSION = 'v126';
         window.addEventListener('load', () => document.querySelectorAll('.da-ver-txt').forEach(e => e.textContent = 'DentiAgenda ' + DA_VERSION));
         // Texto del estado de SmileLike para un paciente (usa lo guardado; abajo se refresca solo ese paciente)
         function textoEstadoSmile(nombre){
@@ -10178,6 +10185,77 @@ function irDesdeAcceso(){
     else if(ir === 'trazados'){ trAbrirLista(); }
 }
 (function(){ let hecho = false; const intento = () => { if(hecho) return; if(typeof authListo !== 'undefined' && authListo){ hecho = true; setTimeout(irDesdeAcceso, 900); } else setTimeout(intento, 500); }; setTimeout(intento, 800); })();
+
+</script>
+<script>
+// ===== WIDGET MIKES MOLARES (app de Android) (v126) =====
+// DentiAgenda publica un resumen corto en widget/{código}: horas, iniciales y motivos de hoy y mañana + recordatorios.
+// El código es largo y aleatorio (como una contraseña); solo tu app de Android lo conoce.
+const WG_APK = 'https://github.com/DentiLike/dentiagenda/raw/android/apk/DentiAgenda.apk';
+let _wgTimer = null, _wgUltimo = '', _wgUltimoTs = 0;
+function wgIniciales(n){ const p = String(n || '').trim().split(/\s+/).filter(Boolean); return p.slice(0, 2).map(x => x[0].toUpperCase() + '.').join(' ') || '?'; }
+function wgToken(crear){
+    if(config.widgetToken || !crear) return config.widgetToken || null;
+    const a = new Uint8Array(24); crypto.getRandomValues(a);
+    config.widgetToken = Array.from(a).map(b => b.toString(16).padStart(2, '0')).join('');
+    try{ localStorage.setItem('denti_config_v16', JSON.stringify(config)); }catch(e){}
+    guardarAgendaEnNube();
+    return config.widgetToken;
+}
+function wgResumen(){
+    const hoy = fechaAISO(new Date()), m = new Date(); m.setDate(m.getDate() + 1); const man = fechaAISO(m);
+    const cs = (citas || []).filter(c => c && (c.fecha === hoy || c.fecha === man) && c.estado !== 'status-red')
+        .sort((a, b) => (a.fecha + a.horaInicio).localeCompare(b.fecha + b.horaInicio))
+        .map(c => ({ d: c.fecha, h: c.horaInicio || '', f: c.horaFin || '', p: wgIniciales(c.paciente), m: String(c.motivo || '').slice(0, 40), e: c.estado === 'status-green' ? 'g' : 'y', a: c.asistencia || '' }));
+    const rec = [];
+    try{ const n = (solicitudes || []).length; if(n) rec.push(n + (n === 1 ? ' solicitud de cita por revisar' : ' solicitudes de cita por revisar')); }catch(e){}
+    try{ const f = (Array.isArray(config.materiales) ? config.materiales : []).filter(x => x && x.falta).map(x => x.nombre || x.n || '').filter(Boolean);
+        if(f.length) rec.push('Surtir: ' + (f.length <= 3 ? f.join(', ') : f.slice(0, 3).join(', ') + ' y ' + (f.length - 3) + ' más')); }catch(e){}
+    try{ const lim = Date.now() - 3 * 864e5, esp = Object.keys(pacientes).filter(n => { const p = pacientes[n]; return p && p.etapa === 'estudios' && (p.etapaFecha || 0) < lim; });
+        if(esp.length === 1){ const p = pacientes[esp[0]]; rec.push(wgIniciales(esp[0]) + ' lleva ' + Math.floor((Date.now() - p.etapaFecha) / 864e5) + ' días esperando estudios'); }
+        else if(esp.length > 1) rec.push(esp.length + ' pacientes llevan más de 3 días esperando estudios'); }catch(e){}
+    try{ const firmas = Object.keys(pacientes).filter(n => { const h = pacientes[n] && pacientes[n].hc; return h && h.docs && !h.firmados; }).length; if(firmas) rec.push(firmas + (firmas === 1 ? ' paciente con documentos sin firmar' : ' pacientes con documentos sin firmar')); }catch(e){}
+    try{ const tr = Object.values(trCasos || {}).filter(c => c && c.estado === 'analisis').length; if(tr) rec.push(tr + (tr === 1 ? ' trazado listo para enviar' : ' trazados listos para enviar')); }catch(e){}
+    let frase = null; try{ if(perEsDueno()){ const f = fraseHoy(); frase = [f[0], f[1]]; } }catch(e){}
+    const doc = String((config && config.doctor) || '').trim(); const mm = doc.match(/^(Dra?\.?)\s+(\S+)/i);
+    return { v: 1, nombre: mm ? (mm[1].replace(/\.?$/, '.') + ' ' + mm[2]) : 'Dr. Miguel', citas: cs, rec: rec.slice(0, 4), frase: frase };
+}
+function widgetPublicar(ya){
+    if(_wgTimer) clearTimeout(_wgTimer);
+    _wgTimer = setTimeout(async () => {
+        _wgTimer = null;
+        const t = wgToken(false); if(!t || !fbOK || !db || !authListo) return;
+        const r = wgResumen(), cuerpo = JSON.stringify(r);
+        if(cuerpo === _wgUltimo && Date.now() - _wgUltimoTs < 6 * 3600000) return;   // sin cambios: no escribir
+        r.gen = Date.now();
+        try{ await db.collection('widget').doc(t).set({ json: JSON.stringify(r), t: r.gen }); _wgUltimo = cuerpo; _wgUltimoTs = Date.now(); }
+        catch(e){ console.warn('widget', e && e.code); }
+    }, ya ? 50 : 2500);
+}
+function widgetVincular(){
+    const t = wgToken(true); widgetPublicar(true);
+    const url = 'intent://vincular?t=' + t + '#Intent;scheme=dentiagenda;package=com.dentilike.dentiagenda;S.browser_fallback_url=' + encodeURIComponent(WG_APK) + ';end';
+    if(/Android/i.test(navigator.userAgent)) location.href = url;
+    else alert('El widget es para Android. Abre DentiAgenda en tu tablet o cel Android y toca "Vincular" ahí.');
+}
+async function widgetNuevoCodigo(){
+    if(!confirm('¿Cambiar el código del widget? Los widgets vinculados dejarán de recibir tu agenda hasta que los vuelvas a vincular.')) return;
+    const viejo = config.widgetToken; delete config.widgetToken;
+    try{ if(viejo && db) await db.collection('widget').doc(viejo).delete(); }catch(e){}
+    wgToken(true); widgetPublicar(true); daToast('Código nuevo listo: vuelve a tocar "Vincular" en cada dispositivo', 'ok');
+}
+// Se publica cuando cambia la agenda, llegan solicitudes o cambia lo de Surtir, y cada 15 minutos
+(function(){
+    const envolver = (nombre) => { try{ const o = window[nombre]; if(typeof o !== 'function') return; window[nombre] = function(){ const r = o.apply(this, arguments); try{ widgetPublicar(); }catch(e){} return r; }; }catch(e){} };
+    ['procesarAgendaRemota', 'actualizarBadgeSolicitudes', 'actualizarBadgeMateriales', 'guardarAgendaEnNube'].forEach(envolver);
+    setInterval(() => widgetPublicar(), 15 * 60000);
+    setTimeout(() => widgetPublicar(), 8000);
+})();
+
+(function(){ const o = window.irDesdeAcceso; if(typeof o !== 'function') return;
+    window.irDesdeAcceso = function(){ let ir = ''; try{ ir = new URLSearchParams(location.search).get('ir') || ''; }catch(e){}
+        if(ir === 'widget'){ try{ history.replaceState(null, '', location.pathname); }catch(e){} try{ openConfig(); const d = document.getElementById('ajWidget'); if(d){ d.open = true; d.scrollIntoView({ behavior: 'smooth' }); } }catch(e){} return; }
+        return o.apply(this, arguments); }; })();
 
 </script>
 </body>
