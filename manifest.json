@@ -1,0 +1,75 @@
+{
+  "name": "DentiAgenda · Dentilike",
+  "short_name": "DentiAgenda",
+  "description": "Agenda y expedientes del consultorio Dentilike.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#e0e5ec",
+  "theme_color": "#124578",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "icono-app.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icono-app-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Citas de hoy",
+      "short_name": "Hoy",
+      "url": "./index.html?ir=hoy",
+      "icons": [
+        {
+          "src": "atajo-hoy.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Nueva cita",
+      "short_name": "Nueva cita",
+      "url": "./index.html?ir=nueva",
+      "icons": [
+        {
+          "src": "atajo-nueva.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Mi consultorio",
+      "short_name": "Consultorio",
+      "url": "./index.html?ir=consultorio",
+      "icons": [
+        {
+          "src": "atajo-consultorio.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Trazados",
+      "short_name": "Trazados",
+      "url": "./index.html?ir=trazados",
+      "icons": [
+        {
+          "src": "atajo-trazados.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
+  ]
+}

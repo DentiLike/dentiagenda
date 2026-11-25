@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="azul">#124578</color>
+    <color name="fondo">#E0E5EC</color>
+    <color name="texto">#1E2B3C</color>
+    <color name="gris">#5A6B85</color>
+    <color name="teal">#46C3B6</color>
+</resources>

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:gravity="center_horizontal" android:padding="24dp">
+    <ImageView android:layout_width="96dp" android:layout_height="96dp" android:src="@drawable/av_normal" android:contentDescription="Mikes Molares" />
+    <TextView android:id="@+id/vTitulo" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:textColor="#124578" android:textSize="18sp" android:textStyle="bold" />
+    <TextView android:id="@+id/vTexto" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:gravity="center" android:textColor="#1E2B3C" android:textSize="14sp" />
+    <Button android:id="@+id/vAgregar" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="16dp" android:text="Poner el widget en mi pantalla" />
+    <Button android:id="@+id/vCerrar" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:text="Volver a DentiAgenda" />
+</LinearLayout>
