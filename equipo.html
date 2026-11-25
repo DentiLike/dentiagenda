@@ -6,6 +6,8 @@
 <meta name="theme-color" content="#124578">
 <title>Agenda compartida · Dentilike</title>
 <link rel="icon" href="badge.png">
+<link rel="manifest" href="manifest-equipo.json">
+<link rel="apple-touch-icon" href="icono-app.png">
 <style>
   :root{ --azul:#124578; --azul-osc:#0d3560; --teal:#46c3b6; --fondo:#eef3f8; --papel:#fff; --borde:#dbe4ee; --gris:#64748b; --rojo:#c53030; --ok:#2f855a; }
   *{ box-sizing:border-box; }
@@ -46,7 +48,8 @@
 <body>
 <header>
   <div><b>Agenda compartida</b><small id="quien">Dentilike</small></div>
-  <button class="btn sec" id="btnSalir" style="display:none;" onclick="salir()">Salir</button>
+  <span><button class="btn sec" id="btnInstalar" style="display:none;" onclick="instalarApp()">📲 Instalar</button>
+  <button class="btn sec" id="btnSalir" style="display:none;" onclick="salir()">Salir</button></span>
 </header>
 <div class="wrap" id="app">
   <div class="centro" id="pantallaInicio">
@@ -95,7 +98,8 @@ auth.onAuthStateChanged(async user => {
     yo = null; document.getElementById('btnSalir').style.display = 'none'; document.getElementById('quien').textContent = 'Dentilike';
     pantalla(`<div class="card centro"><h2 style="color:var(--azul); margin-top:0;">Agenda del consultorio</h2>
       <p style="color:var(--gris);">Entra con tu cuenta de Google. La primera vez, el Dr. Miguel tiene que aceptar tu acceso.</p>
-      <button class="btn" onclick="entrar()">Entrar con Google</button></div>`);
+      <button class="btn" onclick="entrar()">Entrar con Google</button>
+      <p style="margin-top:14px;"><button class="btn sec" onclick="instalarApp()">📲 Instalar en este celular</button></p></div>`);
     return;
   }
   yo = user; document.getElementById('btnSalir').style.display = '';
@@ -242,6 +246,23 @@ async function cancelarCita(id){
   if(!confirm('¿Cancelar la cita de ' + c.paciente + ' del ' + fechaLarga(c.fecha) + '?')) return;
   try{ await db.collection('agenda_compartida').doc(id).delete(); cerrarModal(); toast('Cita cancelada'); }catch(e){ toast('No se pudo cancelar: ' + (e.code || e.message)); }
 }
+</script>
+<script>
+// Instalar la agenda como app (botón propio) y registrar el service worker para que se pueda instalar
+let _instalar = null;
+const esInstalada = () => { try{ return matchMedia('(display-mode: standalone)').matches || navigator.standalone === true; }catch(e){ return false; } };
+const esIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent || '');
+function pintarInstalar(){ const b = document.getElementById('btnInstalar'); if(b) b.style.display = !esInstalada() && (_instalar || esIOS()) ? '' : 'none'; }
+addEventListener('beforeinstallprompt', e => { e.preventDefault(); _instalar = e; pintarInstalar(); });
+addEventListener('appinstalled', () => { _instalar = null; pintarInstalar(); });
+function instalarApp(){
+  if(esInstalada()){ alert('Ya estás usando la agenda como app instalada.'); return; }
+  if(_instalar){ _instalar.prompt(); _instalar.userChoice.finally(() => { _instalar = null; pintarInstalar(); }); return; }
+  if(esIOS()){ alert('En iPhone: abre esta página en Safari, toca Compartir (cuadro con flecha) y elige "Agregar a inicio".'); return; }
+  alert('Abre esta página en Chrome, toca el menú ⋮ y elige "Instalar app" o "Agregar a pantalla de inicio". Si no aparece, ya está instalada.');
+}
+if('serviceWorker' in navigator){ navigator.serviceWorker.register('sw.js').catch(() => {}); }
+setTimeout(pintarInstalar, 1200);
 </script>
 </body>
 </html>

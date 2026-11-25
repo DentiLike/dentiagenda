@@ -413,6 +413,7 @@
         <button class="btn-3d" style="max-width:320px; width:100%; padding:1rem; display:flex; align-items:center; justify-content:center; gap:10px;" onclick="hacerLoginGoogle()">
             <span style="font-weight:bold; color:#4285F4;">G</span> Entrar con Google
         </button>
+        <button class="btn-3d da-instalar" style="display:none; max-width:320px; width:100%; padding:0.9rem; margin-top:12px; color:var(--accent);" onclick="instalarDentiAgenda()">📲 Instalar DentiAgenda en este dispositivo</button>
         <p id="loginError" style="color:#e53e3e; font-size:0.85rem; margin-top:1rem; height:1rem; visibility:hidden;">No se pudo iniciar sesión</p>
         <div id="uidBox" style="display:none; margin-top:1.5rem; background:var(--accent); color:white; padding:14px; border-radius:12px; max-width:340px; text-align:center;">
             <div style="font-size:0.75rem; opacity:0.9;">TU UID (cópialo y pásaselo a tu asistente):</div>
@@ -421,6 +422,11 @@
         </div>
     </div>
 
+    <div id="daBannerInstalar" style="display:none; align-items:center; gap:10px; margin:8px auto 0; max-width:980px; padding:10px 14px; border-radius:14px; background:var(--primary); color:#fff; font-size:0.88rem;">
+        <span style="flex:1;">📲 Instala DentiAgenda como app: abre más rápido, en pantalla completa y con accesos directos.</span>
+        <button class="btn-3d" style="padding:0.5rem 0.9rem; font-size:0.82rem; color:var(--primary); width:auto;" onclick="instalarDentiAgenda()">Instalar</button>
+        <button onclick="daOcultarBannerInstalar()" style="background:none; border:none; color:#fff; font-size:1.1rem; cursor:pointer;" title="Ahora no">✕</button>
+    </div>
     <header>
         <div class="logo-container">
             <img src="logo-dentiagenda.png" alt="DentiAgenda" style="max-width:220px;" onerror="this.style.display='none';">
@@ -935,7 +941,7 @@
             </div></details>
             <details class="aj-sec"><summary>📲 App y WhatsApp</summary><div class="aj-body">
             <div style="margin:16px 0 4px;">
-                <button class="btn-3d btn-submit" style="color:var(--accent);" onclick="instalarDentiAgenda()">📲 Instalar en este dispositivo</button>
+                <button class="btn-3d btn-submit" style="color:var(--accent);" onclick="instalarDentiAgenda()">📲 Instalar en este dispositivo</button><div class="odo-sub" style="margin-top:4px;">Si ya está instalada, el botón te lo dice.</div>
                 <div class="form-group" style="margin-top:14px; text-align:left;">
                     <label style="font-size:0.82rem; font-weight:bold; color:var(--primary);">¿Con qué WhatsApp enviar los mensajes?</label>
                     <select id="confWaModo" class="inset-3d" onchange="guardarWaModo(this.value)">
@@ -3416,7 +3422,7 @@ function perIniciar(user){ perTarjeta(); }
             return d <= 0 ? 'hoy' : (d === 1 ? 'ayer' : 'hace ' + d + ' d');
         }
         function usaSmile(nombre){ const u = usoSmile[nombre]; return !!(u && u.ts); }
-        const DA_VERSION = 'v124';
+        const DA_VERSION = 'v125';
         window.addEventListener('load', () => document.querySelectorAll('.da-ver-txt').forEach(e => e.textContent = 'DentiAgenda ' + DA_VERSION));
         // Texto del estado de SmileLike para un paciente (usa lo guardado; abajo se refresca solo ese paciente)
         function textoEstadoSmile(nombre){
@@ -5050,19 +5056,29 @@ function perIniciar(user){ perTarjeta(); }
             } else { alert('Cita actualizada correctamente.'); }
         }
 
-        // ===== Instalar como app (PWA) =====
+        // ===== Instalar como app (PWA): botón propio, sin buscar en el menú del navegador (v125) =====
         let dentiDeferredPrompt = null;
-        window.addEventListener('beforeinstallprompt', (e)=>{ e.preventDefault(); dentiDeferredPrompt = e; });
+        function daEsInstalada(){ try{ return window.matchMedia('(display-mode: standalone)').matches || window.matchMedia('(display-mode: fullscreen)').matches || navigator.standalone === true; }catch(e){ return false; } }
+        function daEsIOS(){ const ua = navigator.userAgent || ''; return /iPad|iPhone|iPod/.test(ua) || (/Macintosh/.test(ua) && 'ontouchend' in document); }
+        function daPintarInstalar(){
+            const puede = !daEsInstalada() && (!!dentiDeferredPrompt || daEsIOS());
+            document.querySelectorAll('.da-instalar').forEach(b => { b.style.display = puede ? '' : 'none'; });
+            const ban = document.getElementById('daBannerInstalar');
+            if(ban){ let oculto = false; try{ oculto = +(localStorage.getItem('da_instalar_oculto') || 0) > Date.now(); }catch(e){} ban.style.display = puede && !oculto ? 'flex' : 'none'; }
+        }
+        window.addEventListener('beforeinstallprompt', (e)=>{ e.preventDefault(); dentiDeferredPrompt = e; daPintarInstalar(); });
+        window.addEventListener('appinstalled', ()=>{ dentiDeferredPrompt = null; daPintarInstalar(); try{ daToast('DentiAgenda quedó instalada: búscala en tu pantalla de inicio', 'ok'); }catch(e){} });
+        document.addEventListener('DOMContentLoaded', daPintarInstalar); setTimeout(daPintarInstalar, 1500);
+        function daOcultarBannerInstalar(){ try{ localStorage.setItem('da_instalar_oculto', String(Date.now() + 14 * 864e5)); }catch(e){} daPintarInstalar(); }
         function instalarDentiAgenda(){
-            const ua = navigator.userAgent||'';
-            const esIOS = /iPad|iPhone|iPod/.test(ua);
+            if(daEsInstalada()){ alert('Ya estás usando DentiAgenda como app instalada.'); return; }
             if(dentiDeferredPrompt){
                 dentiDeferredPrompt.prompt();
-                dentiDeferredPrompt.userChoice.then(()=>{ dentiDeferredPrompt=null; });
-            } else if(esIOS){
-                alert('Para instalar en iPhone:\n\n1. Abre esta página en Safari\n2. Toca el botón compartir ⬆️\n3. "Agregar a inicio"');
+                dentiDeferredPrompt.userChoice.then((r)=>{ dentiDeferredPrompt = null; daPintarInstalar(); }).catch(()=>{});
+            } else if(daEsIOS()){
+                alert('Para instalar en iPhone o iPad:\n\n1. Abre esta página en Safari\n2. Toca el botón Compartir (cuadro con flecha hacia arriba)\n3. Elige "Agregar a inicio"');
             } else {
-                alert('Para instalar:\n\nToca el menú ⋮ de tu navegador y elige "Instalar app" o "Agregar a pantalla de inicio".');
+                alert('Para instalar:\n\nAbre esta página en Chrome, toca el menú ⋮ y elige "Instalar app" o "Agregar a pantalla de inicio".\n\nSi no aparece, es porque ya está instalada en este dispositivo.');
             }
         }
         // ===== Avisos (push): qué hacer al tocar uno, y aviso dentro de la app si está abierta =====

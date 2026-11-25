@@ -1,7 +1,7 @@
 // Service Worker ÚNICO de DentiAgenda: arranque instantáneo (caché) + notificaciones push (FCM).
 // ⚠️ La app debe registrar SOLO este archivo. Dos service workers en el mismo alcance
 //    se reemplazan entre sí y las notificaciones dejan de mostrarse.
-const CACHE_NAME = "dentiagenda-v124";
+const CACHE_NAME = "dentiagenda-v125";
 const ASSETS = ["./", "./index.html", "./manifest.json", "./badge.png"];
 
 
@@ -114,6 +114,12 @@ self.addEventListener("fetch", (e) => {
   if (u.includes("equipo.html")) { e.respondWith(fetch(e.request).catch(() => caches.match(e.request))); return; }
   // Abrir la app: primero la versión del servidor (si responde en 4 s); sin internet, la guardada
   if (e.request.mode === "navigate") {
+    // Solo la app principal usa la copia de index.html; otras páginas (equipo.html) van directo a la red
+    const ruta = new URL(e.request.url).pathname;
+    if (!(ruta.endsWith("/") || ruta.endsWith("/index.html"))) {
+      e.respondWith(fetch(e.request, {cache: "no-cache"}).catch(() => caches.match(e.request)));
+      return;
+    }
     e.respondWith(caches.match("./index.html").then((cached) => {
       const red = fetch(e.request, {cache: "no-cache"}).then((res) => {
         if (res && res.status === 200) { const copia = res.clone(); caches.open(CACHE_NAME).then((c) => c.put("./index.html", copia)); }
