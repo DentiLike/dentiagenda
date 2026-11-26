@@ -13,6 +13,7 @@ import android.text.Spanned
 import android.text.style.RelativeSizeSpan
 import android.text.style.StyleSpan
 import android.graphics.Typeface
+import android.util.TypedValue
 import android.view.View
 import android.widget.RemoteViews
 import androidx.work.WorkManager
@@ -146,6 +147,26 @@ class CalendarioWidget : AppWidgetProvider() {
             var sel = Datos.pStr(ctx, "cal_sel_$id")
             if (!sel.startsWith(String.format("%04d-%02d", anio, mes + 1))) sel = if (off == 0) hoy else iso(anio, mes, 1)
 
+            // Tamaños según el alto del widget: la cuadrícula llena el espacio y la lista usa hasta ~40 %
+            val op = mgr.getAppWidgetOptions(id)
+            val alto = op.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 0).takeIf { it > 0 }
+                ?: op.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 320)
+            val listaSel = citasDe(sel)
+            val fLista = when { alto >= 560 -> 15f; alto >= 420 -> 13.5f; else -> 12f }
+            val renglon = fLista * 1.45f
+            val maxRen = (((alto * 0.42f) - renglon - 20f) / renglon).toInt().coerceIn(0, 8)
+            val mostrar = if (listaSel.size > maxRen) (maxRen - 1).coerceAtLeast(0) else listaSel.size
+            val listaH = 20f + renglon * (1 + mostrar + (if (listaSel.size > mostrar) 1 else 0))
+            val celda = (alto - 24 - 40 - 20 - 8 - listaH) / nFilas - 2f
+            val esc = (celda / 30f).coerceIn(1f, 2f)
+            val fDia = (12f * esc).coerceAtMost(22f)
+            v.setTextViewTextSize(R.id.calTit, TypedValue.COMPLEX_UNIT_SP, (15f * esc).coerceAtMost(22f))
+            v.setTextViewTextSize(R.id.calSub, TypedValue.COMPLEX_UNIT_SP, (10f * esc).coerceAtMost(13f))
+            SEM.forEach { v.setTextViewTextSize(it, TypedValue.COMPLEX_UNIT_SP, (10f * esc).coerceAtMost(14f)) }
+            v.setTextViewTextSize(R.id.calDiaTit, TypedValue.COMPLEX_UNIT_SP, fLista)
+            LISTA.forEach { v.setTextViewTextSize(it, TypedValue.COMPLEX_UNIT_SP, fLista) }
+            v.setTextViewTextSize(R.id.calMas, TypedValue.COMPLEX_UNIT_SP, fLista - 1f)
+
             for (f in 0 until 6) v.setViewVisibility(FILAS[f], if (f < nFilas) View.VISIBLE else View.GONE)
             for (k in 0 until 42) {
                 val d = k - hueco + 1
@@ -163,6 +184,7 @@ class CalendarioWidget : AppWidgetProvider() {
                     txt.setSpan(RelativeSizeSpan(0.72f), d.toString().length, txt.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                 }
                 v.setTextViewText(CELDAS[k], txt)
+                v.setTextViewTextSize(CELDAS[k], TypedValue.COMPLEX_UNIT_SP, fDia)
                 val fondo = when {
                     esHoy -> if (claro) R.drawable.dia_hoy_cl else R.drawable.dia_hoy
                     esSel && n >= 6 -> if (claro) R.drawable.dia_sel_lleno_cl else R.drawable.dia_sel_lleno
@@ -182,13 +204,8 @@ class CalendarioWidget : AppWidgetProvider() {
                 v.setOnClickPendingIntent(CELDAS[k], aviso(ctx, ACCION_DIA, id, 500000 + id * 64 + k) { it.putExtra("f", f) })
             }
 
-            // Lista del día elegido, tantas filas como quepan
-            val op = mgr.getAppWidgetOptions(id)
-            val alto = op.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 0).takeIf { it > 0 }
-                ?: op.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 320)
-            val libre = alto - (24 + 34 + 18 + nFilas * 32 + 8 + 12 + 18)
-            val maxLista = (libre / 17).coerceIn(0, 8)
-            v.setViewVisibility(R.id.calLista, if (libre >= 18) View.VISIBLE else View.GONE)
+            // Lista del día elegido
+            v.setViewVisibility(R.id.calLista, if (celda >= 26f || mostrar > 0) View.VISIBLE else View.GONE)
             if (!vinculado) {
                 v.setTextViewText(R.id.calDiaTit, "Vincule el widget desde DentiAgenda → Ajustes")
                 LISTA.forEach { v.setViewVisibility(it, View.GONE) }
@@ -197,13 +214,12 @@ class CalendarioWidget : AppWidgetProvider() {
             } else {
                 val ps = sel.split("-").map { it.toInt() }
                 val cs = Calendar.getInstance().apply { set(ps[0], ps[1] - 1, ps[2]) }
-                val lista = citasDe(sel)
+                val lista = listaSel
                 val n = if (lista.isNotEmpty()) lista.size else cuantas(sel)
                 val nomDia = DIAS[cs.get(Calendar.DAY_OF_WEEK) - 1]
                 v.setTextViewText(R.id.calDiaTit, (if (sel == hoy) "Hoy, " else nomDia.replaceFirstChar { it.uppercase() } + " ") +
                     (if (sel == hoy) "$nomDia " else "") + "${ps[2]} de ${MESES[ps[1] - 1]} · " +
                     (if (n == 0) "sin citas" else if (n == 1) "1 cita" else "$n citas"))
-                val mostrar = if (lista.size > maxLista) (maxLista - 1).coerceAtLeast(0) else lista.size
                 for (k in 0 until 8) {
                     val x = lista.getOrNull(k)
                     if (x == null || k >= mostrar) { v.setViewVisibility(LISTA[k], View.GONE); continue }
