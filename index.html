@@ -3441,7 +3441,7 @@ function perIniciar(user){ perTarjeta(); }
             return d <= 0 ? 'hoy' : (d === 1 ? 'ayer' : 'hace ' + d + ' d');
         }
         function usaSmile(nombre){ const u = usoSmile[nombre]; return !!(u && u.ts); }
-        const DA_VERSION = 'v129';
+        const DA_VERSION = 'v130';
         window.addEventListener('load', () => document.querySelectorAll('.da-ver-txt').forEach(e => e.textContent = 'DentiAgenda ' + DA_VERSION));
         // Texto del estado de SmileLike para un paciente (usa lo guardado; abajo se refresca solo ese paciente)
         function textoEstadoSmile(nombre){
@@ -10189,13 +10189,16 @@ async function trEliminar(){
 }
 // ---------- Accesos directos del ícono (manifest "shortcuts": ?ir=hoy | nueva | consultorio | trazados) ----------
 function irDesdeAcceso(){
-    let ir = '', fx = ''; try{ const q = new URLSearchParams(location.search); ir = q.get('ir') || ''; fx = q.get('f') || ''; }catch(e){} if(!ir) return;
+    let ir = '', fx = ''; try{ const q = new URLSearchParams(location.search); ir = q.get('ir') || ''; fx = q.get('f') || q.get('n') || ''; }catch(e){} if(!ir) return;
     try{ history.replaceState(null, '', location.pathname); }catch(e){}
     const hoy = fechaAISO(new Date());
     if(ir === 'hoy'){ try{ openDay(hoy); const el = document.getElementById('dayView') || document.querySelector('.day-panel'); if(el && el.scrollIntoView) el.scrollIntoView({ behavior: 'smooth' }); }catch(e){} }
     else if(ir === 'nueva'){ try{ openDay(hoy); toggleFormulario(true); }catch(e){} }
     else if(ir === 'consultorio'){ try{ abrirEscritorio(); }catch(e){} }
     else if(ir === 'trazados'){ trAbrirLista(); }
+    else if(ir === 'paciente' && fx && pacientes[fx]){ try{ abrirDirectorio(); abrirEditorDirectorio(fx); }catch(e){} }
+    else if(ir === 'pc' && fx && pacientes[fx]){ try{ pcAbrir(fx); }catch(e){} }
+    else if(ir === 'solicitudes'){ try{ abrirSolicitudes(); }catch(e){} }
     else if(ir === 'dia' && /^\d{4}-\d{2}-\d{2}$/.test(fx)){ try{ openDay(fx); const el = document.getElementById('dayView') || document.querySelector('.day-panel'); if(el && el.scrollIntoView) el.scrollIntoView({ behavior: 'smooth' }); }catch(e){} }
 }
 (function(){ let hecho = false; const intento = () => { if(hecho) return; if(typeof authListo !== 'undefined' && authListo){ hecho = true; setTimeout(irDesdeAcceso, 900); } else setTimeout(intento, 500); }; setTimeout(intento, 800); })();
@@ -10236,7 +10239,7 @@ function wgResumen(){
     const hoy = fechaAISO(new Date()), m = new Date(); m.setDate(m.getDate() + 1); const man = fechaAISO(m);
     const cs = (citas || []).filter(c => c && (c.fecha === hoy || c.fecha === man) && c.estado !== 'status-red')
         .sort((a, b) => (a.fecha + a.horaInicio).localeCompare(b.fecha + b.horaInicio))
-        .map(c => ({ d: c.fecha, h: c.horaInicio || '', f: c.horaFin || '', p: String(c.paciente || '').trim().slice(0, 45), m: String(c.motivo || '').slice(0, 40), e: c.estado === 'status-green' ? 'g' : 'y', a: c.asistencia || '', x: wgDetalle(pacientes[c.paciente]) }));
+        .map(c => ({ d: c.fecha, h: c.horaInicio || '', f: c.horaFin || '', p: String(c.paciente || '').trim().slice(0, 45), m: String(c.motivo || '').slice(0, 40), e: c.estado === 'status-green' ? 'g' : 'y', a: c.asistencia || '', x: wgDetalle(pacientes[c.paciente]), pv: /valoraci|primera/i.test(String(c.motivo || '')) ? 1 : 0 }));
     const rec = [];
     try{ const n = (solicitudes || []).length; if(n) rec.push(n + (n === 1 ? ' solicitud de cita por revisar' : ' solicitudes de cita por revisar')); }catch(e){}
     try{ const f = (Array.isArray(config.materiales) ? config.materiales : []).filter(x => x && x.falta).map(x => x.nombre || x.n || '').filter(Boolean);
@@ -10248,12 +10251,21 @@ function wgResumen(){
     try{ const tr = Object.values(trCasos || {}).filter(c => c && c.estado === 'analisis').length; if(tr) rec.push(tr + (tr === 1 ? ' trazado listo para enviar' : ' trazados listos para enviar')); }catch(e){}
     let frase = null; try{ if(perEsDueno()){ const f = fraseHoy(); frase = [f[0], f[1]]; } }catch(e){}
     const doc = String((config && config.doctor) || '').trim(); const mm = doc.match(/^(Dra?\.?)\s+(\S+)/i);
-    let mes = null; try{ const k = cajaClaveMes(), d = cajaDatos[k]; if(d && d._cargado){ const T = cajaTotales(d); mes = { n: CAJA_MESES[+k.slice(5) - 1], i: Math.round(T.i), g: Math.round(T.g) }; } }catch(e){}
     // Mini calendario: cuántas citas hay cada día (solo números, sin nombres) desde una semana antes del mes hasta fin del mes siguiente
     const cal = {}; try{ const a0 = new Date(); a0.setDate(1); a0.setDate(a0.getDate() - 7); const b0 = new Date(); b0.setMonth(b0.getMonth() + 2, 0);
         const a = fechaAISO(a0), b = fechaAISO(b0);
         (citas || []).forEach(c => { if(c && c.fecha && c.fecha >= a && c.fecha <= b && c.estado !== 'status-red') cal[c.fecha] = (cal[c.fecha] || 0) + 1; }); }catch(e){}
-    return { v: 3, cal: cal, nombre: mm ? (mm[1].replace(/\.?$/, '.') + ' ' + mm[2]) : 'Dr. Miguel', citas: cs, rec: rec.slice(0, 4), frase: frase, mes: mes };
+    // Citas del mes actual y el siguiente para el widget de calendario: hora, nombre y si confirmó
+    const mc = {}; try{ const a0 = new Date(); a0.setDate(1); const b0 = new Date(); b0.setMonth(b0.getMonth() + 2, 0); const a = fechaAISO(a0), b = fechaAISO(b0);
+        (citas || []).filter(c => c && c.fecha && c.fecha >= a && c.fecha <= b && c.estado !== 'status-red').sort((x, y) => (x.fecha + x.horaInicio).localeCompare(y.fecha + y.horaInicio))
+            .forEach(c => { (mc[c.fecha] = mc[c.fecha] || []).push([c.horaInicio || '', String(c.paciente || '').trim().slice(0, 45), c.estado === 'status-green' ? 'g' : 'y']); }); }catch(e){}
+    // Pacientes de hoy que se van sin próxima cita (el widget los menciona cuando ya terminó su cita)
+    const sp = []; try{ const futuras = new Set((citas || []).filter(c => c && c.fecha > hoy && c.estado !== 'status-red').map(c => c.paciente));
+        const vistos = new Set();
+        (citas || []).filter(c => c && c.fecha === hoy && c.estado !== 'status-red' && c.asistencia !== 'no').forEach(c => { const p = pacientes[c.paciente];
+            if(!p || p.archivado || futuras.has(c.paciente) || vistos.has(c.paciente)) return; vistos.add(c.paciente); sp.push([String(c.paciente).trim().slice(0, 45), c.horaFin || c.horaInicio || '']); }); }catch(e){}
+    let sol = 0; try{ sol = (solicitudes || []).length; }catch(e){}
+    return { v: 4, cal: cal, mc: mc, sp: sp, sol: sol, nombre: mm ? (mm[1].replace(/\.?$/, '.') + ' ' + mm[2]) : 'Dr. Miguel', citas: cs, rec: rec.slice(0, 4), frase: frase };
 }
 function widgetPublicar(ya){
     if(_wgTimer) clearTimeout(_wgTimer);
