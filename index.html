@@ -3441,7 +3441,7 @@ function perIniciar(user){ perTarjeta(); }
             return d <= 0 ? 'hoy' : (d === 1 ? 'ayer' : 'hace ' + d + ' d');
         }
         function usaSmile(nombre){ const u = usoSmile[nombre]; return !!(u && u.ts); }
-        const DA_VERSION = 'v130';
+        const DA_VERSION = 'v131';
         window.addEventListener('load', () => document.querySelectorAll('.da-ver-txt').forEach(e => e.textContent = 'DentiAgenda ' + DA_VERSION));
         // Texto del estado de SmileLike para un paciente (usa lo guardado; abajo se refresca solo ese paciente)
         function textoEstadoSmile(nombre){
@@ -10258,7 +10258,7 @@ function wgResumen(){
     // Citas del mes actual y el siguiente para el widget de calendario: hora, nombre y si confirmó
     const mc = {}; try{ const a0 = new Date(); a0.setDate(1); const b0 = new Date(); b0.setMonth(b0.getMonth() + 2, 0); const a = fechaAISO(a0), b = fechaAISO(b0);
         (citas || []).filter(c => c && c.fecha && c.fecha >= a && c.fecha <= b && c.estado !== 'status-red').sort((x, y) => (x.fecha + x.horaInicio).localeCompare(y.fecha + y.horaInicio))
-            .forEach(c => { (mc[c.fecha] = mc[c.fecha] || []).push([c.horaInicio || '', String(c.paciente || '').trim().slice(0, 45), c.estado === 'status-green' ? 'g' : 'y']); }); }catch(e){}
+            .forEach(c => { (mc[c.fecha] = mc[c.fecha] || []).push([c.horaInicio || '', String(c.paciente || '').trim().slice(0, 45), c.estado === 'status-green' ? 'g' : 'y', String(c.motivo || '').slice(0, 30)]); }); }catch(e){}
     // Pacientes de hoy que se van sin próxima cita (el widget los menciona cuando ya terminó su cita)
     const sp = []; try{ const futuras = new Set((citas || []).filter(c => c && c.fecha > hoy && c.estado !== 'status-red').map(c => c.paciente));
         const vistos = new Set();
