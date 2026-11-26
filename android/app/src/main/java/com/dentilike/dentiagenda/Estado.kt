@@ -8,8 +8,16 @@ data class Cita(val d: String, val h: String, val f: String, val p: String, val 
     fun inicio(): Long = epoch(d, h)
     fun fin(): Long { val x = epoch(d, f); return if (x > inicio()) x else inicio() + 30 * 60000L }
     fun corto(): String = if (m.isNotBlank()) "$p · $m" else p
+    /** Hora de inicio en formato de 12 horas, igual que en DentiAgenda: 4:00 PM */
+    fun h12(): String = hora12(h)
 
     companion object {
+        fun hora12(hora: String): String = try {
+            val p = hora.split(":").map { it.trim().toInt() }
+            val h = p[0] % 12
+            "${if (h == 0) 12 else h}:${String.format("%02d", p.getOrElse(1) { 0 })} ${if (p[0] >= 12) "PM" else "AM"}"
+        } catch (e: Exception) { hora }
+
         fun epoch(fecha: String, hora: String): Long {
             return try {
                 val pf = fecha.split("-").map { it.toInt() }
@@ -113,9 +121,9 @@ object Estado {
 
         val sinConfManana = deManana.count { it.e != "g" }
         val txtManana = if (deManana.isEmpty()) "Mañana no tiene citas."
-            else "Mañana tiene ${deManana.size} cita" + (if (deManana.size > 1) "s" else "") + "; empieza a las ${deManana[0].h} con ${deManana[0].p}." +
+            else "Mañana tiene ${deManana.size} cita" + (if (deManana.size > 1) "s" else "") + "; empieza a las ${deManana[0].h12()} con ${deManana[0].p}." +
                 (if (sinConfManana > 0) " $sinConfManana sin confirmar." else "")
-        val cdManana = if (deManana.isEmpty()) "Mañana: sin citas" else "Mañana ${deManana[0].h} · ${deManana[0].p}"
+        val cdManana = if (deManana.isEmpty()) "Mañana: sin citas" else "Mañana ${deManana[0].h12()} · ${deManana[0].p}"
         val detManana = detalle(deManana.firstOrNull())
         val mes = r.optJSONObject("mes")
         val mesN = mes?.optString("n", "") ?: ""
@@ -137,10 +145,10 @@ object Estado {
         val actual = restantes.firstOrNull()
         val filas = deHoy.map { c ->
             when {
-                c === actual -> Fila(c.h, c.corto(), if (c.inicio() <= ahora) "Ahora" else "Siguiente", "now")
-                c.a == "si" || c.fin() <= ahora -> Fila(c.h, c.corto(), "Lista", "gris")
-                c.e == "g" -> Fila(c.h, c.corto(), "Confirmó", "ok")
-                else -> Fila(c.h, c.corto(), "Sin confirmar", "pen")
+                c === actual -> Fila(c.h12(), c.corto(), if (c.inicio() <= ahora) "Ahora" else "Siguiente", "now")
+                c.a == "si" || c.fin() <= ahora -> Fila(c.h12(), c.corto(), "Lista", "gris")
+                c.e == "g" -> Fila(c.h12(), c.corto(), "Confirmó", "ok")
+                else -> Fila(c.h12(), c.corto(), "Sin confirmar", "pen")
             }
         }
         // primero lo que sigue, luego lo ya atendido
@@ -154,7 +162,7 @@ object Estado {
             msgs.addAll(recs.take(2))
             if (viejo) msgs.add("Abra DentiAgenda para que me actualice.")
             return Vista("🌙", msgs, cdManana, detManana, true, if (deHoy.isEmpty()) 0 else 100, if (deHoy.isEmpty()) "Día terminado" else "Día terminado · $atendidas de ${deHoy.size}",
-                filasOrden, recs, 0, if (deManana.isEmpty()) "Mañana libre" else "Mañana ${deManana[0].h}", if (deManana.isEmpty()) "" else deManana[0].p, true, av, sig, mesN, mesI, mesG, calMap)
+                filasOrden, recs, 0, if (deManana.isEmpty()) "Mañana libre" else "Mañana ${deManana[0].h12()}", if (deManana.isEmpty()) "" else deManana[0].p, true, av, sig, mesN, mesI, mesG, calMap)
         }
         if (deHoy.isEmpty()) {
             msgs.add("$saludo, $nombre. Hoy no tiene citas.")
@@ -173,9 +181,9 @@ object Estado {
         msgs.add("$saludo, $nombre. Hoy tiene ${deHoy.size} cita" + (if (deHoy.size > 1) "s" else "") + (if (quedan < deHoy.size) "; le quedan $quedan." else "."))
         if (enCurso) {
             msgs.add("Ahora atiende a ${actual.p}: ${actual.m.ifBlank { "consulta" }}.")
-            restantes.getOrNull(1)?.let { msgs.add("Después sigue ${it.p} a las ${it.h}: ${it.m.ifBlank { "consulta" }}.") }
+            restantes.getOrNull(1)?.let { msgs.add("Después sigue ${it.p} a las ${it.h12()}: ${it.m.ifBlank { "consulta" }}.") }
         } else {
-            msgs.add("La siguiente es ${actual.p} a las ${actual.h}: ${actual.m.ifBlank { "consulta" }}.")
+            msgs.add("La siguiente es ${actual.p} a las ${actual.h12()}: ${actual.m.ifBlank { "consulta" }}.")
         }
         if (actual.x.isNotBlank()) msgs.add("Con ${actual.p}: ${actual.x}.")
         val sinConfHoy = restantes.count { it.e != "g" }
@@ -183,8 +191,8 @@ object Estado {
         msgs.addAll(recs)
         if (viejo) msgs.add("Abra DentiAgenda para que me actualice.")
         val emoji = if (enCurso) "🦷" else if (hora < 12) "☀️" else "🌤️"
-        val cdTxt = if (enCurso) "Ahora · ${actual.p}" else "Próxima ${actual.h} · ${actual.p}"
+        val cdTxt = if (enCurso) "Ahora · ${actual.p}" else "Próxima ${actual.h12()} · ${actual.p}"
         return Vista(emoji, msgs, cdTxt, detalle(actual), false, prog, progTxt,
-            filasOrden, recs, quedan, (if (enCurso) "Ahora " else "Próxima ") + actual.h, actual.p, false, av, sig, mesN, mesI, mesG, calMap)
+            filasOrden, recs, quedan, (if (enCurso) "Ahora " else "Próxima ") + actual.h12(), actual.p, false, av, sig, mesN, mesI, mesG, calMap)
     }
 }
