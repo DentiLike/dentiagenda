@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="24dp">
+    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="#124578" android:textSize="18sp" android:textStyle="bold" android:text="Calendario DentiAgenda" />
+    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="16dp" android:textColor="#1E2B3C" android:textSize="14sp" android:text="Transparencia del fondo" />
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical">
+        <SeekBar android:id="@+id/cfgTr" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:max="20" />
+        <TextView android:id="@+id/cfgTrTxt" android:layout_width="48dp" android:layout_height="wrap_content" android:gravity="end" android:textColor="#124578" android:textSize="14sp" android:textStyle="bold" />
+    </LinearLayout>
+    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="16dp" android:textColor="#1E2B3C" android:textSize="14sp" android:text="Color de la letra" />
+    <RadioGroup android:id="@+id/cfgColor" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
+        <RadioButton android:id="@+id/cfgOsc" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Letra oscura (fondo blanco)" />
+        <RadioButton android:id="@+id/cfgCla" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Letra clara (fondo oscuro)" />
+    </RadioGroup>
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:textColor="#5A6B85" android:textSize="12sp" android:text="Para cambiarlo después: mantenga presionado el widget y toque Configurar (Android 12 o más nuevo), o quítelo y vuelva a ponerlo." />
+    <Button android:id="@+id/cfgListo" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="16dp" android:text="Listo" />
+</LinearLayout>

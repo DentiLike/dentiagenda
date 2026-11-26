@@ -77,5 +77,26 @@
             </intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/mikes_widget_info" />
         </receiver>
+
+        <!-- Widget de calendario mensual -->
+        <receiver
+            android:name=".CalendarioWidget"
+            android:exported="false"
+            android:label="Calendario DentiAgenda">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/calendario_widget_info" />
+        </receiver>
+
+        <activity
+            android:name=".CalendarioConfig"
+            android:exported="true"
+            android:label="Calendario DentiAgenda"
+            android:theme="@android:style/Theme.Material.Light.Dialog">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+        </activity>
     </application>
 </manifest>

@@ -36,7 +36,8 @@ class MikesWidget : AppWidgetProvider() {
     override fun onEnabled(ctx: Context) { programar(ctx); pedirDescarga(ctx) }
 
     override fun onDisabled(ctx: Context) {
-        WorkManager.getInstance(ctx).cancelUniqueWork(TRABAJO_PERIODICO)
+        val quedan = AppWidgetManager.getInstance(ctx).getAppWidgetIds(ComponentName(ctx, CalendarioWidget::class.java)).isNotEmpty()
+        if (!quedan) WorkManager.getInstance(ctx).cancelUniqueWork(TRABAJO_PERIODICO)
     }
 
     override fun onReceive(ctx: Context, intent: Intent) {
@@ -52,13 +53,6 @@ class MikesWidget : AppWidgetProvider() {
                 } else redibujarTodos(ctx)
             }
             ACCION_REDIBUJAR -> redibujarTodos(ctx)
-            ACCION_DINERO -> {
-                val hasta = System.currentTimeMillis() + 15000L
-                Datos.mostrarDinero(ctx, hasta)
-                redibujarTodos(ctx)
-                val am = ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-                am.set(AlarmManager.RTC, hasta + 500L, aviso(ctx, ACCION_REDIBUJAR, 0, 9998))
-            }
             ACCION_ACTUALIZAR -> { redibujarTodos(ctx); pedirDescarga(ctx) }
             ACCION_MES -> {
                 val id = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1)
@@ -71,7 +65,6 @@ class MikesWidget : AppWidgetProvider() {
         const val ACCION_SIGUIENTE = "com.dentilike.dentiagenda.SIGUIENTE"
         const val ACCION_REDIBUJAR = "com.dentilike.dentiagenda.REDIBUJAR"
         const val ACCION_ACTUALIZAR = "com.dentilike.dentiagenda.ACTUALIZAR"
-        const val ACCION_DINERO = "com.dentilike.dentiagenda.DINERO"
         const val ACCION_MES = "com.dentilike.dentiagenda.MES"
 
         private val MESES = arrayOf("ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO", "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE")
@@ -145,10 +138,9 @@ class MikesWidget : AppWidgetProvider() {
             return filas
         }
 
-        private fun dinero(n: Long): String = "$" + String.format(java.util.Locale.US, "%,d", n)
-        private const val TRABAJO_PERIODICO = "mikes_periodico"
+        const val TRABAJO_PERIODICO = "mikes_periodico"
         private const val TRABAJO_YA = "mikes_ya"
-        private const val BASE = "https://dentilike.github.io/dentiagenda/index.html"
+        const val BASE = "https://dentilike.github.io/dentiagenda/index.html"
 
         fun programar(ctx: Context) {
             val red = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
@@ -167,7 +159,7 @@ class MikesWidget : AppWidgetProvider() {
             mgr.getAppWidgetIds(ComponentName(ctx, MikesWidget::class.java)).forEach { dibujar(ctx, mgr, it) }
         }
 
-        private fun abrir(ctx: Context, url: String, codigo: Int): PendingIntent {
+        fun abrir(ctx: Context, url: String, codigo: Int): PendingIntent {
             val i = Intent(ctx, LauncherActivity::class.java).apply {
                 data = Uri.parse(url)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
@@ -220,9 +212,16 @@ class MikesWidget : AppWidgetProvider() {
 
             v.setTextViewText(R.id.emoji, vista.emoji)
             v.removeAllViews(R.id.flipper)
-            vista.mensajes.forEach { m ->
+            val total = vista.mensajes.size
+            vista.mensajes.forEachIndexed { k, m ->
                 val r = RemoteViews(ctx.packageName, R.layout.mensaje)
-                r.setTextViewText(R.id.texto, m)
+                r.setTextViewText(R.id.texto, m.texto)
+                r.setTextViewText(R.id.msgCont, if (total > 1) "${k + 1} de $total · toque a Mikes" else "")
+                if (m.boton.isNotBlank() && m.url.isNotBlank()) {
+                    r.setViewVisibility(R.id.msgBtn, View.VISIBLE)
+                    r.setTextViewText(R.id.msgBtn, m.boton)
+                    r.setOnClickPendingIntent(R.id.msgBtn, abrir(ctx, BASE + m.url, 400000 + id * 32 + k))
+                } else r.setViewVisibility(R.id.msgBtn, View.GONE)
                 v.addView(R.id.flipper, r)
             }
             v.setOnClickPendingIntent(R.id.avatarBox, aviso(ctx, ACCION_SIGUIENTE, id, id * 10 + 3))
@@ -236,16 +235,6 @@ class MikesWidget : AppWidgetProvider() {
                 v.setViewVisibility(R.id.cdDet, View.VISIBLE)
             } else v.setViewVisibility(R.id.cdDet, View.GONE)
 
-            // Dinero del mes: oculto; al tocarlo se muestra 15 segundos
-            if (vista.mesIngresos >= 0) {
-                val ver = System.currentTimeMillis() < Datos.verDineroHasta(ctx)
-                val mesTxt = vista.mesNombre.replaceFirstChar { it.uppercase() }
-                val txt = if (ver) "$mesTxt: ingresos ${dinero(vista.mesIngresos)} · gastos ${dinero(vista.mesGastos)}"
-                    else "$mesTxt: ingresos •••• · gastos ••••   (toca para ver)"
-                v.setTextViewText(R.id.dinTxt, txt)
-                v.setViewVisibility(R.id.dinTxt, View.VISIBLE)
-                v.setOnClickPendingIntent(R.id.dinTxt, aviso(ctx, ACCION_DINERO, id, id * 10 + 9))
-            } else v.setViewVisibility(R.id.dinTxt, View.GONE)
             v.setOnClickPendingIntent(R.id.cdBox, abrir(ctx, if (vinculado) "$BASE?ir=hoy" else "$BASE?ir=widget", id * 10 + 4))
             v.setTextViewText(R.id.barTxt, vista.progresoTxt)
             v.setProgressBar(R.id.bar, 100, vista.progreso, false)

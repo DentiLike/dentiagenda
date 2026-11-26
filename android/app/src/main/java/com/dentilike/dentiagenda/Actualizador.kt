@@ -9,6 +9,7 @@ class Actualizador(ctx: Context, params: WorkerParameters) : Worker(ctx, params)
     override fun doWork(): Result {
         Datos.descargar(applicationContext)
         MikesWidget.redibujarTodos(applicationContext)
+        CalendarioWidget.redibujarTodos(applicationContext)
         return Result.success()
     }
 }

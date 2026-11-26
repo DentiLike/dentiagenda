@@ -2,5 +2,6 @@
 <resources>
     <string name="app_name">DentiAgenda</string>
     <string name="widget_desc">Mikes Molares: tu agenda de hoy y recordatorios</string>
+    <string name="calendario_desc">Calendario del mes con tus citas; toca un día para ver quién viene</string>
     <string name="asset_statements" translatable="false">[{ \"relation\": [\"delegate_permission/common.handle_all_urls\"], \"target\": {\"namespace\": \"web\", \"site\": \"https://dentilike.github.io\"} }]</string>
 </resources>

@@ -30,6 +30,7 @@ class VincularActivity : Activity() {
         MikesWidget.programar(this)
         MikesWidget.pedirDescarga(this)
         MikesWidget.redibujarTodos(this)
+        CalendarioWidget.redibujarTodos(this)
         titulo.text = "¡Listo, doctor!"
 
         val mgr = AppWidgetManager.getInstance(this)
